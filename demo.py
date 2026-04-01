@@ -2,7 +2,7 @@ from ollama import Client
 
 
 OLLAMA_HOST = "http://127.0.0.1:11434"
-MODEL_NAME = "llama3.2:1b"
+MODEL_NAME = "qwen3:8b"
 
 
 def main() -> None:
@@ -15,7 +15,7 @@ def main() -> None:
         }
     ]
 
-    print("Streaming local chat with llama3.2:1b started.")
+    print("Streaming local chat with qwen3:8b started.")
     print("Commands:")
     print("  /exit   - quit")
     print("  /quit   - quit")
