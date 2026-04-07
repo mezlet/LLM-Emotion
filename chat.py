@@ -1,16 +1,16 @@
-# Import the Ollama client, which allows Python to talk to the local Ollama server
+# Importing the Ollama client, which allows Python to talk to the local Ollama server
 from ollama import Client
 
 
-# Address of your local Ollama server (running via `rrlab-ollama serve`)
+# Address of the local Ollama server (running via `rrlab-ollama serve`)
 OLLAMA_HOST = "http://127.0.0.1:11434"
 
-# The model you want to use (must match a model available on your machine)
+# The ollama model
 MODEL_NAME = "llama3.2:1b"
 
 
 def main() -> None:
-    # Create a client that connects to the Ollama server
+    # Creating a client that connects to the Ollama server
     client = Client(host=OLLAMA_HOST)
 
     # This list stores the entire conversation history
@@ -29,7 +29,7 @@ def main() -> None:
     print("  /quit   - quit")
     print("  /clear  - clear conversation history\n")
 
-    # Infinite loop for continuous chat
+    #loop for continuous chat
     while True:
         try:
             # Read input from the keyboard
@@ -75,7 +75,7 @@ def main() -> None:
             # Print assistant label without newline
             print("\nAssistant: ", end="", flush=True)
 
-            # This will store the full response as we receive it
+            # store the full response as we receive it
             full_reply = ""
 
             # Iterate over streamed chunks from the model
@@ -96,14 +96,13 @@ def main() -> None:
             messages.append({"role": "assistant", "content": full_reply})
 
         except Exception as e:
-            # Handle errors (e.g., server down, model crash)
+            # Handling errors
             print(f"\nError talking to local Ollama server: {e}\n")
 
             # Remove the last user message to keep history consistent
             messages.pop()
 
 
-# Standard Python entry point
-# Ensures main() runs only when the script is executed directly
+# Standard Python entry point, ensures main() runs only when the script is executed directly
 if __name__ == "__main__":
     main()
