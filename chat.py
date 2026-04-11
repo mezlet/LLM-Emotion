@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime
 
 from ollama import Client
 
@@ -59,7 +60,8 @@ def main() -> None:
         try:
             stream = client.chat(model=MODEL_NAME, messages=messages, stream=True)
 
-            print("\nAssistant: ", end="", flush=True)
+            ts = datetime.now().strftime("%H:%M:%S")
+            print(f"\n[{ts}] Assistant: ", end="", flush=True)
             raw_reply = ""
             for chunk in stream:
                 raw_reply += chunk["message"]["content"]

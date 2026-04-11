@@ -1,6 +1,7 @@
 import os
 import tempfile
 import time
+from datetime import datetime
 from typing import Optional, Tuple
 
 import numpy as np
@@ -203,8 +204,9 @@ def get_user_message_from_keyboard_or_voice(
       /devices  list input devices
       /mic      choose input device
     """
+    ts = datetime.now().strftime("%H:%M:%S")
     try:
-        user_text = input("You: ").strip()
+        user_text = input(f"[{ts}] You: ").strip()
     except (EOFError, KeyboardInterrupt):
         print("\nGoodbye.")
         return None, current_input_device
