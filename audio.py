@@ -1,5 +1,6 @@
 import os
 import tempfile
+import time
 from typing import Optional, Tuple
 
 import numpy as np
@@ -230,17 +231,23 @@ def get_user_message_from_keyboard_or_voice(
             return "", current_input_device
 
         try:
+            t0 = time.perf_counter()
             transcript = transcribe_with_whisperx(wav_path, whisper_model=whisper_model)
+            elapsed = time.perf_counter() - t0
         except Exception as e:
             print(f"WhisperX transcription error: {e}\n")
             transcript = ""
+            elapsed = 0.0
         finally:
             try:
                 os.remove(wav_path)
             except OSError:
                 pass
 
-        print(f"Transcribed: {transcript}\n" if transcript else "No speech detected.\n")
+        if transcript:
+            print(f"Transcribed ({elapsed:.2f}s): {transcript}\n")
+        else:
+            print("No speech detected.\n")
         return transcript, current_input_device
 
     return user_text, current_input_device
