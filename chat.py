@@ -1,39 +1,87 @@
-from ollama import Client
+from __future__ import annotations
+
+# ============================================================
+# Standard library imports
+# ============================================================
+
+import json
 import os
 import re
 import sys
 import tempfile
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional, Tuple
+
+# ============================================================
+# Third-party imports
+# ============================================================
 
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
 import whisperx
+from ollama import Client
 
 
-# Address of the local Ollama server
-OLLAMA_HOST = "http://127.0.0.1:11434"
+# ============================================================
+# Configuration
+# ============================================================
 
-# The ollama model
-MODEL_NAME = "llama3.2:1b"
+# Local Ollama server
+# OLLAMA_HOST = "http://127.0.0.1:11434"
+OLLAMA_HOST = "https://lucas-physicians-toilet-lenders.trycloudflare.com"
 
-# WhisperX settings
+# Choose your Ollama model here
+MODEL_NAME = "llama3:8b"
+
+# WhisperX speech-to-text settings
 WHISPERX_MODEL = "small"
 WHISPERX_DEVICE = "cpu"
 WHISPERX_COMPUTE_TYPE = "int8"
-WHISPERX_LANGUAGE = "en"   # Set None for auto-detect
+WHISPERX_LANGUAGE = "en"  # set to None if you want auto-detect
 
-# Target ASR sample rate
+# Audio settings
 TARGET_SAMPLE_RATE = 16000
 MAX_RECORD_SECONDS = 10
 
-# Optional input device index, can be changed with /mic
+# Optional microphone device index
 INPUT_DEVICE: Optional[int] = None
 
+# Silence / low-volume detection thresholds
 MIN_PEAK_THRESHOLD = 0.01
 MIN_RMS_THRESHOLD = 0.003
 
+# Limit how much conversation history goes into the prompt
+MAX_HISTORY_MESSAGES = 12
 
+
+# ============================================================
+# Timestamp helpers
+# ============================================================
+
+def now_ts() -> str:
+    """
+    Return the current local time in a readable format.
+    Example: 2026-04-13 05:46:17
+    """
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def print_ts(message: str) -> None:
+    """
+    Print a message with a timestamp prefix.
+    """
+    print(f"[{now_ts()}] {message}")
+
+
+# ============================================================
+# Emoji policy
+# ============================================================
+
+# Only facial emojis are allowed in the final assistant output.
+# The LLM may choose an emoji, but the code will only allow one
+# from this approved set.
 ALLOWED_FACE_EMOJIS = {
     "😀", "😁", "😂", "🤣", "😃", "😄", "😅", "😆", "😉", "😊", "😋",
     "😎", "😍", "😘", "🥰", "😗", "😙", "😚", "🙂", "🤗", "🤩", "🤔",
@@ -45,24 +93,77 @@ ALLOWED_FACE_EMOJIS = {
     "😈", "👿", "🤡", "🤥", "🤫", "🤭", "🥴"
 }
 
-# A smaller curated set for controlled human-like use
-POSITIVE_EMOJIS = {"🙂", "😊", "😄", "😌", "🥳"}
-SUPPORTIVE_EMOJIS = {"😔", "😢", "😟", "😕"}
-PLAYFUL_EMOJIS = {"😄", "😅", "😉"}
-THOUGHTFUL_EMOJIS = {"🤔", "🧐"}
-NEUTRAL_EMOJIS = {"🙂"}
+
+# ============================================================
+# Data model
+# ============================================================
+
+@dataclass
+class MessageAnalysis:
+    """
+    This holds the LLM's analysis of the user's message.
+
+    Important:
+    - The LLM is the sole determinant of emotion and emoji suitability.
+    - The code does not classify the emotion itself.
+    """
+    emotion_summary: str
+    reply_tone: str
+    should_use_emoji: bool
+    emoji: Optional[str]
+    reason: str
+
+
+# ============================================================
+# Command helpers
+# ============================================================
+
+def normalize_command(text: str) -> str:
+    """
+    Normalize command-like user input.
+
+    This lets these forms behave the same:
+    - /speak
+    - \\speak
+    - speak
+    """
+    normalized = text.strip().lower()
+    normalized = re.sub(r"^[\\/]+", "", normalized)
+    return normalized
+
+
+# ============================================================
+# Emoji and text cleanup helpers
+# ============================================================
+
+def remove_ascii_emoticons(text: str) -> str:
+    """
+    Remove text-based emoticons such as:
+    :) :)) :( ;-) :D
+
+    This matters because the emoji policy only allows real facial emojis,
+    not ASCII emotions.
+    """
+    return re.sub(r"[:;=8][\-^]?[)(DPp/\\|]+", "", text)
 
 
 def remove_emojis_except_faces(text: str) -> str:
+    """
+    Remove all emoji-like characters except the allowed facial emojis.
+    """
     result = []
+
     for char in text:
         if char in ALLOWED_FACE_EMOJIS:
             result.append(char)
             continue
 
         code = ord(char)
+
+        # Remove characters from common emoji/symbol ranges
         if (
             0x1F300 <= code <= 0x1F5FF or
+            0x1F600 <= code <= 0x1F64F or
             0x1F680 <= code <= 0x1F6FF or
             0x1F700 <= code <= 0x1F77F or
             0x1F780 <= code <= 0x1F7FF or
@@ -77,247 +178,279 @@ def remove_emojis_except_faces(text: str) -> str:
         result.append(char)
 
     cleaned = "".join(result)
+
+    # Remove invisible formatting leftovers used in some emoji forms
     cleaned = re.sub(r"[\u200d\ufe0f]", "", cleaned)
     return cleaned
 
 
 def extract_face_emojis(text: str) -> list[str]:
+    """
+    Return all allowed facial emojis found in the text.
+    """
     return [ch for ch in text if ch in ALLOWED_FACE_EMOJIS]
 
 
 def remove_all_face_emojis(text: str) -> str:
+    """
+    Remove even allowed facial emojis.
+    Used before re-adding at most one approved emoji.
+    """
     return "".join(ch for ch in text if ch not in ALLOWED_FACE_EMOJIS)
 
 
-def detect_user_emotion(user_text: str) -> str:
+def normalize_assistant_reply(text: str, analysis: MessageAnalysis) -> str:
     """
-    Lightweight rule-based emotion detection.
-    Returns one of:
-      happy, sad, playful, thoughtful, angry, anxious, neutral, factual
-    """
-    text = user_text.strip().lower()
+    Final policy enforcement layer.
 
-    if not text:
-        return "neutral"
+    The LLM decides:
+    - the emotional interpretation
+    - whether emoji is appropriate
+    - which emoji to use
 
-    # Strong signal from emoji
-    if any(e in user_text for e in ["😢", "😭", "😞", "😔", "☹", "🙁"]):
-        return "sad"
-    if any(e in user_text for e in ["😄", "😁", "😀", "😊", "🥳"]):
-        return "happy"
-    if any(e in user_text for e in ["😂", "🤣", "😉", "😜"]):
-        return "playful"
-    if any(e in user_text for e in ["🤔", "🧐"]):
-        return "thoughtful"
-    if any(e in user_text for e in ["😠", "😡", "😤"]):
-        return "angry"
-    if any(e in user_text for e in ["😟", "😰", "😨"]):
-        return "anxious"
-
-    happy_words = {
-        "happy", "glad", "excited", "great", "awesome", "amazing",
-        "wonderful", "fantastic", "love", "yay", "proud", "relieved"
-    }
-    sad_words = {
-        "sad", "upset", "hurt", "cry", "crying", "lonely", "depressed",
-        "down", "unhappy", "miss", "heartbroken", "tired"
-    }
-    playful_words = {
-        "haha", "lol", "lmao", "funny", "joke", "kidding"
-    }
-    thoughtful_words = {
-        "think", "wonder", "curious", "why", "how", "what do you think"
-    }
-    angry_words = {
-        "angry", "mad", "annoyed", "frustrated", "furious", "irritated"
-    }
-    anxious_words = {
-        "nervous", "anxious", "worried", "scared", "afraid", "stress", "stressed"
-    }
-
-    text_words = set(re.findall(r"\b\w+\b", text))
-
-    if text_words & happy_words:
-        return "happy"
-    if text_words & sad_words:
-        return "sad"
-    if text_words & playful_words:
-        return "playful"
-    if text_words & angry_words:
-        return "angry"
-    if text_words & anxious_words:
-        return "anxious"
-
-    # Technical or factual queries should usually not get emojis
-    factual_patterns = [
-        r"\bwhat is\b",
-        r"\bwhere is\b",
-        r"\bwho is\b",
-        r"\bwhen is\b",
-        r"\bhow do i\b",
-        r"\bexplain\b",
-        r"\bdefine\b",
-        r"\binstall\b",
-        r"\berror\b",
-        r"\bcode\b",
-        r"\bpython\b",
-        r"\bdebug\b",
-    ]
-    if any(re.search(pattern, text) for pattern in factual_patterns):
-        return "factual"
-
-    if text_words & thoughtful_words:
-        return "thoughtful"
-
-    return "neutral"
-
-
-def choose_expected_emoji(emotion: str) -> Optional[str]:
-    """
-    Pick one emoji that matches the user's emotional context.
-    None means no emoji is preferred.
-    """
-    if emotion == "happy":
-        return "😊"
-    if emotion == "sad":
-        return "😔"
-    if emotion == "playful":
-        return "😄"
-    if emotion == "thoughtful":
-        return "🤔"
-    if emotion == "angry":
-        return "😕"
-    if emotion == "anxious":
-        return "😟"
-    if emotion == "neutral":
-        return None
-    if emotion == "factual":
-        return None
-    return None
-
-
-def normalize_assistant_reply(text: str, emotion: str) -> str:
-    """
-    Enforce emoji policy after generation:
+    The code only enforces:
     - facial emojis only
-    - at most one facial emoji
-    - remove emoji if it conflicts with the detected context
-    - place emoji naturally at the end
+    - at most one emoji
+    - no ASCII emoticons
+    - emoji goes at the end
     """
-    text = remove_emojis_except_faces(text)
-    found = extract_face_emojis(text)
-    plain = remove_all_face_emojis(text)
+    # Remove ASCII emoticons first
+    text = remove_ascii_emoticons(text)
 
-    # Normalize spacing
+    # Remove all non-approved emojis
+    cleaned = remove_emojis_except_faces(text)
+
+    # Keep only the plain text body
+    plain = remove_all_face_emojis(cleaned)
+
+    # Normalize whitespace and punctuation spacing
     plain = re.sub(r"\s+", " ", plain).strip()
+    plain = re.sub(r"\s+([,.;!?])", r"\1", plain)
 
     if not plain:
-        return "I’m here."
+        plain = "I’m here."
 
-    expected = choose_expected_emoji(emotion)
+    # Enforce emoji usage only if the LLM said yes AND the chosen emoji is allowed
+    approved_emoji = analysis.emoji if analysis.emoji in ALLOWED_FACE_EMOJIS else None
 
-    # If no emoji is wanted for this kind of message, return plain text
-    if expected is None:
+    if not analysis.should_use_emoji or not approved_emoji:
         return plain
 
-    # Keep a matching emoji if the model already produced one that fits the category
-    kept_emoji = None
-    if emotion == "happy":
-        for e in found:
-            if e in POSITIVE_EMOJIS:
-                kept_emoji = e
-                break
-    elif emotion == "sad":
-        for e in found:
-            if e in SUPPORTIVE_EMOJIS:
-                kept_emoji = e
-                break
-    elif emotion == "playful":
-        for e in found:
-            if e in PLAYFUL_EMOJIS:
-                kept_emoji = e
-                break
-    elif emotion == "thoughtful":
-        for e in found:
-            if e in THOUGHTFUL_EMOJIS:
-                kept_emoji = e
-                break
-    elif emotion in {"angry", "anxious"}:
-        for e in found:
-            if e in SUPPORTIVE_EMOJIS or e in NEUTRAL_EMOJIS:
-                kept_emoji = e
-                break
-
-    if kept_emoji is None:
-        kept_emoji = expected
-
-    # Avoid double punctuation before emoji
-    plain = re.sub(r"\s+([,.;!?])", r"\1", plain)
-    plain = plain.rstrip()
-
-    return f"{plain} {kept_emoji}"
+    return f"{plain} {approved_emoji}"
 
 
-def build_system_prompt(user_emotion: str) -> str:
-    emoji_guidance = {
-        "happy": (
-            "The user sounds happy, proud, excited, or relieved. "
-            "You may use at most one warm positive facial emoji if it fits naturally, such as 😊 or 😄."
-        ),
-        "sad": (
-            "The user sounds sad, hurt, lonely, or disappointed. "
-            "Respond gently and supportively. "
-            "You may use at most one soft supportive facial emoji if it fits naturally, such as 😔 or 😢. "
-            "Never use laughing or playful emojis."
-        ),
-        "playful": (
-            "The user sounds playful or lighthearted. "
-            "You may use at most one light playful facial emoji if it fits naturally, such as 😄 or 😉."
-        ),
-        "thoughtful": (
-            "The user sounds reflective or curious. "
-            "You may use at most one thoughtful facial emoji if it fits naturally, such as 🤔."
-        ),
-        "angry": (
-            "The user sounds frustrated or upset. "
-            "Respond calmly and helpfully. "
-            "Do not mirror anger with aggressive emojis. "
-            "If you use an emoji, use at most one gentle face emoji like 😕."
-        ),
-        "anxious": (
-            "The user sounds nervous or worried. "
-            "Respond calmly and reassuringly. "
-            "You may use at most one gentle supportive facial emoji if it fits naturally, such as 😟."
-        ),
-        "neutral": (
-            "The user's tone is neutral. "
-            "Do not force emojis. Use no emoji unless a small amount of warmth genuinely improves the reply."
-        ),
-        "factual": (
-            "The user's message is mainly factual, technical, or informational. "
-            "Do not use emojis unless clearly helpful. Usually use no emoji."
-        ),
-    }
+# ============================================================
+# LLM message analysis
+# ============================================================
 
-    contextual_rule = emoji_guidance.get(user_emotion, emoji_guidance["neutral"])
+def build_message_analysis_prompt(user_text: str) -> str:
+    """
+    Ask the LLM to analyze the emotional meaning of the user's message.
+
+    Important:
+    - No hard-coded emotional labels are required here.
+    - The LLM determines the emotional reading itself.
+    """
+    return f"""
+    You are analyzing the emotional meaning of a user's message.
+
+    Your task:
+    - infer the user's emotional state from the full context of the message
+    - decide the best reply tone
+    - decide whether a facial emoji should be used
+    - if an emoji should be used, choose exactly one facial emoji
+
+    Important rules:
+    - Base your judgment only on the user's message.
+    - Do not assume future outcomes the user did not state.
+    - If the message is technical, factual, task-focused, or command-like, usually set should_use_emoji to false.
+    - Only choose a facial emoji.
+    - If no emoji is appropriate, set emoji to null.
+    - Keep emotion_summary natural and concise.
+    - Keep reply_tone concise and practical.
+
+    Return JSON only in this exact format:
+    {{
+    "emotion_summary": "short natural-language summary of the user's emotional state",
+    "reply_tone": "short description of how the assistant should sound",
+    "should_use_emoji": true,
+    "emoji": "😊",
+    "reason": "brief explanation"
+    }}
+
+    User message:
+    {user_text}
+    """.strip()
+
+
+def safe_json_extract(text: str) -> Optional[dict]:
+    """
+    Try to parse JSON directly.
+    If that fails, extract the first {...} block and try again.
+    """
+    text = text.strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    if not match:
+        return None
+
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+
+
+def analyze_user_message_with_llm(client: Client, user_text: str) -> MessageAnalysis:
+    """
+    Use the LLM as the sole determinant of:
+    - emotional meaning
+    - reply tone
+    - emoji suitability
+    - emoji selection
+
+    The code does not perform any hard-coded emotion classification.
+    """
+    prompt = build_message_analysis_prompt(user_text)
+
+    try:
+        response = client.chat(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You analyze the emotional meaning of user messages "
+                        "and return valid JSON only."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+            stream=False,
+        )
+
+        print(response)
+
+        raw = response["message"]["content"]
+        data = safe_json_extract(raw)
+
+        if not data:
+            return MessageAnalysis(
+                emotion_summary="Emotional context is unclear.",
+                reply_tone="natural, neutral, helpful",
+                should_use_emoji=False,
+                emoji=None,
+                reason="The model output could not be parsed as valid JSON.",
+            )
+
+        emotion_summary = str(
+            data.get("emotion_summary", "Emotional context is unclear.")
+        ).strip()
+
+        reply_tone = str(
+            data.get("reply_tone", "natural, neutral, helpful")
+        ).strip()
+
+        should_use_emoji = bool(data.get("should_use_emoji", False))
+
+        raw_emoji = data.get("emoji")
+        emoji = raw_emoji.strip() if isinstance(raw_emoji, str) else None
+        if emoji == "":
+            emoji = None
+
+        reason = str(data.get("reason", "")).strip()
+
+        # Policy enforcement only: reject any non-approved emoji
+        if emoji not in ALLOWED_FACE_EMOJIS:
+            emoji = None
+
+        if emoji is None:
+            should_use_emoji = False
+
+        return MessageAnalysis(
+            emotion_summary=emotion_summary or "Emotional context is unclear.",
+            reply_tone=reply_tone or "natural, neutral, helpful",
+            should_use_emoji=should_use_emoji,
+            emoji=emoji,
+            reason=reason or "Derived from the user's message.",
+        )
+
+    except Exception as e:
+        return MessageAnalysis(
+            emotion_summary="Emotional context is unclear.",
+            reply_tone="natural, neutral, helpful",
+            should_use_emoji=False,
+            emoji=None,
+            reason=f"The message analysis step failed: {e}",
+        )
+
+
+# ============================================================
+# Prompt building for final assistant reply
+# ============================================================
+
+def build_system_prompt(analysis: MessageAnalysis) -> str:
+    """
+    Build the system prompt for response generation.
+
+    This uses only the LLM's analysis.
+    The code does not insert any hard-coded emotional category.
+    """
+    emoji_instruction = (
+        f"Use exactly this one facial emoji at the very end of the response: {analysis.emoji}"
+        if analysis.should_use_emoji and analysis.emoji
+        else
+        "Do not use any emoji."
+    )
 
     return (
-        "You are a helpful, emotionally intelligent assistant. "
-        "Always respond with full sentences. "
-        "Use facial emojis naturally and sparingly, like a thoughtful human texter. "
-        "Use at most ONE facial emoji in the whole response. "
-        "Only use an emoji when it improves emotional clarity, warmth, or tone. "
-        "Never reply with only an emoji. "
+        "You are a warm, emotionally aware assistant. "
+        "Respond to the user's message in a natural, socially appropriate way. "
+        "Do not sound robotic, stiff, overly formal, or generic. "
+        "Do not ask follow-up questions unless they are truly necessary. "
+        "Most responses should be complete without ending in a question. "
+        "Do not assume outcomes the user has not confirmed. "
+        "Base your reply only on what the user actually said. "
+        "Use full sentences. "
         "Never use non-face emojis. "
-        "Never use laughing emojis for sadness, vulnerability, confusion, or serious topics. "
-        "Do not ask redundant questions when the user's emotional state is already obvious. "
-        f"{contextual_rule}"
+        "Never use more than one emoji. "
+        f"Emotional interpretation: {analysis.emotion_summary}. "
+        f"Reply tone: {analysis.reply_tone}. "
+        f"{emoji_instruction}"
     )
 
 
+def trim_history(messages: list[dict], max_messages: int = MAX_HISTORY_MESSAGES) -> list[dict]:
+    """
+    Keep only the most recent messages to prevent prompt bloat.
+    """
+    if len(messages) <= max_messages:
+        return messages
+    return messages[-max_messages:]
+
+
+def prompt_ready_history(messages: list[dict]) -> list[dict]:
+    """
+    Strip non-prompt metadata before sending history to the LLM.
+    The model only needs role + content.
+    """
+    return [{"role": m["role"], "content": m["content"]} for m in messages]
+
+
+# ============================================================
+# Audio / microphone helpers
+# ============================================================
+
 def list_input_devices() -> None:
     """
-    Print available audio input devices with host API names.
+    Print available microphone input devices.
     """
     print("\nAvailable input devices:")
     try:
@@ -347,6 +480,9 @@ def list_input_devices() -> None:
 
 
 def choose_input_device(current_input_device: Optional[int]) -> Optional[int]:
+    """
+    Let the user choose a microphone device.
+    """
     list_input_devices()
     selection = input("Enter input device index (blank to keep current/default): ").strip()
 
@@ -356,12 +492,14 @@ def choose_input_device(current_input_device: Optional[int]) -> Optional[int]:
     try:
         device_index = int(selection)
         device_info = sd.query_devices(device_index)
+
         if device_info["max_input_channels"] <= 0:
             print("That device does not support input.\n")
             return current_input_device
 
-        print(f"Using input device [{device_index}] {device_info['name']}\n")
+        print_ts(f"Using input device [{device_index}] {device_info['name']}")
         return device_index
+
     except Exception as e:
         print(f"Invalid device selection: {e}\n")
         return current_input_device
@@ -370,7 +508,7 @@ def choose_input_device(current_input_device: Optional[int]) -> Optional[int]:
 def get_effective_input_samplerate(input_device: Optional[int]) -> int:
     """
     Use the selected device's default sample rate.
-    This avoids invalid sample rate errors on Linux hardware inputs.
+    This avoids invalid sample-rate errors on some systems.
     """
     if input_device is None:
         device_info = sd.query_devices(kind="input")
@@ -378,8 +516,6 @@ def get_effective_input_samplerate(input_device: Optional[int]) -> int:
         device_info = sd.query_devices(input_device)
 
     default_sr = int(round(device_info["default_samplerate"]))
-
-    # Guard against bogus/zero values
     if default_sr <= 0:
         return TARGET_SAMPLE_RATE
 
@@ -388,8 +524,8 @@ def get_effective_input_samplerate(input_device: Optional[int]) -> int:
 
 def resample_audio(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
     """
-    Simple linear resampling using NumPy only.
-    Avoids extra SciPy dependency.
+    Resample audio using NumPy interpolation.
+    This avoids adding a SciPy dependency.
     """
     if orig_sr == target_sr:
         return audio.astype(np.float32, copy=False)
@@ -412,8 +548,8 @@ def record_audio_to_wav(
     input_device: Optional[int] = INPUT_DEVICE,
 ) -> Optional[str]:
     """
-    Record audio from the microphone using the device's native/default sample rate,
-    then resample to TARGET_SAMPLE_RATE for WhisperX.
+    Record microphone input, normalize it, resample it to 16kHz,
+    and save it to a temporary WAV file for WhisperX.
     """
     try:
         effective_sr = get_effective_input_samplerate(input_device)
@@ -425,8 +561,8 @@ def record_audio_to_wav(
             dtype="float32",
         )
 
-        print(f"\nRecording... speak now ({max_seconds} seconds max).")
-        print(f"Using sample rate {effective_sr} Hz for input.\n")
+        print(f"\n[{now_ts()}] Recording... speak now ({max_seconds} seconds max).")
+        print(f"[{now_ts()}] Using sample rate {effective_sr} Hz for input.\n")
 
         audio = sd.rec(
             frames=int(max_seconds * effective_sr),
@@ -446,19 +582,19 @@ def record_audio_to_wav(
         peak = float(np.max(np.abs(audio)))
         rms = float(np.sqrt(np.mean(audio ** 2)))
 
-        print(f"Recorded audio level: peak={peak:.4f}, rms={rms:.4f}")
+        print_ts(f"Recorded audio level: peak={peak:.4f}, rms={rms:.4f}")
 
         if peak < MIN_PEAK_THRESHOLD or rms < MIN_RMS_THRESHOLD:
             print("Recorded audio is too quiet or silent.")
             print("Try a different microphone, check mute/input volume, or use /devices.\n")
             return None
 
-        # Normalize gently
+        # Gentle normalization
         target_peak = 0.9
-        gain = min(target_peak / peak, 10.0)
+        gain = min(target_peak / max(peak, 1e-6), 10.0)
         audio = np.clip(audio * gain, -1.0, 1.0)
 
-        # Resample to WhisperX target rate
+        # WhisperX works well at 16kHz
         audio_16k = resample_audio(audio, effective_sr, TARGET_SAMPLE_RATE)
 
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
@@ -477,6 +613,9 @@ def transcribe_with_whisperx(
     whisper_model,
     batch_size: int = 8,
 ) -> str:
+    """
+    Transcribe a WAV file using WhisperX.
+    """
     audio = whisperx.load_audio(wav_path)
     result = whisper_model.transcribe(audio, batch_size=batch_size)
 
@@ -493,10 +632,16 @@ def get_user_message_from_keyboard_or_voice(
     current_input_device: Optional[int],
 ) -> Tuple[Optional[str], Optional[int]]:
     """
-    Commands:
-      /speak    - record voice and transcribe
-      /devices  - list input devices
-      /mic      - choose input device
+    Read user input from keyboard or process special commands.
+
+    Supported command forms:
+    - /speak
+    - \\speak
+    - speak
+
+    Also supports:
+    - /devices
+    - /mic
     """
     try:
         user_text = input("You: ").strip()
@@ -507,17 +652,21 @@ def get_user_message_from_keyboard_or_voice(
     if not user_text:
         return "", current_input_device
 
-    lowered = user_text.lower()
+    normalized = normalize_command(user_text)
 
-    if lowered == "/devices":
+    if normalized == "devices":
         list_input_devices()
         return "", current_input_device
 
-    if lowered == "/mic":
+    if normalized == "mic":
         new_device = choose_input_device(current_input_device)
         return "", new_device
 
-    if lowered == "/speak":
+    if normalized == "speak":
+        if whisper_model is None:
+            print("Voice input is unavailable because WhisperX failed to load.\n")
+            return "", current_input_device
+
         wav_path = record_audio_to_wav(input_device=current_input_device)
         if not wav_path:
             return "", current_input_device
@@ -534,7 +683,8 @@ def get_user_message_from_keyboard_or_voice(
                 pass
 
         if transcript:
-            print(f"Transcribed: {transcript}\n")
+            print_ts(f"Transcribed: {transcript}")
+            print()
         else:
             print("No speech detected.\n")
 
@@ -543,39 +693,91 @@ def get_user_message_from_keyboard_or_voice(
     return user_text, current_input_device
 
 
+# ============================================================
+# Assistant reply generation
+# ============================================================
+
+def generate_assistant_reply(
+    client: Client,
+    conversation_history: list[dict],
+    user_text: str,
+    analysis: MessageAnalysis,
+) -> str:
+    """
+    Generate the assistant's reply using:
+    - conversation history
+    - the current user message
+    - the LLM's emotional analysis of that message
+    """
+    messages = [
+        {"role": "system", "content": build_system_prompt(analysis)},
+        *prompt_ready_history(trim_history(conversation_history)),
+        {"role": "user", "content": user_text},
+    ]
+
+    response = client.chat(
+        model=MODEL_NAME,
+        messages=messages,
+        stream=False,
+    )
+
+    raw_reply = response["message"]["content"]
+    final_reply = normalize_assistant_reply(raw_reply, analysis)
+    return final_reply
+
+
+# ============================================================
+# Main application loop
+# ============================================================
+
 def main() -> None:
+    """
+    Main app entry point.
+
+    Handles:
+    - WhisperX loading
+    - keyboard / voice input
+    - LLM message analysis
+    - assistant reply generation
+    - timestamped conversation history
+    """
     client = Client(host=OLLAMA_HOST)
 
-    print(f"Python version: {sys.version.split()[0]}")
-    print(f"Platform: {sys.platform}\n")
+    print_ts(f"Python version: {sys.version.split()[0]}")
+    print_ts(f"Platform: {sys.platform}")
+    print()
 
+    # Load WhisperX once at startup so /speak is available
     try:
-        print("Loading WhisperX model...")
+        print_ts("Loading WhisperX model...")
         whisper_model = whisperx.load_model(
             WHISPERX_MODEL,
             WHISPERX_DEVICE,
             compute_type=WHISPERX_COMPUTE_TYPE,
             language=WHISPERX_LANGUAGE,
         )
-        print("WhisperX ready.\n")
+        print_ts("WhisperX ready.")
+        print()
     except Exception as e:
-        print(f"Failed to load WhisperX: {e}")
+        print_ts(f"Failed to load WhisperX: {e}")
         print("Voice input will not work.\n")
         whisper_model = None
 
     current_input_device = INPUT_DEVICE
-    base_messages = []
+    history: list[dict] = []
 
-    print(f"Streaming local chat with {MODEL_NAME} started.")
+    print_ts(f"Streaming local chat with {MODEL_NAME} started.")
     print("Commands:")
     print("  /exit    - quit")
     print("  /quit    - quit")
     print("  /clear   - clear conversation history")
     print("  /speak   - record from microphone and transcribe with WhisperX")
     print("  /devices - list microphone input devices")
-    print("  /mic     - choose microphone input device\n")
+    print("  /mic     - choose microphone input device")
+    print()
 
     while True:
+        # If WhisperX is loaded, allow typed input and voice commands.
         if whisper_model is None:
             try:
                 user_text = input("You: ").strip()
@@ -593,48 +795,53 @@ def main() -> None:
         if not user_text:
             continue
 
-        if user_text.lower() in {"/exit", "/quit", "exit", "quit"}:
-            print("Goodbye.")
+        # Normalize command-like text for quit/clear handling
+        normalized = normalize_command(user_text)
+
+        if normalized in {"exit", "quit"}:
+            print_ts("Goodbye.")
             break
 
-        if user_text.lower() == "/clear":
-            base_messages = []
-            print("Conversation cleared.\n")
+        if normalized == "clear":
+            history = []
+            print_ts("Conversation cleared.")
+            print()
             continue
 
-        user_emotion = detect_user_emotion(user_text)
+        # Prevent extremely short meaningless input from being sent
+        if len(user_text.strip()) < 1:
+            continue
 
-        # Rebuild the system prompt each turn so it adapts to the current user tone
-        messages = [
-            {
-                "role": "system",
-                "content": build_system_prompt(user_emotion),
-            },
-            *base_messages,
-            {"role": "user", "content": user_text},
-        ]
+        print_ts(f"You: {user_text}")
 
         try:
-            stream = client.chat(
-                model=MODEL_NAME,
-                messages=messages,
-                stream=True,
+            # Step 1: analyze the message with the LLM
+            analysis = analyze_user_message_with_llm(client, user_text)
+
+            # Step 2: generate the final response based on that analysis
+            final_reply = generate_assistant_reply(
+                client=client,
+                conversation_history=history,
+                user_text=user_text,
+                analysis=analysis,
             )
 
-            print("\nAssistant: ", end="", flush=True)
-            raw_reply = ""
-
-            for chunk in stream:
-                piece = chunk["message"]["content"]
-                raw_reply += piece
-
-            final_reply = normalize_assistant_reply(raw_reply, user_emotion)
-
-            print(final_reply, flush=True)
+            print_ts(f"Assistant: {final_reply}")
             print()
 
-            base_messages.append({"role": "user", "content": user_text})
-            base_messages.append({"role": "assistant", "content": final_reply})
+            # Store conversation with timestamps for logs/debugging
+            history.append({
+                "role": "user",
+                "content": user_text,
+                "timestamp": now_ts(),
+            })
+            history.append({
+                "role": "assistant",
+                "content": final_reply,
+                "timestamp": now_ts(),
+            })
+
+            history = trim_history(history, MAX_HISTORY_MESSAGES)
 
         except Exception as e:
             print(f"\nError talking to Ollama server: {e}\n")
