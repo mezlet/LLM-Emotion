@@ -1,9 +1,5 @@
 from __future__ import annotations
-
-# ============================================================
 # Standard library imports
-# ============================================================
-
 import json
 import os
 import re
@@ -12,28 +8,19 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Tuple
-
-# ============================================================
-# Third-party imports
-# ============================================================
-
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
 import whisperx
 from ollama import Client
 
-
-# ============================================================
-# Configuration
-# ============================================================
-
 # Local Ollama server
-# OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://lucas-physicians-toilet-lenders.trycloudflare.com"
+OLLAMA_HOST = "http://127.0.0.1:11434"
+# OLLAMA_HOST = "https://lucas-physicians-toilet-lenders.trycloudflare.com"
 
 # Choose your Ollama model here
-MODEL_NAME = "llama3:8b"
+# MODEL_NAME = "llama3:8b"
+MODEL_NAME = "mistral:7b"
 
 # WhisperX speech-to-text settings
 WHISPERX_MODEL = "small"
@@ -56,9 +43,7 @@ MIN_RMS_THRESHOLD = 0.003
 MAX_HISTORY_MESSAGES = 12
 
 
-# ============================================================
 # Timestamp helpers
-# ============================================================
 
 def now_ts() -> str:
     """
@@ -75,10 +60,7 @@ def print_ts(message: str) -> None:
     print(f"[{now_ts()}] {message}")
 
 
-# ============================================================
 # Emoji policy
-# ============================================================
-
 # Only facial emojis are allowed in the final assistant output.
 # The LLM may choose an emoji, but the code will only allow one
 # from this approved set.
@@ -94,10 +76,7 @@ ALLOWED_FACE_EMOJIS = {
 }
 
 
-# ============================================================
 # Data model
-# ============================================================
-
 @dataclass
 class MessageAnalysis:
     """
@@ -114,10 +93,7 @@ class MessageAnalysis:
     reason: str
 
 
-# ============================================================
 # Command helpers
-# ============================================================
-
 def normalize_command(text: str) -> str:
     """
     Normalize command-like user input.
@@ -132,10 +108,7 @@ def normalize_command(text: str) -> str:
     return normalized
 
 
-# ============================================================
 # Emoji and text cleanup helpers
-# ============================================================
-
 def remove_ascii_emoticons(text: str) -> str:
     """
     Remove text-based emoticons such as:
@@ -239,16 +212,10 @@ def normalize_assistant_reply(text: str, analysis: MessageAnalysis) -> str:
     return f"{plain} {approved_emoji}"
 
 
-# ============================================================
 # LLM message analysis
-# ============================================================
-
 def build_message_analysis_prompt(user_text: str) -> str:
     """
-    Ask the LLM to analyze the emotional meaning of the user's message.
-
-    Important:
-    - No hard-coded emotional labels are required here.
+    - LLM to analyze the emotional meaning of the user's message.
     - The LLM determines the emotional reading itself.
     """
     return f"""
@@ -392,9 +359,7 @@ def analyze_user_message_with_llm(client: Client, user_text: str) -> MessageAnal
         )
 
 
-# ============================================================
 # Prompt building for final assistant reply
-# ============================================================
 
 def build_system_prompt(analysis: MessageAnalysis) -> str:
     """
@@ -411,11 +376,9 @@ def build_system_prompt(analysis: MessageAnalysis) -> str:
     )
 
     return (
-        "You are a warm, emotionally aware assistant. "
+        "You are a warm, helpful and emotionally aware assistant. "
         "Respond to the user's message in a natural, socially appropriate way. "
         "Do not sound robotic, stiff, overly formal, or generic. "
-        "Do not ask follow-up questions unless they are truly necessary. "
-        "Most responses should be complete without ending in a question. "
         "Do not assume outcomes the user has not confirmed. "
         "Base your reply only on what the user actually said. "
         "Use full sentences. "
@@ -444,9 +407,7 @@ def prompt_ready_history(messages: list[dict]) -> list[dict]:
     return [{"role": m["role"], "content": m["content"]} for m in messages]
 
 
-# ============================================================
 # Audio / microphone helpers
-# ============================================================
 
 def list_input_devices() -> None:
     """
@@ -693,10 +654,7 @@ def get_user_message_from_keyboard_or_voice(
     return user_text, current_input_device
 
 
-# ============================================================
 # Assistant reply generation
-# ============================================================
-
 def generate_assistant_reply(
     client: Client,
     conversation_history: list[dict],
@@ -726,9 +684,7 @@ def generate_assistant_reply(
     return final_reply
 
 
-# ============================================================
 # Main application loop
-# ============================================================
 
 def main() -> None:
     """
