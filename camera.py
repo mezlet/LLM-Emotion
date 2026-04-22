@@ -26,12 +26,13 @@ from ollama import Client
 # -----------------------------
 
 # Local Ollama server
-# OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://streams-regarding-better-recorders.trycloudflare.com"
+OLLAMA_HOST = "http://127.0.0.1:11434"
+# OLLAMA_HOST = "https://streams-regarding-better-recorders.trycloudflare.com"
 
 # Choose your Ollama model here
-MODEL_NAME = "llama3.2:3b"
-# MODEL_NAME = "llama3:8b"
+# MODEL_NAME = "llama3.2:3b"
+MODEL_NAME = "llama3:8b"
+# MODEL_NAME = "mistral:7b"
 
 # WhisperX speech-to-text settings
 WHISPERX_MODEL = "small"
@@ -261,6 +262,9 @@ class FaceEmotionCapture:
         if not scores:
             return False
 
+
+    @property
+    def is_reliable(self) -> bool:
         ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
         top_score = ordered[0][1]
         second_score = ordered[1][1] if len(ordered) > 1 else 0.0
@@ -395,7 +399,8 @@ def normalize_assistant_reply(text: str, analysis: MessageAnalysis) -> str:
     if not analysis.should_use_emoji or not approved_emoji:
         return plain
 
-    return f"{plain} {approved_emoji}"
+    #return f"{plain} {approved_emoji}"
+    return f"{cleaned}"
 
 
 # -----------------------------
@@ -520,10 +525,10 @@ def build_system_prompt(analysis: MessageAnalysis) -> str:
         "You are a warm, helpful and emotionally aware assistant. "
         "Respond to the user's message in a natural, socially appropriate way. "
         "Do not sound robotic, stiff, overly formal, or generic. "
-        "Do not ask follow-up questions unless absolutely necessary. "
-        "Most responses should not end with a question. "
         "Do not assume outcomes the user has not confirmed. "
         "Base your reply only on what the user actually said. "
+        "Use face emojis to convey the tone"
+        "Do not stay too long on a particular context"
         "Use full sentences. "
         "Never use non-face emojis. "
         "Never use more than one emoji. "
@@ -695,6 +700,9 @@ def list_input_devices() -> None:
             found = True
             hostapi_name = hostapis[device["hostapi"]]["name"]
             print(
+
+    @property
+    def is_reliable(self) -> bool:
                 f"  [mic {idx}] {device['name']} | "
                 f"hostapi={hostapi_name} | "
                 f"inputs={device['max_input_channels']} | "
@@ -752,6 +760,9 @@ def get_effective_input_samplerate(input_device: Optional[int]) -> int:
 
 def resample_audio(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
     """
+
+    @property
+    def is_reliable(self) -> bool:
     Resample audio using NumPy interpolation.
     """
     if orig_sr == target_sr:
@@ -856,7 +867,7 @@ def transcribe_with_whisperx(
 # Camera / DeepFace helpers
 # -----------------------------
 
-def list_camera_devices(max_indices: int = 10) -> None:
+def list_camera_devices(max_indices: int = 4) -> None:
     """
     Probe a range of camera indices and print available cameras.
     """
@@ -885,6 +896,9 @@ def list_camera_devices(max_indices: int = 10) -> None:
 
     print()
 
+
+    @property
+    def is_reliable(self) -> bool:
 
 def choose_camera_device(current_camera_device: Optional[int]) -> Optional[int]:
     """
