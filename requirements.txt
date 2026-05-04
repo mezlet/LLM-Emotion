@@ -1,0 +1,11 @@
+pandas
+numpy
+scikit-learn
+jiwer
+pyyaml
+requests
+tqdm
+deepface
+opencv-python
+librosa
+soundfile
