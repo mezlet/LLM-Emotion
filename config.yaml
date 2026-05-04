@@ -1,0 +1,29 @@
+ollama_url: "http://localhost:11434/api/generate"
+
+models:
+  emotion_llms:
+    - "llama3:8b"
+    - "mistral:7b"
+
+  response_llms:
+    - "llama3:8b"
+    - "mistral:7b"
+
+  vlms:
+    - "llama3.2-vision:11b"
+    - "qwen2.5vl:7b"
+
+emotion_labels:
+  - joy
+  - trust
+  - fear
+  - surprise
+  - sadness
+  - disgust
+  - anger
+  - anticipation
+
+selection_weights:
+  accuracy: 0.4
+  f1: 0.4
+  latency: 0.2
