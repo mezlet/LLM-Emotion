@@ -19,9 +19,9 @@ from ollama import Client
 
 # Local Ollama configuration
 
-# OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://optional-integrity-moisture-becoming.trycloudflare.com"
-MODEL_NAME = "mistral:7b"
+OLLAMA_HOST = "http://127.0.0.1:11434"
+# OLLAMA_HOST = "https://optional-integrity-moisture-becoming.trycloudflare.com"
+MODEL_NAME = "llama3:8b"
 
 """
 Setup before running:
@@ -74,13 +74,27 @@ Do not pretend to have human emotions or lived experiences.
 Do not mislead users about your capabilities or limitations.
 """
 
-# WhisperX configuration
+# =========================
+# Faster-Whisper configuration
+# =========================
 
-FASTER_WHISPER_MODEL = "small"
-FASTER_WHISPER_DEVICE = "cpu"
-FASTER_WHISPER_COMPUTE_TYPE = "int8"
-FASTER_WHISPER_LANGUAGE = "en"
+# HOME / MACBOOK CPU CONFIG
+FASTER_WHISPER_CONFIG = {
+    "profile": "home_macbook_cpu",
+    "model": "small",
+    "device": "cuda",
+    "compute_type": "int8",
+    "language": "en",
+}
 
+# SCHOOL / GPU CONFIG
+# FASTER_WHISPER_CONFIG = {
+#     "profile": "school_gpu",
+#     "model": "small",
+#     "device": "cuda",
+#     "compute_type": "int8",
+#     "language": "en",
+# }
 
 TARGET_SAMPLE_RATE = 16000
 MAX_RECORD_SECONDS = 10
@@ -183,7 +197,12 @@ def list_input_devices() -> None:
 def choose_input_device(current_device: Optional[int]) -> Optional[int]:
     list_input_devices()
     choice = input("Enter microphone device index, or blank for default: ").strip()
-
+    print_ts(
+        f"Loading Faster-Whisper profile={FASTER_WHISPER_CONFIG['profile']}, "
+        f"model={FASTER_WHISPER_CONFIG['model']}, "
+        f"device={FASTER_WHISPER_CONFIG['device']}, "
+        f"compute_type={FASTER_WHISPER_CONFIG['compute_type']}..."
+    )
     if not choice:
         return current_device
 
@@ -195,7 +214,13 @@ def choose_input_device(current_device: Optional[int]) -> Optional[int]:
             print("Selected device does not support input.")
             return current_device
 
-        print_ts(f"Using microphone: {device_info['name']}")
+        print_ts(f"Using microphone: {device_info['name']}")       
+        print_ts(
+            f"Loading Faster-Whisper profile={FASTER_WHISPER_CONFIG['profile']}, "
+            f"model={FASTER_WHISPER_CONFIG['model']}, "
+            f"device={FASTER_WHISPER_CONFIG['device']}, "
+            f"compute_type={FASTER_WHISPER_CONFIG['compute_type']}..."
+        )
         return device_index
 
     except Exception as exc:
@@ -213,7 +238,13 @@ def get_input_samplerate(input_device: Optional[int]) -> int:
 
 
 def resample_audio(audio: np.ndarray, original_sr: int, target_sr: int) -> np.ndarray:
-    if original_sr == target_sr:
+    if original_sr == target_sr:        
+        print_ts(
+            f"Loading Faster-Whisper profile={FASTER_WHISPER_CONFIG['profile']}, "
+            f"model={FASTER_WHISPER_CONFIG['model']}, "
+            f"device={FASTER_WHISPER_CONFIG['device']}, "
+            f"compute_type={FASTER_WHISPER_CONFIG['compute_type']}..."
+        )
         return audio.astype(np.float32)
 
     duration = len(audio) / original_sr
@@ -273,7 +304,7 @@ def transcribe_with_faster_whisper(
 ) -> str:
     segments, info = whisper_model.transcribe(
         wav_path,
-        language=FASTER_WHISPER_LANGUAGE,
+        language=FASTER_WHISPER_CONFIG["language"],
         beam_size=5,
         vad_filter=True,
     )
@@ -340,7 +371,11 @@ Rules:
   {{"emotion": "trust", "confidence": 0.6, "reason": "The user is opening a friendly social interaction."}}
 - For farewells such as "bye", "goodbye", "take care", or "talk later", return:
   {{"emotion": "trust", "confidence": 0.7, "reason": "The user is closing the conversation politely."}}
-
+        f"Loading Faster-Whisper profile={FASTER_WHISPER_CONFIG['profile']}, "
+        f"model={FASTER_WHISPER_CONFIG['model']}, "
+        f"device={FASTER_WHISPER_CONFIG['device']}, "
+        f"compute_type={FASTER_WHISPER_CONFIG['compute_type']}..."
+    )
 User text:
 {transcribed_text}
 """.strip()
@@ -604,13 +639,29 @@ def main() -> None:
 
     client = Client(host=OLLAMA_HOST)
 
-    print_ts("Loading Faster-Whisper...")
-    whisper_model = WhisperModel(
-        FASTER_WHISPER_MODEL,
-        device=FASTER_WHISPER_DEVICE,
-        compute_type=FASTER_WHISPER_COMPUTE_TYPE,
+    print_ts(
+        f"Loading Faster-Whisper profile={FASTER_WHISPER_CONFIG['profile']}, "
+        f"model={FASTER_WHISPER_CONFIG['model']}, "
+        f"device={FASTER_WHISPER_CONFIG['device']}, "
+        f"compute_type={FASTER_WHISPER_CONFIG['compute_type']}..."
     )
-    print_ts("Faster-Whisper ready.")
+
+    try:
+        whisper_model = WhisperModel(
+            FASTER_WHISPER_CONFIG["model"],
+            device=FASTER_WHISPER_CONFIG["device"],
+            compute_type=FASTER_WHISPER_CONFIG["compute_type"],
+        )
+
+        print_ts("Faster-Whisper ready.")
+
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to load Faster-Whisper with active config:\n"
+            f"{json.dumps(FASTER_WHISPER_CONFIG, indent=2)}\n\n"
+            f"Original error: {exc}"
+        )
+
     print()
 
     print("Commands:")

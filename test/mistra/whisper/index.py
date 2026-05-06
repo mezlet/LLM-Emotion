@@ -16,41 +16,22 @@ import whisperx
 from ollama import Client
 
 
-# =========================
 # Local Ollama configuration
-# =========================
 
-# OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://interstate-apparently-galaxy-nominations.trycloudflare.com"
-MODEL_NAME = "mistral:7b"
-
-
-"""
-Setup before running:
-
-1. Start Ollama server:
-   ollama serve
-
-2. Pull Mistral:
-   ollama pull mistral:7b
-
-3. Install Python dependencies:
-   pip install ollama sounddevice soundfile numpy whisperx
-"""
+OLLAMA_HOST = "http://127.0.0.1:11434"
+# OLLAMA_HOST = "https://interstate-apparently-galaxy-nominations.trycloudflare.com"
+MODEL_NAME = "llama3:8b"
 
 
-# =========================
 # Persistent memory / transcript configuration
-# =========================
 
 DATA_DIR = "conversation_data"
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
 
 
-# =========================
 # Ameca identity prompt
-# =========================
+
 
 AMECA_SYSTEM_PROMPT = """
 You are Ameca, a humanoid social robot used in a university laboratory for research and demonstrations.
@@ -91,30 +72,33 @@ Do not pretend to have human emotions or lived experiences.
 Do not mislead users about your capabilities or limitations.
 """
 
-
-# =========================
 # WhisperX configuration
-# =========================
 
-WHISPERX_MODEL = "small"
-WHISPERX_DEVICE = "cpu"
-WHISPERX_COMPUTE_TYPE = "int8"
-WHISPERX_LANGUAGE = "en"
+# HOME / MACBOOK CPU CONFIG
+WHISPERX_CONFIG = {
+   "profile": "home_macbook_cpu",
+   "model": "small",
+   "device": "cpu",
+   "compute_type": "int8",
+   "language": "en",
+ }
 
-# GPU example:
-# WHISPERX_MODEL = "large-v3"
-# WHISPERX_DEVICE = "cuda"
-# WHISPERX_COMPUTE_TYPE = "float16"
-# WHISPERX_LANGUAGE = "en"
+# SCHOOL / GPU CONFIG
+# WHISPERX_CONFIG = {
+#     "profile": "school_gpu",
+#    "model": "small",
+#    "device": "cuda",
+#    "compute_type": "int8",
+#    "language": "en",
+#}
 
 TARGET_SAMPLE_RATE = 16000
 MAX_RECORD_SECONDS = 10
 INPUT_DEVICE: Optional[int] = None
 
 
-# =========================
+
 # Chat configuration
-# =========================
 
 MAX_HISTORY_MESSAGES = 12
 
@@ -139,9 +123,7 @@ class EmotionResult:
     reason: str
 
 
-# =========================
 # Timestamp helpers
-# =========================
 
 def now_ts() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -155,9 +137,7 @@ def normalize_command(text: str) -> str:
     return re.sub(r"^[\\/]+", "", text.strip().lower())
 
 
-# =========================
 # Persistent memory helpers
-# =========================
 
 def ensure_data_dirs() -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -264,10 +244,7 @@ def save_session_transcript(
             "ollama_host": OLLAMA_HOST,
             "asr": {
                 "backend": "WhisperX",
-                "model": WHISPERX_MODEL,
-                "device": WHISPERX_DEVICE,
-                "compute_type": WHISPERX_COMPUTE_TYPE,
-                "language": WHISPERX_LANGUAGE,
+                **WHISPERX_CONFIG,
             },
         },
         "messages": session_log,
@@ -367,9 +344,7 @@ def update_user_after_session(
     save_users(users)
 
 
-# =========================
 # Ollama setup helpers
-# =========================
 
 def check_ollama_available() -> None:
     try:
@@ -386,9 +361,7 @@ def ensure_model_available(model_name: str = MODEL_NAME) -> None:
     print(f"Skipping local Ollama CLI check for remote host. Using model: {model_name}")
 
 
-# =========================
 # Audio helpers
-# =========================
 
 def list_input_devices() -> None:
     print("\nAvailable input devices:")
@@ -508,9 +481,7 @@ def transcribe_with_whisperx(wav_path: str, whisper_model) -> str:
     return " ".join(seg.get("text", "").strip() for seg in segments).strip()
 
 
-# =========================
 # JSON helpers
-# =========================
 
 def safe_json_extract(text: str) -> Optional[dict]:
     text = text.strip()
@@ -531,9 +502,7 @@ def safe_json_extract(text: str) -> Optional[dict]:
         return None
 
 
-# =========================
 # Emotion detection
-# =========================
 
 def build_emotion_prompt(transcribed_text: str) -> str:
     emotions = ", ".join(PLUTCHIK_EMOTIONS.keys())
@@ -625,9 +594,7 @@ def detect_emotion(client: Client, transcribed_text: str) -> EmotionResult:
     )
 
 
-# =========================
 # Emoji enforcement
-# =========================
 
 def remove_all_emojis_except_allowed_faces(text: str) -> str:
     result = []
@@ -673,9 +640,7 @@ def normalize_reply(raw_reply: str, emotion: str) -> str:
     return f"{cleaned} {required_emoji}"
 
 
-# =========================
 # Date / time helpers
-# =========================
 
 def runtime_context() -> str:
     return f"""
@@ -707,9 +672,7 @@ def deterministic_reply_if_applicable(user_text: str, emotion: str) -> Optional[
     return None
 
 
-# =========================
 # Response generation
-# =========================
 
 def build_response_system_prompt(
     emotion_result: EmotionResult,
@@ -816,9 +779,7 @@ def generate_response(
     return normalize_reply(raw_reply, emotion_result.emotion)
 
 
-# =========================
 # Input handling
-# =========================
 
 def get_user_input(
     whisper_model,
@@ -866,9 +827,7 @@ def get_user_input(
     return user_input, current_input_device
 
 
-# =========================
 # Main loop
-# =========================
 
 def main() -> None:
     print_ts("Starting multimodal-inspired Plutchik chat prototype.")
@@ -887,13 +846,24 @@ def main() -> None:
     client = Client(host=OLLAMA_HOST)
 
     print_ts("Loading WhisperX...")
-    whisper_model = whisperx.load_model(
-        WHISPERX_MODEL,
-        WHISPERX_DEVICE,
-        compute_type=WHISPERX_COMPUTE_TYPE,
-        language=WHISPERX_LANGUAGE,
-    )
-    print_ts("WhisperX ready.")
+
+    try:
+        whisper_model = whisperx.load_model(
+            WHISPERX_CONFIG["model"],
+            WHISPERX_CONFIG["device"],
+            compute_type=WHISPERX_CONFIG["compute_type"],
+            language=WHISPERX_CONFIG["language"],
+        )
+        
+        print_ts("WhisperX ready.")
+
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to load WhisperX with active config:\n"
+            f"{json.dumps(WHISPERX_CONFIG, indent=2)}\n\n"
+            f"Original error: {exc}"
+        )
+
     print()
 
     print("Commands:")

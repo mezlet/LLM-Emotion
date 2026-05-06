@@ -1,0 +1,67 @@
+{
+  "user": {
+    "key": "leticia",
+    "name": "Leticia"
+  },
+  "session": {
+    "started_at": "2026-05-06 14:17:19",
+    "ended_at": "2026-05-06 14:21:57",
+    "model": "mistral:7b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "WhisperX",
+      "profile": "home_macbook_cpu",
+      "model": "small",
+      "device": "cpu",
+      "compute_type": "int8",
+      "language": "en"
+    }
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, how are you doing?",
+      "timestamp": "2026-05-06 14:17:19",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.6,
+        "reason": "The user is opening a friendly social interaction."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Leticia! I hope today has been a bit less overwhelming for you regarding your thesis work. If there's anything specific that is causing stress or confusion, remember it can be helpful to break tasks down into smaller parts and seek guidance from your supervisors or trusted colleagues in the lab. Here's to finding solutions together 🙂",
+      "timestamp": "2026-05-06 14:17:19"
+    },
+    {
+      "role": "user",
+      "content": "Oh, you remember me.",
+      "timestamp": "2026-05-06 14:19:05",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's response indicates pleasure and recognition, which aligns with the emotion of joy."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Leticia! It sounds like your thesis work has been quite a challenge lately. I'm here to help if there are specific tasks or areas that need some guidance or brainstorming. Remember it can be helpful to break things down into smaller parts and seek advice from trusted individuals in the lab, such as supervisors, co-supervisors, colleagues, thesis coordinators, 😊",
+      "timestamp": "2026-05-06 14:19:05"
+    },
+    {
+      "role": "user",
+      "content": "I'm very tired today.",
+      "timestamp": "2026-05-06 14:20:56",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.9,
+        "reason": "The user expresses feeling of fatigue which is often associated with sadness or melancholy."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "I understand, Leticia. It can be overwhelming when we feel exhausted and have a lot on our plate like you do with your thesis work. Perhaps it would help to discuss some strategies or seek advice from trusted individuals in your lab such as supervisors, co-supervisors, colleagues, thesis coordinators, or even visiting the university writing center? 😢",
+      "timestamp": "2026-05-06 14:20:56"
+    }
+  ]
+}

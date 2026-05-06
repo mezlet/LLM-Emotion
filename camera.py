@@ -700,9 +700,6 @@ def list_input_devices() -> None:
             found = True
             hostapi_name = hostapis[device["hostapi"]]["name"]
             print(
-
-    @property
-    def is_reliable(self) -> bool:
                 f"  [mic {idx}] {device['name']} | "
                 f"hostapi={hostapi_name} | "
                 f"inputs={device['max_input_channels']} | "
@@ -895,10 +892,6 @@ def list_camera_devices(max_indices: int = 4) -> None:
         print("  No camera devices found.")
 
     print()
-
-
-    @property
-    def is_reliable(self) -> bool:
 
 def choose_camera_device(current_camera_device: Optional[int]) -> Optional[int]:
     """

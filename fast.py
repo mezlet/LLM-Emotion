@@ -19,6 +19,7 @@ import soundfile as sf
 from deepface import DeepFace
 from faster_whisper import WhisperModel
 from ollama import Client
+from threading import Event
 
 
 # -----------------------------
@@ -26,8 +27,8 @@ from ollama import Client
 # -----------------------------
 
 # Local Ollama server
-# OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://friendship-makes-lcd-gis.trycloudflare.com"
+OLLAMA_HOST = "http://127.0.0.1:11434"
+# OLLAMA_HOST = "https://friendship-makes-lcd-gis.trycloudflare.com"
 
 # Choose your Ollama model here
 # MODEL_NAME = "llama3.2:3b"
@@ -36,7 +37,7 @@ MODEL_NAME = "llama3:8b"
 
 # faster-whisper speech-to-text settings
 FASTER_WHISPER_MODEL = "small"
-FASTER_WHISPER_DEVICE = "cpu"
+FASTER_WHISPER_DEVICE = "cuda"
 FASTER_WHISPER_COMPUTE_TYPE = "int8"
 FASTER_WHISPER_LANGUAGE = "en"
 
@@ -55,6 +56,8 @@ MIN_RMS_THRESHOLD = 0.003
 CAMERA_DEVICE: Optional[int] = None
 CAMERA_FRAME_WIDTH = 640
 CAMERA_FRAME_HEIGHT = 480
+CAMERA_PREVIEW_ENABLED = True
+CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
 
 # Sample fewer, cleaner frames
 CAMERA_SAMPLE_EVERY_SECONDS = 1.0
@@ -65,7 +68,7 @@ CAMERA_WARMUP_SECONDS = 1.5
 # DeepFace settings
 # Better than "opencv" in many practical webcam cases, though heavier.
 # Try "mediapipe" if retinaface is too slow on your machine.
-DEEPFACE_DETECTOR_BACKEND = "retinaface"
+DEEPFACE_DETECTOR_BACKEND = "opencv"
 DEEPFACE_ACTIONS = ["emotion"]
 DEEPFACE_ALIGN = True
 
@@ -975,19 +978,16 @@ def capture_face_emotion_during_recording(
     duration_seconds: int,
     camera_device: Optional[int],
     sample_every_seconds: float = CAMERA_SAMPLE_EVERY_SECONDS,
+    stop_event: Optional[threading.Event] = None,
 ) -> FaceEmotionCapture:
-    """
-    Capture webcam frames while the user is speaking and estimate facial emotion
-    using averaged DeepFace emotion scores across frames.
-
-    This is intentionally treated as a weak hint only.
-    """
     started_at = now_ts()
     emotion_score_samples: list[dict[str, float]] = []
     frame_count = 0
     sampled_frame_count = 0
+    last_status = "warming up..."
 
     cap = open_camera(camera_device)
+
     if not cap.isOpened():
         return FaceEmotionCapture(
             emotion_score_samples=[],
@@ -998,14 +998,22 @@ def capture_face_emotion_during_recording(
             error="Could not open camera.",
         )
 
+    window_created = False
+
     try:
         end_time = time.time() + duration_seconds
         capture_start_time = time.time()
         last_sample_time = 0.0
 
-        print_ts("Camera emotion capture is active during voice recording.")
+        print_ts("Camera emotion capture and preview are active during voice recording.")
+
+        cv2.namedWindow(CAMERA_PREVIEW_WINDOW_NAME, cv2.WINDOW_NORMAL)
+        window_created = True
 
         while time.time() < end_time:
+            if stop_event is not None and stop_event.is_set():
+                break
+
             ok, frame = cap.read()
             if not ok or frame is None:
                 time.sleep(0.05)
@@ -1013,25 +1021,66 @@ def capture_face_emotion_during_recording(
 
             frame_count += 1
             now = time.time()
+            elapsed = now - capture_start_time
+            remaining = max(0.0, end_time - now)
 
-            # Give the camera/user a short warmup period
-            if now - capture_start_time < CAMERA_WARMUP_SECONDS:
-                continue
+            preview_frame = frame.copy()
 
-            if now - last_sample_time < sample_every_seconds:
-                continue
+            cv2.putText(
+                preview_frame,
+                f"Recording... {remaining:.1f}s left",
+                (20, 35),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA,
+            )
 
-            last_sample_time = now
-            sampled_frame_count += 1
+            cv2.putText(
+                preview_frame,
+                f"Emotion: {last_status}",
+                (20, 70),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
 
-            scores = analyze_frame_emotion_scores(frame)
-            if scores:
-                emotion_score_samples.append(scores)
+            cv2.imshow(CAMERA_PREVIEW_WINDOW_NAME, preview_frame)
+
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
+                if stop_event is not None:
+                    stop_event.set()
+                break
+
+            should_sample = (
+                elapsed >= CAMERA_WARMUP_SECONDS
+                and now - last_sample_time >= sample_every_seconds
+            )
+
+            if should_sample:
+                last_sample_time = now
+                sampled_frame_count += 1
+
+                scores = analyze_frame_emotion_scores(frame)
+                if scores:
+                    emotion_score_samples.append(scores)
+                    top_emotion, top_score = max(scores.items(), key=lambda item: item[1])
+                    last_status = f"{top_emotion}: {top_score:.0f}%"
+                else:
+                    last_status = "no face/emotion detected"
 
             time.sleep(0.02)
 
     finally:
         cap.release()
+
+        if window_created:
+            cv2.destroyWindow(CAMERA_PREVIEW_WINDOW_NAME)
+            cv2.waitKey(1)
 
     return FaceEmotionCapture(
         emotion_score_samples=emotion_score_samples,
@@ -1050,28 +1099,30 @@ def record_audio_and_capture_face_emotion(
 ) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
     """
     Run microphone recording and camera emotion capture in parallel.
-    Returns:
-      - wav_path
-      - face_capture summary
+    Ensures the camera thread stops and releases the webcam before returning.
     """
     face_result: dict[str, Optional[FaceEmotionCapture]] = {"data": None}
+    stop_event = threading.Event()
 
     def face_worker() -> None:
         face_result["data"] = capture_face_emotion_during_recording(
             duration_seconds=max_seconds,
             camera_device=camera_device,
             sample_every_seconds=CAMERA_SAMPLE_EVERY_SECONDS,
+            stop_event=stop_event,
         )
 
-    thread = threading.Thread(target=face_worker, daemon=True)
+    thread = threading.Thread(target=face_worker, daemon=False)
     thread.start()
 
-    wav_path = record_audio_to_wav(
-        max_seconds=max_seconds,
-        input_device=input_device,
-    )
-
-    thread.join(timeout=max_seconds + 5)
+    try:
+        wav_path = record_audio_to_wav(
+            max_seconds=max_seconds,
+            input_device=input_device,
+        )
+    finally:
+        stop_event.set()
+        thread.join()
 
     return wav_path, face_result.get("data")
 

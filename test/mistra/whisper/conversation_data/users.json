@@ -2,7 +2,17 @@
   "leticia": {
     "name": "Leticia",
     "created_at": "2026-05-05 15:38:26",
-    "last_seen": "2026-05-05 15:44:23",
+    "last_seen": "2026-05-06 14:36:34",
+    "session_files": [
+      "conversation_data/sessions/leticia_20260506_121141.json",
+      "conversation_data/sessions/leticia_20260506_143619.json"
+    ],
+    "conversation_summary": "Here is the concise memory summary:\n\n• User: Leticia\n• Main topics discussed: Thesis workload, meeting with supervisor, and exploring deep-face models/Vision-Language Models for robotic vision capabilities\n• No ongoing tasks or preferences were established in this conversation\n• Emotional context: Leticia had a good day but initially felt overwhelmed with thesis work; later expressed annoyance at someone not scaring her"
+  },
+  "ashita": {
+    "name": "Ashita",
+    "created_at": "2026-05-06 14:48:41",
+    "last_seen": "2026-05-06 14:48:41",
     "session_files": [],
     "conversation_summary": ""
   }

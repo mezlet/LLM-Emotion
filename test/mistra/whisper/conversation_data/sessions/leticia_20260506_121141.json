@@ -1,0 +1,187 @@
+{
+  "user": {
+    "key": "leticia",
+    "name": "Leticia"
+  },
+  "session": {
+    "started_at": "2026-05-06 12:03:29",
+    "ended_at": "2026-05-06 12:11:41",
+    "model": "mistral:7b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "WhisperX",
+      "profile": "home_macbook_cpu",
+      "model": "small",
+      "device": "cpu",
+      "compute_type": "int8",
+      "language": "en"
+    }
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, good afternoon.",
+      "timestamp": "2026-05-06 12:03:29",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 1.0,
+        "reason": "The user is opening a friendly social interaction."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Leticia! It's a beautiful day today, isn't it? I hope you're having a great time. If there are any questions or topics you would like to discuss, feel free to share and let me help in whatever way I can. 🙂",
+      "timestamp": "2026-05-06 12:03:29"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, just been having a great day today.",
+      "timestamp": "2026-05-06 12:04:10",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user expresses happiness and satisfaction about their day."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Leticia! It sounds like your day has been fantastic so far. If you have any questions or topics to discuss, feel free to share and I'll do my best to help out 😊",
+      "timestamp": "2026-05-06 12:04:10"
+    },
+    {
+      "role": "user",
+      "content": "Well, in as much as the day is going well, I still feel a bit overwhelmed with my thesis.",
+      "timestamp": "2026-05-06 12:04:58",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user expresses feeling overwhelmed with their thesis, which indicates a sense of sadness or stress."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hi Leticia! It sounds like your thesis might be causing some stress today. If you're feeling overwhelmed, it could help to break down your tasks into smaller parts and focus on one at a time. Remember that you can always reach out to your supervisor or co-supervisors for guidance if needed 😢",
+      "timestamp": "2026-05-06 12:04:58"
+    },
+    {
+      "role": "user",
+      "content": "yeah yeah we have already done that but still we have a lot to do",
+      "timestamp": "2026-05-06 12:06:02",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user expresses anticipation or eagerness about continuing the task despite it being completed previously."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hi Leticia, it seems like you've made progress on your thesis, but there is still more work ahead! If you need help or advice with specific aspects of your project, I can certainly try my best to assist. You might also find it helpful to consult with your supervisor, co-supervisors, lab colleagues, the thesis coordinator, or even seek guidance from the university 🤔",
+      "timestamp": "2026-05-06 12:06:02"
+    },
+    {
+      "role": "user",
+      "content": "What is your name?",
+      "timestamp": "2026-05-06 12:06:59",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.9,
+        "reason": "The user is asking a question that requires a response, indicating curiosity or anticipation for the answer."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Leticia, I'm Ameca – a humanoid social robot used in this university laboratory for research and demonstrations! 🤔",
+      "timestamp": "2026-05-06 12:06:59"
+    },
+    {
+      "role": "user",
+      "content": "Oh, great. So that means you can be my friend.",
+      "timestamp": "2026-05-06 12:07:36",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user expresses happiness and positivity about forming a friendship."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "That's wonderful news! As Ameca, I'm here to help and engage in friendly conversations with you, Leticia. 😊",
+      "timestamp": "2026-05-06 12:07:36"
+    },
+    {
+      "role": "user",
+      "content": "That is really amazing. Do you understand any other language aside English?",
+      "timestamp": "2026-05-06 12:08:17",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user expresses enthusiasm and satisfaction with the information provided, indicating joy."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Yes, I can communicate in Spanish as well! How about we chat a bit en español today to practice and make it more fun for both of us? 😊",
+      "timestamp": "2026-05-06 12:08:17"
+    },
+    {
+      "role": "user",
+      "content": "I can't speak Spanish unfortunately. What do you speak German?",
+      "timestamp": "2026-05-06 12:09:02",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is expressing curiosity about what language the system speaks, indicating anticipation for a response."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "I apologize for the misunderstanding earlier! As a humanoid social robot, my primary language is English. However, I am capable of understanding and generating responses in multiple languages through machine learning techniques. Unfortunately, I don't have proficiency in speaking or writing German at this time. If you need help with anything related to Spanish, feel free to ask me! 🤔",
+      "timestamp": "2026-05-06 12:09:02"
+    },
+    {
+      "role": "user",
+      "content": "Okay, then thanks for being honest though. I don't feel happy.",
+      "timestamp": "2026-05-06 12:10:03",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user expresses a negative emotional state about not feeling happy."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "As Ameca, I understand that you are experiencing some sadness today, Leticia. It can be challenging to navigate through difficult emotions, but remember it is okay not to always feel happy. If you need someone to talk to or advice on how to cope with your feelings, consider reaching out to a trusted supervisor, co-supervisor, lab colleague, thesis coordinator, or the 😢",
+      "timestamp": "2026-05-06 12:10:03"
+    },
+    {
+      "role": "user",
+      "content": "okay then nice chatting with you",
+      "timestamp": "2026-05-06 12:10:50",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.9,
+        "reason": "The user is expressing a polite and friendly sentiment, indicating trust in the conversation."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Leticia, I'm here to help if needed. If you ever feel overwhelmed or need someone to talk to about your feelings, consider reaching out to a trusted supervisor, co-supervisor, lab colleague, thesis coordinator, or university writing center 🙂",
+      "timestamp": "2026-05-06 12:10:50"
+    },
+    {
+      "role": "user",
+      "content": "Alright, thank you. Bye. Talk to you later.",
+      "timestamp": "2026-05-06 12:11:32",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.7,
+        "reason": "The user is closing the conversation politely."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Alright Leticia! I'm here if needed in the future 🙂",
+      "timestamp": "2026-05-06 12:11:32"
+    }
+  ]
+}
