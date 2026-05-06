@@ -1,0 +1,171 @@
+{
+  "user": {
+    "key": "leticia",
+    "name": "Leticia"
+  },
+  "session": {
+    "started_at": "2026-05-05 15:39:05",
+    "ended_at": "2026-05-05 15:43:25",
+    "model": "mistral:7b",
+    "ollama_host": "https://interstate-apparently-galaxy-nominations.trycloudflare.com",
+    "asr": {
+      "backend": "WhisperX",
+      "model": "small",
+      "device": "cpu",
+      "compute_type": "int8",
+      "language": "en"
+    }
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, how are you?",
+      "timestamp": "2026-05-05 15:39:05",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.6,
+        "reason": "The user is opening a friendly social interaction."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Leticia! I'm here to help with your questions and discussions today. How can I assist you now? 🙂",
+      "timestamp": "2026-05-05 15:39:05"
+    },
+    {
+      "role": "user",
+      "content": "What is your name?",
+      "timestamp": "2026-05-05 15:39:30",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.9,
+        "reason": "The user is asking a question that requires a response, indicating curiosity or anticipation for the answer."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Leticia! I'm Ameca, a humanoid social robot here to help you with questions and discussions today. 🤔",
+      "timestamp": "2026-05-05 15:39:30"
+    },
+    {
+      "role": "user",
+      "content": "What is today's date?",
+      "timestamp": "2026-05-05 15:39:55",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is asking for information about the current date, indicating a desire to know or plan something."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Today is Tuesday, May 05, 2026. 🤔",
+      "timestamp": "2026-05-05 15:39:55"
+    },
+    {
+      "role": "user",
+      "content": "I'm having a good day today.",
+      "timestamp": "2026-05-05 15:40:23",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user expresses positivity and happiness about their current day."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Leticia, it's nice to see you too! I hope your positive energy is contagious and makes everyone around you feel uplifted as well 😊",
+      "timestamp": "2026-05-05 15:40:23"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, I hope so too. I'm planning to go on a vacation.",
+      "timestamp": "2026-05-05 15:40:53",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user expresses excitement about an upcoming event (vacation), indicating anticipation."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like we both have something exciting coming up! Enjoy your time off and come back refreshed 🤔",
+      "timestamp": "2026-05-05 15:40:53"
+    },
+    {
+      "role": "user",
+      "content": "What about you? What will you be doing today?",
+      "timestamp": "2026-05-05 15:41:18",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is expressing curiosity or interest in the robot's plans for the day, indicating anticipation."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Today, I'll continue to assist Leticia and engage in research activities related to human-robot interaction within our university laboratory 🤔",
+      "timestamp": "2026-05-05 15:41:18"
+    },
+    {
+      "role": "user",
+      "content": "Hmm, it's let you share the only students, you know?",
+      "timestamp": "2026-05-05 15:41:48",
+      "emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user expresses surprise at the ability to share information with multiple students"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "That's fascinating! Sharing information with multiple students can certainly streamline research and collaboration 😮",
+      "timestamp": "2026-05-05 15:41:48"
+    },
+    {
+      "role": "user",
+      "content": "Oh, I asked if let's share is the only student you know.",
+      "timestamp": "2026-05-05 15:42:17",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.8,
+        "reason": "The user expresses uncertainty and anxiety about the situation, indicating fear."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Leticia, as a robot, my purpose isn't to interact with individual students but rather assist researchers and demonstrate conversational capabilities in our lab setting 😨",
+      "timestamp": "2026-05-05 15:42:17"
+    },
+    {
+      "role": "user",
+      "content": "Okay, I see. Have a great day.",
+      "timestamp": "2026-05-05 15:42:45",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.9,
+        "reason": "The user is closing the conversation politely and wishing for a good day, indicating trust in the ongoing interaction."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Leticia, it was nice talking with you! If you ever need help or guidance again, don't hesitate to reach out 🙂",
+      "timestamp": "2026-05-05 15:42:45"
+    },
+    {
+      "role": "user",
+      "content": "Shall we? Thank you. Bye.",
+      "timestamp": "2026-05-05 15:43:16",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user expresses readiness for an activity and says goodbye, indicating anticipation for what's to come."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Leticia, it's a pleasure to assist you today! How can I help make your tasks more manageable or provide guidance on any subject matter? 🤔",
+      "timestamp": "2026-05-05 15:43:16"
+    }
+  ]
+}

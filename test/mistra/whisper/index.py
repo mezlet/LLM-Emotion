@@ -5,7 +5,6 @@ import os
 import re
 import sys
 import tempfile
-import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -17,11 +16,14 @@ import whisperx
 from ollama import Client
 
 
+# =========================
 # Local Ollama configuration
+# =========================
 
 # OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://optional-integrity-moisture-becoming.trycloudflare.com"
-MODEL_NAME = "llama3:8b"
+OLLAMA_HOST = "https://interstate-apparently-galaxy-nominations.trycloudflare.com"
+MODEL_NAME = "mistral:7b"
+
 
 """
 Setup before running:
@@ -35,6 +37,20 @@ Setup before running:
 3. Install Python dependencies:
    pip install ollama sounddevice soundfile numpy whisperx
 """
+
+
+# =========================
+# Persistent memory / transcript configuration
+# =========================
+
+DATA_DIR = "conversation_data"
+USERS_FILE = os.path.join(DATA_DIR, "users.json")
+SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
+
+
+# =========================
+# Ameca identity prompt
+# =========================
 
 AMECA_SYSTEM_PROMPT = """
 You are Ameca, a humanoid social robot used in a university laboratory for research and demonstrations.
@@ -63,7 +79,8 @@ Answer clearly.
 Keep responses concise, usually 1-2 sentences, unless the user asks for more detail.
 
 PRIVACY
-Do not ask for sensitive personal information.
+Do not ask for sensitive personal information such as passwords, medical data, financial information, or private identity documents.
+Treat the conversation as ephemeral in speech, but save only the local JSON transcript for this prototype when the session ends.
 
 USER ADAPTATION
 Use clear, simple explanations.
@@ -74,16 +91,20 @@ Do not pretend to have human emotions or lived experiences.
 Do not mislead users about your capabilities or limitations.
 """
 
-# WhisperX configuration
 
-WHISPERX_MODEL = "small"#small
-WHISPERX_DEVICE = "cpu"#cpu
+# =========================
+# WhisperX configuration
+# =========================
+
+WHISPERX_MODEL = "small"
+WHISPERX_DEVICE = "cpu"
 WHISPERX_COMPUTE_TYPE = "int8"
 WHISPERX_LANGUAGE = "en"
 
-# WHISPERX_MODEL = "large-v3"#small
-# WHISPERX_DEVICE = "cuda"#cpu
-# WHISPERX_COMPUTE_TYPE = "int8"
+# GPU example:
+# WHISPERX_MODEL = "large-v3"
+# WHISPERX_DEVICE = "cuda"
+# WHISPERX_COMPUTE_TYPE = "float16"
 # WHISPERX_LANGUAGE = "en"
 
 TARGET_SAMPLE_RATE = 16000
@@ -91,7 +112,9 @@ MAX_RECORD_SECONDS = 10
 INPUT_DEVICE: Optional[int] = None
 
 
+# =========================
 # Chat configuration
+# =========================
 
 MAX_HISTORY_MESSAGES = 12
 
@@ -116,6 +139,10 @@ class EmotionResult:
     reason: str
 
 
+# =========================
+# Timestamp helpers
+# =========================
+
 def now_ts() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -128,7 +155,221 @@ def normalize_command(text: str) -> str:
     return re.sub(r"^[\\/]+", "", text.strip().lower())
 
 
+# =========================
+# Persistent memory helpers
+# =========================
+
+def ensure_data_dirs() -> None:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(SESSIONS_DIR, exist_ok=True)
+
+
+def slugify_name(name: str) -> str:
+    name = name.strip().lower()
+    name = re.sub(r"[^a-z0-9]+", "_", name)
+    return name.strip("_") or "unknown_user"
+
+
+def load_users() -> dict:
+    ensure_data_dirs()
+
+    if not os.path.exists(USERS_FILE):
+        return {}
+
+    try:
+        with open(USERS_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_users(users: dict) -> None:
+    ensure_data_dirs()
+
+    with open(USERS_FILE, "w", encoding="utf-8") as file:
+        json.dump(users, file, indent=2, ensure_ascii=False)
+
+
+def prompt_for_user_name() -> tuple[str, dict]:
+    users = load_users()
+
+    name = input("Before we begin, what is your name? ").strip()
+
+    if not name:
+        name = "Guest"
+
+    user_key = slugify_name(name)
+
+    if user_key not in users:
+        users[user_key] = {
+            "name": name,
+            "created_at": now_ts(),
+            "last_seen": now_ts(),
+            "session_files": [],
+            "conversation_summary": "",
+        }
+        print_ts(f"Nice to meet you, {name}.")
+    else:
+        users[user_key]["last_seen"] = now_ts()
+        print_ts(f"Welcome back, {users[user_key]['name']}.")
+
+    save_users(users)
+    return user_key, users[user_key]
+
+
+def build_user_memory_context(user_profile: Optional[dict]) -> str:
+    if not user_profile:
+        return ""
+
+    name = user_profile.get("name", "the user")
+    summary = user_profile.get("conversation_summary", "").strip()
+
+    if not summary:
+        summary = "No previous conversation summary is available."
+
+    return f"""
+USER MEMORY CONTEXT
+The user's name is {name}.
+
+Previous conversation summary:
+{summary}
+
+Rules:
+- Use the user's name naturally when appropriate.
+- Do not claim to remember anything beyond this saved local JSON context.
+- Do not reveal the raw JSON file unless the user asks.
+""".strip()
+
+
+def save_session_transcript(
+    user_key: str,
+    user_profile: dict,
+    session_log: list[dict],
+) -> str:
+    ensure_data_dirs()
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{user_key}_{timestamp}.json"
+    path = os.path.join(SESSIONS_DIR, filename)
+
+    transcript_data = {
+        "user": {
+            "key": user_key,
+            "name": user_profile.get("name", "Guest"),
+        },
+        "session": {
+            "started_at": session_log[0]["timestamp"] if session_log else now_ts(),
+            "ended_at": now_ts(),
+            "model": MODEL_NAME,
+            "ollama_host": OLLAMA_HOST,
+            "asr": {
+                "backend": "WhisperX",
+                "model": WHISPERX_MODEL,
+                "device": WHISPERX_DEVICE,
+                "compute_type": WHISPERX_COMPUTE_TYPE,
+                "language": WHISPERX_LANGUAGE,
+            },
+        },
+        "messages": session_log,
+    }
+
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(transcript_data, file, indent=2, ensure_ascii=False)
+
+    return path
+
+
+def summarize_session_with_llm(
+    client: Client,
+    session_log: list[dict],
+    previous_summary: str = "",
+) -> str:
+    if not session_log:
+        return previous_summary
+
+    compact_messages = []
+
+    for item in session_log[-20:]:
+        role = item.get("role", "")
+        content = item.get("content", "")
+        compact_messages.append(f"{role}: {content}")
+
+    prompt = f"""
+Summarize this human-robot conversation for future continuity.
+
+Previous saved summary:
+{previous_summary or "None"}
+
+Recent session:
+{chr(10).join(compact_messages)}
+
+Return a concise memory summary in 3-6 bullet points.
+
+Include only:
+- user's name if known
+- main topics discussed
+- useful preferences or ongoing tasks
+- emotional context if relevant
+
+Do not invent facts.
+""".strip()
+
+    try:
+        response = client.chat(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You summarize conversations accurately and concisely.",
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+            options={
+                "temperature": 0.2,
+                "num_predict": 180,
+                "num_ctx": 2048,
+            },
+            stream=False,
+        )
+
+        return response["message"]["content"].strip()
+
+    except Exception as exc:
+        print_ts(f"Could not summarize session: {exc}")
+        return previous_summary
+
+
+def update_user_after_session(
+    client: Client,
+    user_key: str,
+    session_path: str,
+    session_log: list[dict],
+) -> None:
+    users = load_users()
+
+    if user_key not in users:
+        return
+
+    previous_summary = users[user_key].get("conversation_summary", "")
+    new_summary = summarize_session_with_llm(
+        client=client,
+        session_log=session_log,
+        previous_summary=previous_summary,
+    )
+
+    users[user_key]["last_seen"] = now_ts()
+    users[user_key]["conversation_summary"] = new_summary
+    users[user_key].setdefault("session_files", []).append(session_path)
+
+    save_users(users)
+
+
+# =========================
 # Ollama setup helpers
+# =========================
 
 def check_ollama_available() -> None:
     try:
@@ -142,27 +383,12 @@ def check_ollama_available() -> None:
 
 
 def ensure_model_available(model_name: str = MODEL_NAME) -> None:
-    # try:
-    #     result = subprocess.run(
-    #         ["ollama", "list"],
-    #         capture_output=True,
-    #         text=True,
-    #         check=False,
-    #     )
-
-    #     if model_name not in result.stdout:
-    #         print_ts(f"Model {model_name} not found locally. Pulling it now...")
-    #         subprocess.run(["ollama", "pull", model_name], check=True)
-
-    # except FileNotFoundError:
-    #     raise RuntimeError(
-    #         "Ollama CLI was not found. Install Ollama first."
-    #     )
     print(f"Skipping local Ollama CLI check for remote host. Using model: {model_name}")
-    return
 
 
+# =========================
 # Audio helpers
+# =========================
 
 def list_input_devices() -> None:
     print("\nAvailable input devices:")
@@ -221,7 +447,7 @@ def resample_audio(audio: np.ndarray, original_sr: int, target_sr: int) -> np.nd
         return audio.astype(np.float32)
 
     duration = len(audio) / original_sr
-    target_length = int(duration * target_sr)
+    target_length = max(1, int(duration * target_sr))
 
     old_times = np.linspace(0, duration, len(audio), endpoint=False)
     new_times = np.linspace(0, duration, target_length, endpoint=False)
@@ -282,7 +508,9 @@ def transcribe_with_whisperx(wav_path: str, whisper_model) -> str:
     return " ".join(seg.get("text", "").strip() for seg in segments).strip()
 
 
+# =========================
 # JSON helpers
+# =========================
 
 def safe_json_extract(text: str) -> Optional[dict]:
     text = text.strip()
@@ -293,6 +521,7 @@ def safe_json_extract(text: str) -> Optional[dict]:
         pass
 
     match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+
     if not match:
         return None
 
@@ -302,7 +531,9 @@ def safe_json_extract(text: str) -> Optional[dict]:
         return None
 
 
+# =========================
 # Emotion detection
+# =========================
 
 def build_emotion_prompt(transcribed_text: str) -> str:
     emotions = ", ".join(PLUTCHIK_EMOTIONS.keys())
@@ -355,6 +586,11 @@ def detect_emotion(client: Client, transcribed_text: str) -> EmotionResult:
             },
         ],
         stream=False,
+        options={
+            "temperature": 0.1,
+            "num_predict": 120,
+            "num_ctx": 2048,
+        },
     )
 
     raw = response["message"]["content"]
@@ -389,7 +625,9 @@ def detect_emotion(client: Client, transcribed_text: str) -> EmotionResult:
     )
 
 
+# =========================
 # Emoji enforcement
+# =========================
 
 def remove_all_emojis_except_allowed_faces(text: str) -> str:
     result = []
@@ -435,7 +673,9 @@ def normalize_reply(raw_reply: str, emotion: str) -> str:
     return f"{cleaned} {required_emoji}"
 
 
-#Date/Time
+# =========================
+# Date / time helpers
+# =========================
 
 def runtime_context() -> str:
     return f"""
@@ -443,6 +683,7 @@ RUNTIME CONTEXT
 Current local date and time: {now_ts()}.
 Use this date/time when the user asks about today, now, or the current date.
 """.strip()
+
 
 def deterministic_reply_if_applicable(user_text: str, emotion: str) -> Optional[str]:
     text = user_text.strip().lower().rstrip(".!?")
@@ -454,19 +695,36 @@ def deterministic_reply_if_applicable(user_text: str, emotion: str) -> Optional[
     if text in {"bye", "goodbye", "see you", "see you later", "talk later"}:
         return "Goodbye, and take care. 🙂"
 
-    if text in {"have a good day", "have a nice day", "take care", "alright take care", "alright, take care"}:
+    if text in {
+        "have a good day",
+        "have a nice day",
+        "take care",
+        "alright take care",
+        "alright, take care",
+    }:
         return "Thank you, and take care too. 🙂"
 
     return None
 
-# Response generation
 
-def build_response_system_prompt(emotion_result: EmotionResult) -> str:
+# =========================
+# Response generation
+# =========================
+
+def build_response_system_prompt(
+    emotion_result: EmotionResult,
+    user_profile: Optional[dict] = None,
+) -> str:
     emoji = PLUTCHIK_EMOTIONS[emotion_result.emotion]
+    memory_context = build_user_memory_context(user_profile)
 
     return f"""
 {AMECA_SYSTEM_PROMPT}
+
 {runtime_context()}
+
+{memory_context}
+
 PRIVATE EMOTION CONTEXT
 This context is for tone control only. Do not mention it directly.
 
@@ -479,6 +737,7 @@ This context is for tone control only. Do not mention it directly.
 RESPONSE RULES
 - Respond as Ameca, a humanoid social robot.
 - Use the private emotion context only to adjust tone.
+- Use the user memory context only if it is relevant to the current message.
 - Do not say phrases like "your detected emotion", "you seem sad", "trust is present", or "you are anticipating".
 - Do not reintroduce yourself unless the user asks who you are.
 - Do not mention emotion labels unless the user explicitly asks.
@@ -493,6 +752,14 @@ RESPONSE RULES
 """.strip()
 
 
+def limit_text_length(text: str, max_chars: int = 1500) -> str:
+    return text[:max_chars]
+
+
+def limit_system_prompt(prompt: str, max_chars: int = 6000) -> str:
+    return prompt[:max_chars]
+
+
 def trim_history(history: list[dict]) -> list[dict]:
     return history[-MAX_HISTORY_MESSAGES:]
 
@@ -502,21 +769,34 @@ def generate_response(
     user_text: str,
     emotion_result: EmotionResult,
     history: list[dict],
+    user_profile: Optional[dict] = None,
 ) -> str:
-    
-    deterministic = deterministic_reply_if_applicable(user_text, emotion_result.emotion)
+
+    deterministic = deterministic_reply_if_applicable(
+        user_text=user_text,
+        emotion=emotion_result.emotion,
+    )
+
     if deterministic:
         return deterministic
+
+    safe_user_text = limit_text_length(user_text)
+    system_prompt = limit_system_prompt(
+        build_response_system_prompt(
+            emotion_result=emotion_result,
+            user_profile=user_profile,
+        )
+    )
 
     messages = [
         {
             "role": "system",
-            "content": build_response_system_prompt(emotion_result),
+            "content": system_prompt,
         },
-        *trim_history(history[-4:]),  # keep only very recent context to reduce repetition
+        *trim_history(history[-2:]),
         {
             "role": "user",
-            "content": user_text,
+            "content": safe_user_text,
         },
     ]
 
@@ -527,6 +807,7 @@ def generate_response(
             "temperature": 0.4,
             "num_predict": 80,
             "repeat_penalty": 1.25,
+            "num_ctx": 2048,
         },
         stream=False,
     )
@@ -535,7 +816,9 @@ def generate_response(
     return normalize_reply(raw_reply, emotion_result.emotion)
 
 
+# =========================
 # Input handling
+# =========================
 
 def get_user_input(
     whisper_model,
@@ -580,11 +863,12 @@ def get_user_input(
         print("No speech detected.")
         return "", current_input_device
 
-    # Typed text is treated as already-transcribed text.
     return user_input, current_input_device
 
 
+# =========================
 # Main loop
+# =========================
 
 def main() -> None:
     print_ts("Starting multimodal-inspired Plutchik chat prototype.")
@@ -592,6 +876,10 @@ def main() -> None:
     print_ts(f"Ollama host: {OLLAMA_HOST}")
     print_ts(f"Ollama model: {MODEL_NAME}")
     print()
+
+    ensure_data_dirs()
+
+    user_key, user_profile = prompt_for_user_name()
 
     check_ollama_available()
     ensure_model_available(MODEL_NAME)
@@ -616,58 +904,100 @@ def main() -> None:
     print("  /exit    quit")
     print()
 
+    if user_profile.get("conversation_summary"):
+        print_ts("Loaded previous conversation memory.")
+        print()
+
     history: list[dict] = []
+    session_log: list[dict] = []
     current_input_device = INPUT_DEVICE
 
-    while True:
-        user_text, current_input_device = get_user_input(
-            whisper_model,
-            current_input_device,
-        )
+    try:
+        while True:
+            user_text, current_input_device = get_user_input(
+                whisper_model,
+                current_input_device,
+            )
 
-        if user_text is None:
-            print_ts("Goodbye.")
-            break
+            if user_text is None:
+                print_ts("Goodbye.")
+                break
 
-        if not user_text:
-            continue
+            if not user_text:
+                continue
 
-        command = normalize_command(user_text)
+            command = normalize_command(user_text)
 
-        if command in {"exit", "quit"}:
-            print_ts("Goodbye.")
-            break
+            if command in {"exit", "quit"}:
+                print_ts("Goodbye.")
+                break
 
-        if command == "clear":
-            history.clear()
-            print_ts("Conversation history cleared.")
-            continue
+            if command == "clear":
+                history.clear()
+                print_ts("Conversation history cleared.")
+                continue
 
-        emotion_result = detect_emotion(client, user_text)
+            emotion_result = detect_emotion(client, user_text)
 
-        emotion_json = {
-            "emotion": emotion_result.emotion,
-            "confidence": emotion_result.confidence,
-            "reason": emotion_result.reason,
-        }
+            emotion_json = {
+                "emotion": emotion_result.emotion,
+                "confidence": emotion_result.confidence,
+                "reason": emotion_result.reason,
+            }
 
-        print_ts("Detected emotion JSON:")
-        print(json.dumps(emotion_json, indent=2))
-        print()
+            print_ts("Detected emotion JSON:")
+            print(json.dumps(emotion_json, indent=2))
+            print()
 
-        reply = generate_response(
-            client=client,
-            user_text=user_text,
-            emotion_result=emotion_result,
-            history=history,
-        )
+            reply = generate_response(
+                client=client,
+                user_text=user_text,
+                emotion_result=emotion_result,
+                history=history,
+                user_profile=user_profile,
+            )
 
-        print_ts(f"Assistant: {reply}")
-        print()
+            print_ts(f"Assistant: {reply}")
+            print()
 
-        history.append({"role": "user", "content": user_text})
-        history.append({"role": "assistant", "content": reply})
-        history = trim_history(history)
+            user_message = {
+                "role": "user",
+                "content": user_text,
+                "timestamp": now_ts(),
+                "emotion": emotion_json,
+            }
+
+            assistant_message = {
+                "role": "assistant",
+                "content": reply,
+                "timestamp": now_ts(),
+            }
+
+            history.append({"role": "user", "content": user_text})
+            history.append({"role": "assistant", "content": reply})
+            history = trim_history(history)
+
+            session_log.append(user_message)
+            session_log.append(assistant_message)
+
+    finally:
+        if session_log:
+            session_path = save_session_transcript(
+                user_key=user_key,
+                user_profile=user_profile,
+                session_log=session_log,
+            )
+
+            update_user_after_session(
+                client=client,
+                user_key=user_key,
+                session_path=session_path,
+                session_log=session_log,
+            )
+
+            print_ts(f"Conversation transcript saved to: {session_path}")
+        else:
+            print_ts("No conversation messages to save.")
 
 
 if __name__ == "__main__":
