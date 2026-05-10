@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import re
 import sys
 import tempfile
+import subprocess
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
@@ -12,26 +15,39 @@ from typing import Optional
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+import torch
 import whisperx
 from ollama import Client
+from silero_vad import load_silero_vad, VADIterator
 
 
+# =========================
 # Local Ollama configuration
+# =========================
 
-OLLAMA_HOST = "http://127.0.0.1:11434"
-# OLLAMA_HOST = "https://interstate-apparently-galaxy-nominations.trycloudflare.com"
-MODEL_NAME = "llama3:8b"
+# OLLAMA_HOST = "http://127.0.0.1:11434"
+OLLAMA_HOST = "https://strengthening-leo-senator-poll.trycloudflare.com"
+
+# MODEL_NAME = "llama3:8b"
+MODEL_NAME = "mistral:7b"
 
 
+# =========================
 # Persistent memory / transcript configuration
+# =========================
 
 DATA_DIR = "conversation_data"
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
 
+# Keep this False for fast, clean shutdown.
+# If True, the app will call Ollama at shutdown to summarize the session.
+ENABLE_LLM_SESSION_SUMMARY = False
 
+
+# =========================
 # Ameca identity prompt
-
+# =========================
 
 AMECA_SYSTEM_PROMPT = """
 You are Ameca, a humanoid social robot used in a university laboratory for research and demonstrations.
@@ -72,33 +88,59 @@ Do not pretend to have human emotions or lived experiences.
 Do not mislead users about your capabilities or limitations.
 """
 
-# WhisperX configuration
 
-# HOME / MACBOOK CPU CONFIG
+# =========================
+# WhisperX configuration
+# =========================
+
 WHISPERX_CONFIG = {
-   "profile": "home_macbook_cpu",
-   "model": "small",
-   "device": "cpu",
-   "compute_type": "int8",
-   "language": "en",
- }
+    "profile": "home_macbook_cpu",
+    "model": "small",
+    "device": "cpu",
+    "compute_type": "int8",
+    "language": "en",
+}
 
 # SCHOOL / GPU CONFIG
 # WHISPERX_CONFIG = {
 #     "profile": "school_gpu",
-#    "model": "small",
-#    "device": "cuda",
-#    "compute_type": "int8",
-#    "language": "en",
-#}
+#     "model": "small",
+#     "device": "cuda",
+#     "compute_type": "int8",
+#     "language": "en",
+# }
+
+
+# =========================
+# Audio / Silero VAD configuration
+# =========================
 
 TARGET_SAMPLE_RATE = 16000
-MAX_RECORD_SECONDS = 10
 INPUT_DEVICE: Optional[int] = None
 
+# Silero VAD works best with 16kHz audio and 512-sample chunks.
+SILERO_SAMPLE_RATE = 16000
+SILERO_CHUNK_SIZE = 512
+
+# Sensitivity threshold. Lower = more sensitive. Higher = less false triggering.
+SILERO_THRESHOLD = 0.55
+
+# Silero internal timing. These are in milliseconds.
+SILERO_MIN_SILENCE_DURATION_MS = 700
+SILERO_SPEECH_PAD_MS = 250
+
+# Extra utterance controls.
+VAD_MAX_UTTERANCE_SECONDS = 15.0
+VAD_MIN_UTTERANCE_SECONDS = 0.60
+VAD_PRE_ROLL_SECONDS = 0.35
+
+MIN_PEAK_THRESHOLD = 0.01
+MIN_RMS_THRESHOLD = 0.003
 
 
+# =========================
 # Chat configuration
+# =========================
 
 MAX_HISTORY_MESSAGES = 12
 
@@ -123,7 +165,9 @@ class EmotionResult:
     reason: str
 
 
+# =========================
 # Timestamp helpers
+# =========================
 
 def now_ts() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -133,11 +177,16 @@ def print_ts(message: str) -> None:
     print(f"[{now_ts()}] {message}")
 
 
-def normalize_command(text: str) -> str:
-    return re.sub(r"^[\\/]+", "", text.strip().lower())
+def normalize_command(text: str) -> Optional[str]:
+    stripped = text.strip().lower()
+    if not stripped.startswith(("/", "\\")):
+        return None
+    return re.sub(r"^[\\/]+", "", stripped)
 
 
+# =========================
 # Persistent memory helpers
+# =========================
 
 def ensure_data_dirs() -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -170,31 +219,140 @@ def save_users(users: dict) -> None:
         json.dump(users, file, indent=2, ensure_ascii=False)
 
 
-def prompt_for_user_name() -> tuple[str, dict]:
+def clean_spoken_name(spoken_name: str) -> str:
+    spoken_name = spoken_name.strip()
+
+    patterns = [
+        r"^my name is\s+",
+        r"^my name's\s+",
+        r"^i am\s+",
+        r"^i'm\s+",
+        r"^this is\s+",
+        r"^it is\s+",
+        r"^it's\s+",
+        r"^call me\s+",
+    ]
+
+    for pattern in patterns:
+        spoken_name = re.sub(pattern, "", spoken_name, flags=re.IGNORECASE).strip()
+
+    spoken_name = re.sub(r"[^a-zA-Z0-9\s\-]", "", spoken_name)
+    spoken_name = spoken_name[:40].strip()
+
+    return spoken_name or "Guest"
+
+
+def clean_spelled_name(text: str) -> Optional[str]:
+    """
+    Convert a spelling transcript like:
+      "L E T I C I A"
+    into:
+      "Leticia"
+
+    WhisperX may output punctuation or words around the spelling;
+    this function keeps only standalone letters.
+    """
+    text = text.upper().strip()
+
+    text = re.sub(r"\bMY NAME IS\b", "", text)
+    text = re.sub(r"\bIT IS\b", "", text)
+    text = re.sub(r"\bIT'S\b", "", text)
+    text = re.sub(r"\bSPELL(?:ED|ING)?\b", "", text)
+    text = re.sub(r"[^A-Z\s]", " ", text)
+
+    parts = text.split()
+
+    letters = []
+    for part in parts:
+        if len(part) == 1 and part.isalpha():
+            letters.append(part)
+
+    if len(letters) >= 2:
+        return "".join(letters).title()
+
+    return None
+
+
+def extract_name_from_text(text: str) -> Optional[str]:
+    """
+    Extract names only from explicit name-introduction phrases.
+
+    Important:
+    We intentionally do NOT support "I am ..." or "I'm ..." here because
+    normal phrases like "I'm happy" could be incorrectly treated as a name.
+    """
+    text = text.strip()
+
+    patterns = [
+        r"\bmy name is\s+([a-zA-Z][a-zA-Z\s\-]{1,40})",
+        r"\bmy name's\s+([a-zA-Z][a-zA-Z\s\-]{1,40})",
+        r"\bcall me\s+([a-zA-Z][a-zA-Z\s\-]{1,40})",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            candidate = clean_spoken_name(match.group(1))
+
+            words = candidate.split()
+            if 1 <= len(words) <= 4:
+                return candidate
+
+    return None
+
+
+def looks_like_invalid_name(name: str) -> bool:
+    invalid = {
+        "hello",
+        "hi",
+        "hey",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "yes",
+        "no",
+        "okay",
+        "ok",
+        "thanks",
+        "thank you",
+        "bye",
+        "goodbye",
+    }
+
+    return name.strip().lower() in invalid
+
+
+def rename_current_user(
+    old_user_key: str,
+    user_profile: dict,
+    new_name: str,
+) -> tuple[str, dict]:
     users = load_users()
 
-    name = input("Before we begin, what is your name? ").strip()
+    new_name = clean_spoken_name(new_name)
+    new_key = slugify_name(new_name)
 
-    if not name:
-        name = "Guest"
+    if not new_name or looks_like_invalid_name(new_name):
+        return old_user_key, user_profile
 
-    user_key = slugify_name(name)
+    existing_profile = users.get(new_key)
 
-    if user_key not in users:
-        users[user_key] = {
-            "name": name,
-            "created_at": now_ts(),
-            "last_seen": now_ts(),
-            "session_files": [],
-            "conversation_summary": "",
-        }
-        print_ts(f"Nice to meet you, {name}.")
-    else:
-        users[user_key]["last_seen"] = now_ts()
-        print_ts(f"Welcome back, {users[user_key]['name']}.")
+    if existing_profile:
+        existing_profile["last_seen"] = now_ts()
+        print_ts(f"Switched to existing user profile: {existing_profile['name']}")
+        save_users(users)
+        return new_key, existing_profile
+
+    old_profile = users.pop(old_user_key, user_profile)
+
+    old_profile["name"] = new_name
+    old_profile["last_seen"] = now_ts()
+    users[new_key] = old_profile
 
     save_users(users)
-    return user_key, users[user_key]
+
+    print_ts(f"Updated user name to: {new_name}")
+    return new_key, users[new_key]
 
 
 def build_user_memory_context(user_profile: Optional[dict]) -> str:
@@ -245,6 +403,17 @@ def save_session_transcript(
             "asr": {
                 "backend": "WhisperX",
                 **WHISPERX_CONFIG,
+            },
+            "vad": {
+                "backend": "Silero VAD",
+                "sample_rate": SILERO_SAMPLE_RATE,
+                "chunk_size": SILERO_CHUNK_SIZE,
+                "threshold": SILERO_THRESHOLD,
+                "min_silence_duration_ms": SILERO_MIN_SILENCE_DURATION_MS,
+                "speech_pad_ms": SILERO_SPEECH_PAD_MS,
+                "max_utterance_seconds": VAD_MAX_UTTERANCE_SECONDS,
+                "min_utterance_seconds": VAD_MIN_UTTERANCE_SECONDS,
+                "pre_roll_seconds": VAD_PRE_ROLL_SECONDS,
             },
         },
         "messages": session_log,
@@ -314,6 +483,10 @@ Do not invent facts.
 
         return response["message"]["content"].strip()
 
+    except KeyboardInterrupt:
+        print_ts("Summary generation interrupted. Transcript was still saved.")
+        return previous_summary
+
     except Exception as exc:
         print_ts(f"Could not summarize session: {exc}")
         return previous_summary
@@ -330,21 +503,25 @@ def update_user_after_session(
     if user_key not in users:
         return
 
-    previous_summary = users[user_key].get("conversation_summary", "")
-    new_summary = summarize_session_with_llm(
-        client=client,
-        session_log=session_log,
-        previous_summary=previous_summary,
-    )
-
     users[user_key]["last_seen"] = now_ts()
-    users[user_key]["conversation_summary"] = new_summary
     users[user_key].setdefault("session_files", []).append(session_path)
+
+    if ENABLE_LLM_SESSION_SUMMARY:
+        previous_summary = users[user_key].get("conversation_summary", "")
+        users[user_key]["conversation_summary"] = summarize_session_with_llm(
+            client=client,
+            session_log=session_log,
+            previous_summary=previous_summary,
+        )
+    else:
+        print_ts("Skipping LLM session summary for faster shutdown.")
 
     save_users(users)
 
 
+# =========================
 # Ollama setup helpers
+# =========================
 
 def check_ollama_available() -> None:
     try:
@@ -358,52 +535,59 @@ def check_ollama_available() -> None:
 
 
 def ensure_model_available(model_name: str = MODEL_NAME) -> None:
-    print(f"Skipping local Ollama CLI check for remote host. Using model: {model_name}")
+    if not OLLAMA_HOST.startswith("http://127.0.0.1") and not OLLAMA_HOST.startswith("http://localhost"):
+        print(f"Skipping local Ollama CLI check for remote host. Using model: {model_name}")
+        return
+
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if model_name not in result.stdout:
+            print_ts(f"Model {model_name} not found locally. Pulling it now...")
+            subprocess.run(["ollama", "pull", model_name], check=True)
+
+    except FileNotFoundError:
+        raise RuntimeError("Ollama CLI was not found. Install Ollama first.")
 
 
+# =========================
 # Audio helpers
+# =========================
 
 def list_input_devices() -> None:
     print("\nAvailable input devices:")
 
     try:
         devices = sd.query_devices()
+        hostapis = sd.query_hostapis()
     except Exception as exc:
         print(f"Could not query devices: {exc}")
         return
 
+    found = False
+
     for idx, device in enumerate(devices):
         if device["max_input_channels"] > 0:
+            found = True
+            hostapi_name = hostapis[device["hostapi"]]["name"]
             print(
-                f"[{idx}] {device['name']} | "
+                f"[mic {idx}] {device['name']} | "
+                f"hostapi={hostapi_name} | "
                 f"inputs={device['max_input_channels']} | "
                 f"default_sr={device['default_samplerate']}"
             )
 
+    if not found:
+        print("No input devices found.")
+
     print()
-
-
-def choose_input_device(current_device: Optional[int]) -> Optional[int]:
-    list_input_devices()
-    choice = input("Enter microphone device index, or blank for default: ").strip()
-
-    if not choice:
-        return current_device
-
-    try:
-        device_index = int(choice)
-        device_info = sd.query_devices(device_index)
-
-        if device_info["max_input_channels"] <= 0:
-            print("Selected device does not support input.")
-            return current_device
-
-        print_ts(f"Using microphone: {device_info['name']}")
-        return device_index
-
-    except Exception as exc:
-        print(f"Invalid device: {exc}")
-        return current_device
+    print(f"Current default audio device: {sd.default.device}")
+    print()
 
 
 def get_input_samplerate(input_device: Optional[int]) -> int:
@@ -412,86 +596,401 @@ def get_input_samplerate(input_device: Optional[int]) -> int:
     else:
         device_info = sd.query_devices(input_device)
 
-    return int(round(device_info["default_samplerate"]))
+    default_sr = int(round(device_info["default_samplerate"]))
+    if default_sr <= 0:
+        return TARGET_SAMPLE_RATE
+
+    return default_sr
 
 
 def resample_audio(audio: np.ndarray, original_sr: int, target_sr: int) -> np.ndarray:
     if original_sr == target_sr:
-        return audio.astype(np.float32)
+        return audio.astype(np.float32, copy=False)
+
+    if audio.size == 0:
+        return audio.astype(np.float32, copy=False)
 
     duration = len(audio) / original_sr
-    target_length = max(1, int(duration * target_sr))
+    target_length = max(1, int(round(duration * target_sr)))
 
-    old_times = np.linspace(0, duration, len(audio), endpoint=False)
-    new_times = np.linspace(0, duration, target_length, endpoint=False)
+    old_times = np.linspace(0.0, duration, num=len(audio), endpoint=False)
+    new_times = np.linspace(0.0, duration, num=target_length, endpoint=False)
 
     return np.interp(new_times, old_times, audio).astype(np.float32)
 
 
-def record_audio_to_wav(
-    max_seconds: int = MAX_RECORD_SECONDS,
-    input_device: Optional[int] = INPUT_DEVICE,
-) -> Optional[str]:
-
-    try:
-        sample_rate = get_input_samplerate(input_device)
-
-        print_ts(f"Recording for {max_seconds} seconds. Speak now...")
-
-        audio = sd.rec(
-            int(max_seconds * sample_rate),
-            samplerate=sample_rate,
-            channels=1,
-            dtype="float32",
-            device=input_device,
-        )
-        sd.wait()
-
-        audio = np.squeeze(audio)
-
-        peak = float(np.max(np.abs(audio)))
-        rms = float(np.sqrt(np.mean(audio ** 2)))
-
-        if peak < 0.01 or rms < 0.003:
-            print("Audio too quiet or silent.")
-            return None
-
-        audio = np.clip(audio * min(0.9 / peak, 10.0), -1.0, 1.0)
-        audio_16k = resample_audio(audio, sample_rate, TARGET_SAMPLE_RATE)
-
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            wav_path = tmp.name
-
-        sf.write(wav_path, audio_16k, TARGET_SAMPLE_RATE)
-        return wav_path
-
-    except Exception as exc:
-        print(f"Recording error: {exc}")
+def save_audio_to_temp_wav(audio_16k: np.ndarray) -> Optional[str]:
+    if audio_16k.size == 0:
         return None
+
+    peak = float(np.max(np.abs(audio_16k)))
+    rms = float(np.sqrt(np.mean(audio_16k ** 2)))
+
+    print_ts(f"Captured utterance audio level: peak={peak:.4f}, rms={rms:.4f}")
+
+    if peak < MIN_PEAK_THRESHOLD or rms < MIN_RMS_THRESHOLD:
+        print("Captured audio was too quiet or silent.")
+        return None
+
+    audio_16k = np.clip(audio_16k * min(0.9 / max(peak, 1e-6), 10.0), -1.0, 1.0)
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        wav_path = tmp.name
+
+    sf.write(wav_path, audio_16k, TARGET_SAMPLE_RATE)
+    return wav_path
 
 
 def transcribe_with_whisperx(wav_path: str, whisper_model) -> str:
     audio = whisperx.load_audio(wav_path)
     result = whisper_model.transcribe(audio, batch_size=8)
 
+    text = ""
+
     if result.get("text"):
-        return result["text"].strip()
+        text = result["text"].strip()
+    else:
+        segments = result.get("segments", [])
+        text = " ".join(seg.get("text", "").strip() for seg in segments).strip()
 
-    segments = result.get("segments", [])
-    return " ".join(seg.get("text", "").strip() for seg in segments).strip()
+    text = text.strip()
+
+    if len(text.split()) <= 1 and len(text) < 3:
+        return ""
+
+    return text
 
 
+# =========================
+# Silero VAD listener
+# =========================
+
+def listen_for_utterance_with_silero_vad(
+    input_device: Optional[int],
+    silero_model,
+    prompt_label: str = "utterance",
+) -> Optional[str]:
+    input_sample_rate = get_input_samplerate(input_device)
+    input_block_size = max(1, int(input_sample_rate * 0.05))
+    audio_queue: queue.Queue[np.ndarray] = queue.Queue()
+
+    vad_iterator = VADIterator(
+        silero_model,
+        threshold=SILERO_THRESHOLD,
+        sampling_rate=SILERO_SAMPLE_RATE,
+        min_silence_duration_ms=SILERO_MIN_SILENCE_DURATION_MS,
+        speech_pad_ms=SILERO_SPEECH_PAD_MS,
+    )
+
+    pre_roll_max_chunks = max(1, int((VAD_PRE_ROLL_SECONDS * SILERO_SAMPLE_RATE) / SILERO_CHUNK_SIZE))
+    pre_roll_chunks: list[np.ndarray] = []
+    recorded_chunks: list[np.ndarray] = []
+
+    is_recording = False
+    speech_started_at: Optional[float] = None
+    leftover_16k = np.array([], dtype=np.float32)
+
+    def audio_callback(indata, frames, callback_time, status) -> None:
+        audio_queue.put(indata[:, 0].copy())
+
+    print_ts(f"Listening automatically for {prompt_label}. Speak when ready. Press Ctrl+C to quit.")
+    print_ts(
+        f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
+        f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
+        f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
+    )
+
+    try:
+        sd.check_input_settings(
+            device=input_device,
+            samplerate=input_sample_rate,
+            channels=1,
+            dtype="float32",
+        )
+
+        with sd.InputStream(
+            samplerate=input_sample_rate,
+            channels=1,
+            dtype="float32",
+            device=input_device,
+            blocksize=input_block_size,
+            callback=audio_callback,
+        ):
+            while True:
+                try:
+                    block = audio_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+
+                block_16k = resample_audio(block, input_sample_rate, SILERO_SAMPLE_RATE)
+                combined = np.concatenate([leftover_16k, block_16k]).astype(np.float32, copy=False)
+
+                usable_len = (len(combined) // SILERO_CHUNK_SIZE) * SILERO_CHUNK_SIZE
+                if usable_len == 0:
+                    leftover_16k = combined
+                    continue
+
+                chunks = combined[:usable_len].reshape(-1, SILERO_CHUNK_SIZE)
+                leftover_16k = combined[usable_len:]
+
+                for chunk in chunks:
+                    chunk = chunk.astype(np.float32, copy=False)
+
+                    if not is_recording:
+                        pre_roll_chunks.append(chunk.copy())
+                        if len(pre_roll_chunks) > pre_roll_max_chunks:
+                            pre_roll_chunks.pop(0)
+                    else:
+                        recorded_chunks.append(chunk.copy())
+
+                    speech_event = vad_iterator(torch.from_numpy(chunk), return_seconds=True)
+                    now = time.time()
+
+                    if speech_event:
+                        if "start" in speech_event and not is_recording:
+                            is_recording = True
+                            speech_started_at = now
+                            recorded_chunks = list(pre_roll_chunks)
+                            recorded_chunks.append(chunk.copy())
+                            pre_roll_chunks.clear()
+
+                            print()
+                            print_ts("Speech detected. Recording utterance...")
+
+                        if "end" in speech_event and is_recording:
+                            utterance_duration = now - (speech_started_at or now)
+
+                            if utterance_duration >= VAD_MIN_UTTERANCE_SECONDS:
+                                print_ts("Speech ended. Processing utterance...")
+                                raise StopIteration
+
+                    if is_recording and speech_started_at is not None:
+                        if now - speech_started_at >= VAD_MAX_UTTERANCE_SECONDS:
+                            print_ts("Maximum utterance length reached. Processing utterance...")
+                            raise StopIteration
+
+    except StopIteration:
+        pass
+    except KeyboardInterrupt:
+        raise
+    except Exception as exc:
+        print_ts(f"Silero VAD/audio error: {exc}")
+        return None
+    finally:
+        try:
+            vad_iterator.reset_states()
+        except Exception:
+            pass
+
+    if not recorded_chunks:
+        return None
+
+    audio_16k = np.concatenate(recorded_chunks).astype(np.float32, copy=False)
+    return save_audio_to_temp_wav(audio_16k)
+
+
+def ask_user_to_spell_name(
+    whisper_model,
+    silero_model,
+    input_device: Optional[int] = INPUT_DEVICE,
+) -> Optional[str]:
+    print()
+    print_ts("Please spell your name letter by letter. For example: L E T I C I A.")
+    print()
+
+    wav_path = listen_for_utterance_with_silero_vad(
+        input_device=input_device,
+        silero_model=silero_model,
+        prompt_label="spelled name",
+    )
+
+    if not wav_path:
+        return None
+
+    try:
+        transcript = transcribe_with_whisperx(wav_path, whisper_model)
+    finally:
+        try:
+            os.remove(wav_path)
+        except OSError:
+            pass
+
+    print_ts(f"Raw spelling transcript: {transcript}")
+
+    return clean_spelled_name(transcript)
+
+
+def generate_introduction_response(
+    client: Client,
+    user_name: str,
+) -> str:
+    """
+    Let the LLM introduce Ameca dynamically after the user gives their name.
+    """
+    system_prompt = f"""
+        You are Ameca, a humanoid social robot in a university laboratory.
+
+        A new user has just introduced themselves.
+
+        Your task:
+        - greet the user naturally
+        - introduce yourself naturally as Ameca
+        - keep it warm and concise
+        - keep the response to 1-2 short sentences
+        - mention the user's name
+        - end with exactly one friendly facial emoji
+        - only use this emoji: 🙂
+
+        Do not:
+        - sound robotic
+        - repeat the user's exact words
+        - mention prompts or instructions
+        """.strip()
+
+    try:
+        response = client.chat(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": f"My name is {user_name}",
+                },
+            ],
+            options={
+                "temperature": 0.5,
+                "num_predict": 60,
+                "num_ctx": 1024,
+            },
+            stream=False,
+        )
+
+        raw_reply = response["message"]["content"]
+        return normalize_reply(raw_reply, "trust")
+
+    except Exception as exc:
+        print_ts(f"Could not generate introduction with LLM: {exc}")
+        return f"Hello {user_name}. I am Ameca. It is nice to meet you. 🙂"
+
+
+def prompt_for_user_name(
+    client: Client,
+    whisper_model,
+    silero_model,
+    input_device: Optional[int] = INPUT_DEVICE,
+) -> tuple[str, dict, str]:
+    users = load_users()
+
+    spoken_name = ""
+
+    for attempt in range(2):
+        print()
+        print_ts("Please say your name. For example: 'My name is Leticia'.")
+        print()
+
+        wav_path = listen_for_utterance_with_silero_vad(
+            input_device=input_device,
+            silero_model=silero_model,
+            prompt_label="name",
+        )
+
+        if not wav_path:
+            spoken_name = ""
+        else:
+            try:
+                spoken_name = transcribe_with_whisperx(
+                    wav_path,
+                    whisper_model,
+                ).strip()
+            finally:
+                try:
+                    os.remove(wav_path)
+                except OSError:
+                    pass
+
+        print_ts(f"Raw name transcript: {spoken_name or '(empty)'}")
+
+        extracted_name = extract_name_from_text(spoken_name)
+        spoken_name = extracted_name or clean_spoken_name(spoken_name)
+
+        if spoken_name and not looks_like_invalid_name(spoken_name):
+            break
+
+        print_ts(f"I heard '{spoken_name or 'nothing'}', but that does not sound like a name.")
+
+    if not spoken_name or looks_like_invalid_name(spoken_name):
+        spoken_name = "Guest"
+
+    spelled_name = ask_user_to_spell_name(
+        whisper_model=whisper_model,
+        silero_model=silero_model,
+        input_device=input_device,
+    )
+
+    if spelled_name:
+        spoken_name = spelled_name
+        print_ts(f"Using spelled name: {spoken_name}")
+    else:
+        print_ts(f"Using spoken name: {spoken_name}")
+
+    print_ts(f"Detected name: {spoken_name}")
+
+    user_key = slugify_name(spoken_name)
+
+    is_new_user = user_key not in users
+
+    if is_new_user:
+        users[user_key] = {
+            "name": spoken_name,
+            "created_at": now_ts(),
+            "last_seen": now_ts(),
+            "session_files": [],
+            "conversation_summary": "",
+        }
+    else:
+        users[user_key]["last_seen"] = now_ts()
+
+    save_users(users)
+
+    if is_new_user:
+        print_ts(f"Nice to meet you, {spoken_name}.")
+    else:
+        print_ts(f"Welcome back, {users[user_key]['name']}.")
+
+    introduction_reply = generate_introduction_response(
+        client=client,
+        user_name=users[user_key]["name"],
+    )
+
+    print_ts(f"Assistant: {introduction_reply}")
+    print()
+
+    return user_key, users[user_key], introduction_reply
+
+
+# =========================
 # JSON helpers
+# =========================
 
 def safe_json_extract(text: str) -> Optional[dict]:
     text = text.strip()
+
+    text = re.sub(
+        r"^```(?:json)?\s*|\s*```$",
+        "",
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    ).strip()
 
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    match = re.search(r"\{.*?\}", text, flags=re.DOTALL)
 
     if not match:
         return None
@@ -502,7 +1001,9 @@ def safe_json_extract(text: str) -> Optional[dict]:
         return None
 
 
+# =========================
 # Emotion detection
+# =========================
 
 def build_emotion_prompt(transcribed_text: str) -> str:
     emotions = ", ".join(PLUTCHIK_EMOTIONS.keys())
@@ -540,7 +1041,41 @@ User text:
 """.strip()
 
 
+def simple_emotion_fallback(transcribed_text: str) -> Optional[EmotionResult]:
+    text = transcribed_text.strip().lower()
+
+    greetings = {"hello", "hi", "hey", "good morning", "good afternoon", "good evening"}
+    farewells = {"bye", "goodbye", "see you", "see you later", "talk later", "have a good day", "have a nice day"}
+
+    if text.rstrip(".!?") in greetings:
+        return EmotionResult(
+            emotion="trust",
+            confidence=0.6,
+            reason="The user is opening a friendly social interaction.",
+        )
+
+    if any(phrase in text for phrase in farewells):
+        return EmotionResult(
+            emotion="trust",
+            confidence=0.7,
+            reason="The user is closing the conversation politely.",
+        )
+
+    if "today's date" in text or "todays date" in text or "what is the date" in text:
+        return EmotionResult(
+            emotion="anticipation",
+            confidence=0.5,
+            reason="The user is asking for current date information.",
+        )
+
+    return None
+
+
 def detect_emotion(client: Client, transcribed_text: str) -> EmotionResult:
+    fallback = simple_emotion_fallback(transcribed_text)
+    if fallback:
+        return fallback
+
     response = client.chat(
         model=MODEL_NAME,
         format="json",
@@ -594,7 +1129,9 @@ def detect_emotion(client: Client, transcribed_text: str) -> EmotionResult:
     )
 
 
+# =========================
 # Emoji enforcement
+# =========================
 
 def remove_all_emojis_except_allowed_faces(text: str) -> str:
     result = []
@@ -640,39 +1177,38 @@ def normalize_reply(raw_reply: str, emotion: str) -> str:
     return f"{cleaned} {required_emoji}"
 
 
+# =========================
 # Date / time helpers
+# =========================
 
 def runtime_context() -> str:
     return f"""
-RUNTIME CONTEXT
-Current local date and time: {now_ts()}.
-Use this date/time when the user asks about today, now, or the current date.
-""".strip()
+        RUNTIME CONTEXT
+        Current local date and time: {now_ts()}.
+        Use this date/time when the user asks about today, now, or the current date.
+        """.strip()
 
 
 def deterministic_reply_if_applicable(user_text: str, emotion: str) -> Optional[str]:
-    text = user_text.strip().lower().rstrip(".!?")
+    text = user_text.strip().lower()
     emoji = PLUTCHIK_EMOTIONS.get(emotion, "🙂")
 
-    if text in {"what is today's date", "what is todays date", "today's date", "todays date"}:
+    if "today's date" in text or "todays date" in text or "what is the date" in text:
         return f"Today is {datetime.now().strftime('%A, %B %d, %Y')}. {emoji}"
 
-    if text in {"bye", "goodbye", "see you", "see you later", "talk later"}:
-        return "Goodbye, and take care. 🙂"
+    if "what is the time" in text or "what time is it" in text or "current time" in text:
+        return f"The current time is {datetime.now().strftime('%H:%M')}. {emoji}"
 
-    if text in {
-        "have a good day",
-        "have a nice day",
-        "take care",
-        "alright take care",
-        "alright, take care",
-    }:
-        return "Thank you, and take care too. 🙂"
+    farewell_words = {"bye", "goodbye", "see you", "see you later", "talk later", "have a nice day", "have a good day"}
+    if any(phrase in text for phrase in farewell_words):
+        return "Thank you, and take care. 🙂"
 
     return None
 
 
+# =========================
 # Response generation
+# =========================
 
 def build_response_system_prompt(
     emotion_result: EmotionResult,
@@ -682,37 +1218,64 @@ def build_response_system_prompt(
     memory_context = build_user_memory_context(user_profile)
 
     return f"""
-{AMECA_SYSTEM_PROMPT}
+        {AMECA_SYSTEM_PROMPT}
 
-{runtime_context()}
+        {runtime_context()}
 
-{memory_context}
+        {memory_context}
+        You are generating Ameca's next conversational response.
 
-PRIVATE EMOTION CONTEXT
-This context is for tone control only. Do not mention it directly.
+        PRIVATE EMOTION CONTEXT
+        Use this context only for tone control only. Do not mention it directly.
 
-{{
-  "emotion": "{emotion_result.emotion}",
-  "confidence": {emotion_result.confidence},
-  "reason": "{emotion_result.reason}"
-}}
+        {{
+        "emotion": "{emotion_result.emotion}",
+        "confidence": {emotion_result.confidence},
+        "reason": "{emotion_result.reason}"
+        }}
 
-RESPONSE RULES
-- Respond as Ameca, a humanoid social robot.
-- Use the private emotion context only to adjust tone.
-- Use the user memory context only if it is relevant to the current message.
-- Do not say phrases like "your detected emotion", "you seem sad", "trust is present", or "you are anticipating".
-- Do not reintroduce yourself unless the user asks who you are.
-- Do not mention emotion labels unless the user explicitly asks.
-- Do not repeat advice already given in the recent conversation.
-- Keep the response to 1–2 short sentences.
-- If the user asks who can help, suggest concrete people: supervisor, co-supervisor, lab colleagues, thesis coordinator, or university writing center.
-- End with exactly one facial emoji.
-- The only emoji you may use is: {emoji}
-- Do not use any other emoji.
-- Do not use non-facial emoji.
-- Emoji must appear only at the end.
-""".strip()
+        Return JSON only in this exact shape:
+        {{
+        "reply": "assistant response without emoji",
+        "emoji": "one facial emoji",
+        "tone": "short tone label"
+        }}
+
+        Speech recognition note:
+        - If the user says their name, update the profile silently and greet them by the corrected name.
+
+        Conversation behavior rules:
+        - Always ensure your response is context appropriate.
+        - Always respond like a helpful assistant
+        - Use the private emotion context only to adjust tone.
+        - Use the recent conversation history to understand context and avoid repeating yourself.
+        - Do not greet repeatedly. After the first greeting, respond directly to what the user said.
+        - Do not say phrases like "your detected emotion", "you seem sad", "trust is present", or "you are anticipating".
+        - Do not reintroduce yourself unless the user asks who you are.
+        - Never begin with "As Ameca" or "As a humanoid social robot".
+        - Use the user's name occasionally, not in every response.
+        - Do not immediately give a list of advice unless the user asks for advice.
+        - Speak directly and naturally.
+        - Do not mention emotion labels unless the user explicitly asks.
+        - Do not use markdown, bullets, numbered lists, or long advice unless the user asks for detail.
+        - Do not repeat advice already given in the recent conversation.
+        - Keep the response to 1-2 short sentences.
+        - Do not list any steps unless the user asks for detailed guidance.
+        - If the user asks who can help, suggest concrete people: supervisor, co-supervisor, lab colleagues, thesis coordinator, or university writing center.
+
+        Emoji rules:
+        - Always end sentences with exactly one context appriopriate facial emoji.
+        - Use gentle emojis for negative emotions.
+        - Do not use emoji symbols
+        - Do not overreact emotionally.
+        - Use only one of these emojis: 🙂 😊 😌 😔 😟 🤔 😮 😢 😠 🤢
+        - Emoji must appear only at the end of the sentences.
+
+        Tone examples:
+        - User: "I'm so tired and exhausted." -> reply should validate softly; emoji could be 😔 or 😌.
+        - User: "I am very happy today." -> reply should celebrate the positive mood; emoji could be 😊.
+        - User: "Well, I don't know." -> reply should stay with the uncertainty and ask gently; emoji could be 😟 or 🙂.
+        """.strip()
 
 
 def limit_text_length(text: str, max_chars: int = 1500) -> str:
@@ -727,6 +1290,10 @@ def trim_history(history: list[dict]) -> list[dict]:
     return history[-MAX_HISTORY_MESSAGES:]
 
 
+def prompt_ready_history(history: list[dict]) -> list[dict]:
+    return [{"role": item["role"], "content": item["content"]} for item in history]
+
+
 def generate_response(
     client: Client,
     user_text: str,
@@ -734,7 +1301,6 @@ def generate_response(
     history: list[dict],
     user_profile: Optional[dict] = None,
 ) -> str:
-
     deterministic = deterministic_reply_if_applicable(
         user_text=user_text,
         emotion=emotion_result.emotion,
@@ -756,7 +1322,7 @@ def generate_response(
             "role": "system",
             "content": system_prompt,
         },
-        *trim_history(history[-2:]),
+        *prompt_ready_history(trim_history(history[-6:])),
         {
             "role": "user",
             "content": safe_user_text,
@@ -768,7 +1334,7 @@ def generate_response(
         messages=messages,
         options={
             "temperature": 0.4,
-            "num_predict": 80,
+            "num_predict": 120,
             "repeat_penalty": 1.25,
             "num_ctx": 2048,
         },
@@ -776,61 +1342,16 @@ def generate_response(
     )
 
     raw_reply = response["message"]["content"]
-    return normalize_reply(raw_reply, emotion_result.emotion)
+    # return normalize_reply(raw_reply, emotion_result.emotion)
+    return raw_reply
 
 
-# Input handling
-
-def get_user_input(
-    whisper_model,
-    current_input_device: Optional[int],
-) -> tuple[Optional[str], Optional[int]]:
-
-    try:
-        user_input = input("You: ").strip()
-    except (EOFError, KeyboardInterrupt):
-        return None, current_input_device
-
-    if not user_input:
-        return "", current_input_device
-
-    command = normalize_command(user_input)
-
-    if command == "devices":
-        list_input_devices()
-        return "", current_input_device
-
-    if command == "mic":
-        return "", choose_input_device(current_input_device)
-
-    if command == "speak":
-        wav_path = record_audio_to_wav(input_device=current_input_device)
-
-        if not wav_path:
-            return "", current_input_device
-
-        try:
-            transcript = transcribe_with_whisperx(wav_path, whisper_model)
-        finally:
-            try:
-                os.remove(wav_path)
-            except OSError:
-                pass
-
-        if transcript:
-            print_ts(f"WhisperX transcript: {transcript}")
-            return transcript, current_input_device
-
-        print("No speech detected.")
-        return "", current_input_device
-
-    return user_input, current_input_device
-
-
+# =========================
 # Main loop
+# =========================
 
 def main() -> None:
-    print_ts("Starting multimodal-inspired Plutchik chat prototype.")
+    print_ts("Starting Silero VAD + WhisperX Plutchik chat prototype with local memory.")
     print_ts(f"Python: {sys.version.split()[0]}")
     print_ts(f"Ollama host: {OLLAMA_HOST}")
     print_ts(f"Ollama model: {MODEL_NAME}")
@@ -838,15 +1359,25 @@ def main() -> None:
 
     ensure_data_dirs()
 
-    user_key, user_profile = prompt_for_user_name()
-
     check_ollama_available()
     ensure_model_available(MODEL_NAME)
 
     client = Client(host=OLLAMA_HOST)
 
-    print_ts("Loading WhisperX...")
+    list_input_devices()
 
+    print_ts("Loading Silero VAD...")
+    try:
+        silero_model = load_silero_vad()
+        print_ts("Silero VAD ready.")
+    except Exception as exc:
+        raise RuntimeError(
+            "Failed to load Silero VAD. Install it with:\n"
+            "pip install silero-vad torch\n\n"
+            f"Original error: {exc}"
+        )
+
+    print_ts("Loading WhisperX...")
     try:
         whisper_model = whisperx.load_model(
             WHISPERX_CONFIG["model"],
@@ -854,7 +1385,7 @@ def main() -> None:
             compute_type=WHISPERX_CONFIG["compute_type"],
             language=WHISPERX_CONFIG["language"],
         )
-        
+
         print_ts("WhisperX ready.")
 
     except Exception as exc:
@@ -864,36 +1395,94 @@ def main() -> None:
             f"Original error: {exc}"
         )
 
-    print()
+    user_key, user_profile, intro_reply = prompt_for_user_name(
+        client=client,
+        whisper_model=whisper_model,
+        silero_model=silero_model,
+        input_device=INPUT_DEVICE,
+    )
 
-    print("Commands:")
-    print("  /speak   record microphone input and transcribe with WhisperX")
-    print("  /devices list available microphones")
-    print("  /mic     choose microphone")
-    print("  /clear   clear conversation history")
-    print("  /exit    quit")
     print()
 
     if user_profile.get("conversation_summary"):
         print_ts("Loaded previous conversation memory.")
         print()
 
+    print("Automatic listening mode is active.")
+    print("Speak naturally. Silero VAD will detect speech, WhisperX will transcribe it, and Ameca will respond.")
+    print("Say '/exit' or press Ctrl+C to save the transcript and quit.")
+    print()
+
     history: list[dict] = []
     session_log: list[dict] = []
-    current_input_device = INPUT_DEVICE
+
+    # Store the generated introduction in the transcript so the session is complete.
+    session_log.append({
+        "role": "assistant",
+        "content": intro_reply,
+        "timestamp": now_ts(),
+        "intent": "self_introduction",
+    })
+    history.append({"role": "assistant", "content": intro_reply})
 
     try:
         while True:
-            user_text, current_input_device = get_user_input(
-                whisper_model,
-                current_input_device,
+            wav_path = listen_for_utterance_with_silero_vad(
+                input_device=INPUT_DEVICE,
+                silero_model=silero_model,
+                prompt_label="utterance",
             )
 
-            if user_text is None:
-                print_ts("Goodbye.")
-                break
+            if not wav_path:
+                continue
+
+            try:
+                user_text = transcribe_with_whisperx(wav_path, whisper_model)
+            finally:
+                try:
+                    os.remove(wav_path)
+                except OSError:
+                    pass
 
             if not user_text:
+                print_ts("No speech detected after transcription.")
+                continue
+
+            print_ts(f"WhisperX transcript: {user_text}")
+
+            maybe_name = extract_name_from_text(user_text)
+            if maybe_name and not looks_like_invalid_name(maybe_name):
+                user_key, user_profile = rename_current_user(
+                    old_user_key=user_key,
+                    user_profile=user_profile,
+                    new_name=maybe_name,
+                )
+
+                reply = generate_introduction_response(
+                    client=client,
+                    user_name=user_profile["name"],
+                )
+
+                print_ts(f"Assistant: {reply}")
+                print()
+
+                history.append({"role": "user", "content": user_text})
+                history.append({"role": "assistant", "content": reply})
+                history = trim_history(history)
+
+                session_log.append({
+                    "role": "user",
+                    "content": user_text,
+                    "timestamp": now_ts(),
+                    "input_mode": "silero_vad_whisperx",
+                    "intent": "name_introduction",
+                })
+                session_log.append({
+                    "role": "assistant",
+                    "content": reply,
+                    "timestamp": now_ts(),
+                })
+
                 continue
 
             command = normalize_command(user_text)
@@ -935,6 +1524,7 @@ def main() -> None:
                 "content": user_text,
                 "timestamp": now_ts(),
                 "emotion": emotion_json,
+                "input_mode": "silero_vad_whisperx",
             }
 
             assistant_message = {
@@ -949,6 +1539,10 @@ def main() -> None:
 
             session_log.append(user_message)
             session_log.append(assistant_message)
+
+    except KeyboardInterrupt:
+        print()
+        print_ts("Goodbye.")
 
     finally:
         if session_log:

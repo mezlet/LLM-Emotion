@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import json
 import os
 import queue
@@ -26,6 +25,7 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 import torch
+from deepface import DeepFace
 from faster_whisper import WhisperModel
 from ollama import Client
 from silero_vad import load_silero_vad, VADIterator
@@ -36,14 +36,10 @@ from silero_vad import load_silero_vad, VADIterator
 # =========================
 
 # OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://computed-wine-permit-russell.trycloudflare.com"
+OLLAMA_HOST = "https://sunday-spread-colony-gnome.trycloudflare.com"
 
 # MODEL_NAME = "llama3:8b"
 MODEL_NAME = "mistral:7b"
-
-# Separate Ollama endpoint for the vision model.
-# This fixes 404 errors when the chat model and VLM are served from different hosts.
-VISION_OLLAMA_HOST = "https://power-stress-vector-climb.trycloudflare.com"
 
 
 # =========================
@@ -157,7 +153,7 @@ MIN_RMS_THRESHOLD = 0.003
 
 
 # =========================
-# Camera / VLM face emotion configuration
+# Camera / DeepFace configuration
 # =========================
 
 CAMERA_DEVICE: Optional[int] = None
@@ -166,19 +162,15 @@ CAMERA_FRAME_HEIGHT = 240
 CAMERA_PREVIEW_ENABLED = True
 CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
 
-# The vision model is sampled during the detected speech window, not while waiting for speech.
+# DeepFace is sampled during the detected speech window, not while waiting for speech.
 CAMERA_SAMPLE_EVERY_SECONDS = 1.0
 CAMERA_WARMUP_SECONDS = 0.35
 
-VISION_MODEL_NAME = "llama3.2-vision:11b"
-VISION_IMAGE_JPEG_QUALITY = 85
+DEEPFACE_DETECTOR_BACKEND = "opencv"
+DEEPFACE_ACTIONS = ["emotion"]
+DEEPFACE_ALIGN = True
 
-# Prevent the live audio/VAD loop from hanging if the remote VLM host is slow.
-# The camera preview captures frames quickly; VLM analysis happens after the utterance.
-VISION_REQUEST_TIMEOUT_SECONDS = 8.0
-VISION_MAX_FRAMES_PER_UTTERANCE = 1
-
-# Reliability filter. VLM-derived Plutchik scores are represented as percentages.
+# Reliability filter. DeepFace emotion scores are percentages.
 FACE_MIN_TOP_SCORE = 45.0
 FACE_MIN_MARGIN = 15.0
 
@@ -213,7 +205,6 @@ class EmotionResult:
 @dataclass
 class FaceEmotionCapture:
     emotion_score_samples: list[dict[str, float]]
-    vlm_result_samples: list[dict]
     frame_count: int
     sampled_frame_count: int
     started_at: str
@@ -258,14 +249,14 @@ class FaceEmotionCapture:
 
         scores = self.averaged_scores
         if not scores:
-            return "No reliable VLM facial-expression hint was captured during speech."
+            return "No reliable facial-expression hint was captured during speech."
 
         ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
 
         if not self.is_reliable:
             top_parts = [f"{emo}={score:.0f}%" for emo, score in ordered[:3]]
             return (
-                "VLM facial-expression hint was weak or mixed; "
+                "Facial-expression hint was weak or mixed; "
                 f"top_signals=({', '.join(top_parts)}); "
                 f"samples={self.sampled_frame_count}"
             )
@@ -283,19 +274,15 @@ class FaceEmotionCapture:
         return {
             "available": self.error is None and bool(scores),
             "reliable": self.is_reliable,
-            "backend": "Ollama vision model",
-            "host": VISION_OLLAMA_HOST,
-            "model": VISION_MODEL_NAME,
             "dominant_emotion": self.dominant_emotion,
             "averaged_scores": scores,
-            "vlm_result_samples": self.vlm_result_samples,
             "frame_count": self.frame_count,
             "sampled_frame_count": self.sampled_frame_count,
             "started_at": self.started_at,
             "ended_at": self.ended_at,
             "error": self.error,
             "note": (
-                "VLM facial-expression analysis is a weak supporting signal only. "
+                "Facial expression analysis is a weak supporting signal only. "
                 "Text-based emotion should remain the primary signal."
             ),
         }
@@ -324,18 +311,15 @@ def default_face_emotion_json() -> dict:
     return {
         "available": False,
         "reliable": False,
-        "backend": "Ollama vision model",
-        "model": VISION_MODEL_NAME,
         "dominant_emotion": None,
         "averaged_scores": {},
-        "vlm_result_samples": [],
         "frame_count": 0,
         "sampled_frame_count": 0,
         "started_at": None,
         "ended_at": None,
         "error": "No face emotion capture was provided.",
         "note": (
-            "VLM facial-expression analysis is unavailable. "
+            "Facial expression analysis is unavailable. "
             "Use only text-based emotion context."
         ),
     }
@@ -523,17 +507,17 @@ def build_user_memory_context(user_profile: Optional[dict]) -> str:
         summary = "No previous conversation summary is available."
 
     return f"""
-USER MEMORY CONTEXT
-The user's name is {name}.
+        USER MEMORY CONTEXT
+        The user's name is {name}.
 
-Previous conversation summary:
-{summary}
+        Previous conversation summary:
+        {summary}
 
-Rules:
-- Use the user's name naturally when appropriate.
-- Do not claim to remember anything beyond this saved local JSON context.
-- Do not reveal the raw JSON file unless the user asks.
-""".strip()
+        Rules:
+        - Use the user's name naturally when appropriate.
+        - Do not claim to remember anything beyond this saved local JSON context.
+        - Do not reveal the raw JSON file unless the user asks.
+        """.strip()
 
 
 def save_session_transcript(
@@ -562,16 +546,16 @@ def save_session_transcript(
                 **FAST_WHISPER_CONFIG,
             },
             "face_emotion": {
-                "backend": "Ollama vision model",
-                "vision_host": VISION_OLLAMA_HOST,
-                "vision_model": VISION_MODEL_NAME,
+                "backend": "DeepFace",
                 "camera_device": CAMERA_DEVICE,
                 "camera_frame_width": CAMERA_FRAME_WIDTH,
                 "camera_frame_height": CAMERA_FRAME_HEIGHT,
                 "preview_enabled": CAMERA_PREVIEW_ENABLED,
                 "sample_every_seconds": CAMERA_SAMPLE_EVERY_SECONDS,
                 "warmup_seconds": CAMERA_WARMUP_SECONDS,
-                "jpeg_quality": VISION_IMAGE_JPEG_QUALITY,
+                "detector_backend": DEEPFACE_DETECTOR_BACKEND,
+                "actions": DEEPFACE_ACTIONS,
+                "align": DEEPFACE_ALIGN,
                 "min_top_score": FACE_MIN_TOP_SCORE,
                 "min_margin": FACE_MIN_MARGIN,
             },
@@ -694,20 +678,20 @@ def update_user_after_session(
 # Ollama setup helpers
 # =========================
 
-def check_ollama_available(host: str = OLLAMA_HOST, label: str = "Ollama") -> None:
+def check_ollama_available() -> None:
     try:
-        client = Client(host=host)
+        client = Client(host=OLLAMA_HOST)
         client.list()
     except Exception as exc:
         raise RuntimeError(
-            f"Could not connect to {label} at {host}.\n"
-            "Make sure the Ollama server is running and the Cloudflare tunnel URL is correct."
+            "Could not connect to Ollama.\n"
+            "Make sure the server is running with: ollama serve"
         ) from exc
 
 
-def ensure_model_available(model_name: str = MODEL_NAME, host: str = OLLAMA_HOST) -> None:
-    if not host.startswith("http://127.0.0.1") and not host.startswith("http://localhost"):
-        print(f"Skipping local Ollama CLI check for remote host {host}. Using model: {model_name}")
+def ensure_model_available(model_name: str = MODEL_NAME) -> None:
+    if not OLLAMA_HOST.startswith("http://127.0.0.1") and not OLLAMA_HOST.startswith("http://localhost"):
+        print(f"Skipping local Ollama CLI check for remote host. Using model: {model_name}")
         return
 
     try:
@@ -843,7 +827,7 @@ transcribe_audio = transcribe_with_faster_whisper
 
 
 # =========================
-# Camera / VLM helpers
+# Camera / DeepFace helpers
 # =========================
 
 def get_camera_backend() -> int:
@@ -894,200 +878,40 @@ def list_camera_devices(max_indices: int = 6) -> None:
     print()
 
 
-def encode_frame_as_base64_jpeg(frame_bgr: np.ndarray) -> Optional[str]:
-    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), int(VISION_IMAGE_JPEG_QUALITY)]
-    ok, buffer = cv2.imencode(".jpg", frame_bgr, encode_params)
-
-    if not ok:
-        return None
-
-    return base64.b64encode(buffer).decode("utf-8")
-
-
-def vlm_json_extract(text: str) -> Optional[dict]:
-    text = text.strip()
-    text = re.sub(
-        r"^```(?:json)?\s*|\s*```$",
-        "",
-        text,
-        flags=re.IGNORECASE | re.DOTALL,
-    ).strip()
-
+def analyze_frame_emotion_scores(frame_bgr: np.ndarray) -> Optional[dict[str, float]]:
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"\{.*?\}", text, flags=re.DOTALL)
-    if not match:
-        return None
-
-    try:
-        return json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return None
-
-
-def build_vlm_face_emotion_prompt() -> str:
-    emotions = ", ".join(PLUTCHIK_EMOTIONS.keys())
-
-    return f"""
-You are a careful facial-expression emotion classifier for a human-robot interaction prototype.
-
-Analyze only the visible human face expression in the image.
-Map the expression to exactly one of Plutchik's 8 primary emotions:
-{emotions}
-
-Return JSON only in this exact schema:
-{{
-  "emotion": "joy | trust | fear | surprise | sadness | disgust | anger | anticipation",
-  "confidence": 0.0,
-  "reason": "brief visual evidence from the facial expression",
-  "face_visible": true,
-  "uncertainty": "brief note about blur, angle, lighting, occlusion, or mixed expression"
-}}
-
-Rules:
-- Use only the face expression, not clothing, background, identity, age, gender, race, or attractiveness.
-- Do not identify the person.
-- If no clear face is visible, set face_visible=false, emotion="trust", confidence=0.0, and explain why.
-- confidence must be between 0.0 and 1.0.
-- Keep the reason short and cautious.
-- Do not add markdown or text outside JSON.
-""".strip()
-
-
-def normalize_vlm_face_emotion_result(raw_data: Optional[dict]) -> Optional[dict]:
-    if not raw_data:
-        return None
-
-    emotion = str(raw_data.get("emotion", "")).strip().lower()
-    if emotion not in PLUTCHIK_EMOTIONS:
-        emotion = "trust"
-
-    try:
-        confidence = float(raw_data.get("confidence", 0.0))
-    except Exception:
-        confidence = 0.0
-
-    confidence = max(0.0, min(1.0, confidence))
-    face_visible = bool(raw_data.get("face_visible", confidence > 0.0))
-
-    if not face_visible:
-        confidence = 0.0
-
-    return {
-        "emotion": emotion,
-        "confidence": confidence,
-        "reason": str(raw_data.get("reason", "")).strip() or "VLM inferred emotion from facial expression.",
-        "face_visible": face_visible,
-        "uncertainty": str(raw_data.get("uncertainty", "")).strip(),
-        "model": VISION_MODEL_NAME,
-    }
-
-
-def vlm_result_to_plutchik_scores(vlm_result: dict) -> dict[str, float]:
-    scores = {emotion: 0.0 for emotion in PLUTCHIK_EMOTIONS}
-    emotion = vlm_result.get("emotion")
-    confidence = float(vlm_result.get("confidence", 0.0))
-
-    if emotion in scores and bool(vlm_result.get("face_visible", True)):
-        scores[emotion] = round(confidence * 100.0, 4)
-
-    return scores
-
-
-def analyze_image_b64_emotion_scores(image_b64: str, client: Client) -> Optional[tuple[dict[str, float], dict]]:
-    if not image_b64:
-        return None
-
-    try:
-        response = client.chat(
-            model=VISION_MODEL_NAME,
-            format="json",
-            messages=[
-                {
-                    "role": "user",
-                    "content": build_vlm_face_emotion_prompt(),
-                    "images": [image_b64],
-                }
-            ],
-            options={
-                "temperature": 0.0,
-                "num_predict": 120,
-                "num_ctx": 2048,
-            },
-            stream=False,
+        result = DeepFace.analyze(
+            img_path=frame_bgr,
+            actions=DEEPFACE_ACTIONS,
+            enforce_detection=False,
+            detector_backend=DEEPFACE_DETECTOR_BACKEND,
+            align=DEEPFACE_ALIGN,
+            silent=True,
         )
 
-        raw = response["message"]["content"]
-        vlm_result = normalize_vlm_face_emotion_result(vlm_json_extract(raw))
+        if isinstance(result, list):
+            if not result:
+                return None
+            result = result[0]
 
-        if not vlm_result:
+        scores = result.get("emotion")
+        if not isinstance(scores, dict):
             return None
 
-        return vlm_result_to_plutchik_scores(vlm_result), vlm_result
+        return {emotion: float(score) for emotion, score in scores.items()}
 
-    except Exception as exc:
-        print_ts(f"VLM face emotion analysis failed: {exc}")
+    except Exception:
         return None
 
-
-def analyze_image_b64_emotion_scores_with_timeout(
-    image_b64: str,
-    client: Client,
-    timeout_seconds: float = VISION_REQUEST_TIMEOUT_SECONDS,
-) -> Optional[tuple[dict[str, float], dict]]:
-    """
-    Run the remote VLM call with a hard wall-clock timeout.
-
-    This prevents the real-time conversation loop from hanging when the remote
-    Ollama/VLM tunnel is slow, cold-starting, overloaded, or unreachable.
-    """
-    result_box: dict[str, Optional[tuple[dict[str, float], dict]]] = {"result": None}
-    error_box: dict[str, Optional[BaseException]] = {"error": None}
-
-    def worker() -> None:
-        try:
-            result_box["result"] = analyze_image_b64_emotion_scores(image_b64, client)
-        except BaseException as exc:
-            error_box["error"] = exc
-
-    thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
-    thread.join(timeout_seconds)
-
-    if thread.is_alive():
-        print_ts(
-            f"VLM face emotion analysis timed out after {timeout_seconds:.1f}s. "
-            "Skipping this visual sample."
-        )
-        return None
-
-    if error_box["error"] is not None:
-        print_ts(f"VLM face emotion analysis failed: {error_box['error']}")
-        return None
-
-    return result_box["result"]
-
-
-def analyze_frame_emotion_scores(frame_bgr: np.ndarray, client: Client) -> Optional[tuple[dict[str, float], dict]]:
-    image_b64 = encode_frame_as_base64_jpeg(frame_bgr)
-    if not image_b64:
-        return None
-    return analyze_image_b64_emotion_scores_with_timeout(image_b64, client)
 
 class FaceEmotionSampler:
-    def __init__(self, camera_device: Optional[int], client: Client) -> None:
+    def __init__(self, camera_device: Optional[int]) -> None:
         self.camera_device = camera_device
-        self.client = client
         self.cap: Optional[cv2.VideoCapture] = None
         self.window_created = False
         self.started_at = now_ts()
         self.error: Optional[str] = None
         self.emotion_score_samples: list[dict[str, float]] = []
-        self.vlm_result_samples: list[dict] = []
-        self.frame_b64_samples: list[str] = []
         self.frame_count = 0
         self.sampled_frame_count = 0
         self.capture_start_time: Optional[float] = None
@@ -1162,18 +986,15 @@ class FaceEmotionSampler:
             return
 
         self.last_sample_time = now
+        self.sampled_frame_count += 1
+        scores = analyze_frame_emotion_scores(frame)
 
-        if len(self.frame_b64_samples) >= VISION_MAX_FRAMES_PER_UTTERANCE:
-            self.last_status = "visual sample already captured"
-            return
-
-        image_b64 = encode_frame_as_base64_jpeg(frame)
-        if image_b64:
-            self.frame_b64_samples.append(image_b64)
-            self.sampled_frame_count += 1
-            self.last_status = "visual sample captured"
+        if scores:
+            self.emotion_score_samples.append(scores)
+            top_emotion, top_score = max(scores.items(), key=lambda item: item[1])
+            self.last_status = f"{top_emotion}: {top_score:.0f}%"
         else:
-            self.last_status = "could not encode frame"
+            self.last_status = "no face/emotion detected"
 
     def finish(self) -> FaceEmotionCapture:
         if self.cap is not None:
@@ -1187,22 +1008,8 @@ class FaceEmotionSampler:
             except Exception:
                 pass
 
-        if self.frame_b64_samples and not self.emotion_score_samples:
-            print_ts(
-                f"Analyzing {len(self.frame_b64_samples)} captured face sample(s) with "
-                f"{VISION_MODEL_NAME}..."
-            )
-
-            for image_b64 in self.frame_b64_samples:
-                analysis = analyze_image_b64_emotion_scores_with_timeout(image_b64, self.client)
-                if analysis:
-                    scores, vlm_result = analysis
-                    self.emotion_score_samples.append(scores)
-                    self.vlm_result_samples.append(vlm_result)
-
         return FaceEmotionCapture(
             emotion_score_samples=self.emotion_score_samples,
-            vlm_result_samples=self.vlm_result_samples,
             frame_count=self.frame_count,
             sampled_frame_count=self.sampled_frame_count,
             started_at=self.started_at,
@@ -1342,7 +1149,6 @@ def listen_for_utterance_with_silero_vad(
 def listen_for_utterance_with_silero_vad_and_face_emotion(
     input_device: Optional[int],
     silero_model,
-    client: Client,
     camera_device: Optional[int] = CAMERA_DEVICE,
     prompt_label: str = "utterance",
 ) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
@@ -1439,7 +1245,7 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             print()
                             print_ts("Speech detected. Recording utterance and sampling facial expression...")
 
-                            face_sampler = FaceEmotionSampler(camera_device=camera_device, client=client)
+                            face_sampler = FaceEmotionSampler(camera_device=camera_device)
                             face_sampler.start()
                             face_sampler.sample_if_due()
 
@@ -1706,43 +1512,43 @@ def build_emotion_prompt(
     )
 
     return f"""
-You are an emotion classification system for a human-robot interaction chat system.
+        You are an emotion classification system for a human-robot interaction chat system.
 
-Classify the user's emotional state from the text below.
+        Classify the user's emotional state from the text below.
 
-You must map the emotion to exactly one of Plutchik's 8 primary emotions:
+        You must map the emotion to exactly one of Plutchik's 8 primary emotions:
 
-{emotions}
+        {emotions}
 
-Use the user's words as the primary signal.
-Use the facial-expression hint only as a weak supporting signal.
-If the words and facial-expression hint conflict, trust the words more.
-Do not make strong claims from facial-expression analysis alone.
+        Use the user's words as the primary signal.
+        Use the facial-expression hint only as a weak supporting signal.
+        If the words and facial-expression hint conflict, trust the words more.
+        Do not make strong claims from facial-expression analysis alone.
 
-Return JSON only.
+        Return JSON only.
 
-Required JSON schema:
-{{
-  "emotion": "joy | trust | fear | surprise | sadness | disgust | anger | anticipation",
-  "confidence": 0.0,
-  "reason": "short explanation"
-}}
+        Required JSON schema:
+        {{
+        "emotion": "joy | trust | fear | surprise | sadness | disgust | anger | anticipation",
+        "confidence": 0.0,
+        "reason": "short explanation"
+        }}
 
-Rules:
-- confidence must be a number between 0.0 and 1.0
-- choose the best single emotion, even if the message is mixed
-- do not add markdown
-- do not add extra text outside JSON
-- For greetings such as "hello", "hi", or "good morning", return:
-  {{"emotion": "trust", "confidence": 0.6, "reason": "The user is opening a friendly social interaction."}}
-- For farewells such as "bye", "goodbye", "take care", or "talk later", return:
-  {{"emotion": "trust", "confidence": 0.7, "reason": "The user is closing the conversation politely."}}
+        Rules:
+        - confidence must be a number between 0.0 and 1.0
+        - choose the best single emotion, even if the message is mixed
+        - do not add markdown
+        - do not add extra text outside JSON
+        - For greetings such as "hello", "hi", or "good morning", return:
+        {{"emotion": "trust", "confidence": 0.6, "reason": "The user is opening a friendly social interaction."}}
+        - For farewells such as "bye", "goodbye", "take care", or "talk later", return:
+        {{"emotion": "trust", "confidence": 0.7, "reason": "The user is closing the conversation politely."}}
 
-User text:
-{transcribed_text}
+        User text:
+        {transcribed_text}
 
-{facial_section}
-""".strip()
+        {facial_section}
+        """.strip()
 
 
 def simple_emotion_fallback(transcribed_text: str) -> Optional[EmotionResult]:
@@ -1952,15 +1758,15 @@ def build_response_system_prompt(
         Text/LLM emotion JSON:
         {json.dumps(text_emotion_json, indent=2)}
 
-        Face/VLM emotion JSON:
+        Face/DeepFace emotion JSON:
         {json.dumps(face_emotion_json, indent=2)}
 
         Interpretation rules:
         - Treat the Text/LLM emotion JSON as the primary emotional signal.
-        - Treat the Face/VLM emotion JSON as a secondary weak supporting signal.
+        - Treat the Face/DeepFace emotion JSON as a secondary weak supporting signal.
         - If both signals agree, you may gently adapt tone more confidently.
         - If both signals conflict, trust the text emotion more.
-        - Do not mention camera, vision model, facial-expression analysis, detected emotion, or private emotion context to the user.
+        - Do not mention camera, DeepFace, facial analysis, detected emotion, or private emotion context to the user.
         - Do not say things like "you look sad", "your face shows", or "I detected".
 
         Return JSON only in this exact shape:
@@ -1989,9 +1795,6 @@ def build_response_system_prompt(
         - Do not use markdown, bullets, numbered lists, or long advice unless the user asks for detail.
         - Do not repeat advice already given in the recent conversation.
         - Keep the response to 1-2 short sentences.
-        - Maximum response length: 25 words unless the user explicitly asks for detail.
-        - Do not give advice unless the user explicitly asks for advice.
-        - If the user only shares a feeling, respond with brief validation only.
         - Do not list any steps unless the user asks for detailed guidance.
         - If the user asks who can help, suggest concrete people: supervisor, co-supervisor, lab colleagues, thesis coordinator, or university writing center.
 
@@ -2076,18 +1879,19 @@ def generate_response(
     )
 
     raw_reply = response["message"]["content"]
+    # return normalize_reply(raw_reply, emotion_result.emotion)
+    # return raw_reply
+    raw_reply = response["message"]["content"]
     data = safe_json_extract(raw_reply)
 
     if data and isinstance(data, dict):
         reply_text = str(data.get("reply", "")).strip()
         emoji = str(data.get("emoji", "")).strip()
 
-        # Some local models return ASCII smileys although the prompt asks for emoji.
         if emoji in {":)", ":-)", ""}:
             emoji = PLUTCHIK_EMOTIONS.get(emotion_result.emotion, "🙂")
 
-        if reply_text:
-            return normalize_reply(f"{reply_text} {emoji}", emotion_result.emotion)
+        return normalize_reply(f"{reply_text} {emoji}", emotion_result.emotion)
 
     return normalize_reply(raw_reply, emotion_result.emotion)
 
@@ -2099,21 +1903,16 @@ def generate_response(
 def main() -> None:
     print_ts("Starting Silero VAD + faster-whisper Plutchik chat prototype with local memory.")
     print_ts(f"Python: {sys.version.split()[0]}")
-    print_ts(f"Ollama chat host: {OLLAMA_HOST}")
-    print_ts(f"Ollama chat model: {MODEL_NAME}")
-    print_ts(f"Ollama vision host: {VISION_OLLAMA_HOST}")
-    print_ts(f"Ollama vision model: {VISION_MODEL_NAME}")
+    print_ts(f"Ollama host: {OLLAMA_HOST}")
+    print_ts(f"Ollama model: {MODEL_NAME}")
     print()
 
     ensure_data_dirs()
 
-    check_ollama_available(host=OLLAMA_HOST, label="chat Ollama")
-    check_ollama_available(host=VISION_OLLAMA_HOST, label="vision Ollama")
-    ensure_model_available(MODEL_NAME, host=OLLAMA_HOST)
-    ensure_model_available(VISION_MODEL_NAME, host=VISION_OLLAMA_HOST)
+    check_ollama_available()
+    ensure_model_available(MODEL_NAME)
 
     client = Client(host=OLLAMA_HOST)
-    vision_client = Client(host=VISION_OLLAMA_HOST, timeout=VISION_REQUEST_TIMEOUT_SECONDS + 2.0)
 
     list_input_devices()
 
@@ -2161,7 +1960,7 @@ def main() -> None:
         print()
 
     print("Automatic listening mode is active.")
-    print("Speak naturally. Silero VAD will detect speech, camera frames will be captured quickly and llama3.2-vision:11b will analyze after speech, faster-whisper will transcribe it, and Ameca will respond.")
+    print("Speak naturally. Silero VAD will detect speech, DeepFace will sample facial emotion, faster-whisper will transcribe it, and Ameca will respond.")
     print("Say '/exit' or press Ctrl+C to save the transcript and quit.")
     print()
 
@@ -2182,7 +1981,6 @@ def main() -> None:
             wav_path, face_capture = listen_for_utterance_with_silero_vad_and_face_emotion(
                 input_device=INPUT_DEVICE,
                 silero_model=silero_model,
-                client=vision_client,
                 camera_device=CAMERA_DEVICE,
                 prompt_label="utterance",
             )
@@ -2298,7 +2096,7 @@ def main() -> None:
                 "emotion": emotion_json,
                 "facial_emotion_hint": facial_hint,
                 "face_emotion": face_emotion_json,
-                "input_mode": "silero_vad_faster_whisper_vlm_face",
+                "input_mode": "silero_vad_faster_whisper_deepface",
             }
 
             assistant_message = {

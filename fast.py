@@ -11,6 +11,10 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Tuple
+if sys.platform.startswith("linux"):
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
+
+os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
 
 import cv2
 import numpy as np
@@ -27,17 +31,17 @@ from threading import Event
 # -----------------------------
 
 # Local Ollama server
-OLLAMA_HOST = "http://127.0.0.1:11434"
-# OLLAMA_HOST = "https://friendship-makes-lcd-gis.trycloudflare.com"
+# OLLAMA_HOST = "http://127.0.0.1:11434"
+OLLAMA_HOST = "https://collectors-prizes-enabling-nickel.trycloudflare.com"
 
 # Choose your Ollama model here
 # MODEL_NAME = "llama3.2:3b"
-MODEL_NAME = "llama3:8b"
-# MODEL_NAME = "mistral:7b"
+# MODEL_NAME = "llama3:8b"
+MODEL_NAME = "mistral:7b"
 
 # faster-whisper speech-to-text settings
 FASTER_WHISPER_MODEL = "small"
-FASTER_WHISPER_DEVICE = "cuda"
+FASTER_WHISPER_DEVICE = "cpu"
 FASTER_WHISPER_COMPUTE_TYPE = "int8"
 FASTER_WHISPER_LANGUAGE = "en"
 
@@ -54,8 +58,8 @@ MIN_RMS_THRESHOLD = 0.003
 
 # Camera settings
 CAMERA_DEVICE: Optional[int] = None
-CAMERA_FRAME_WIDTH = 640
-CAMERA_FRAME_HEIGHT = 480
+CAMERA_FRAME_WIDTH = 320
+CAMERA_FRAME_HEIGHT = 240
 CAMERA_PREVIEW_ENABLED = True
 CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
 
@@ -864,7 +868,7 @@ def transcribe_with_fastwhisper(
 # Camera / DeepFace helpers
 # -----------------------------
 
-def list_camera_devices(max_indices: int = 4) -> None:
+def list_camera_devices(max_indices: int = 6) -> None:
     """
     Probe a range of camera indices and print available cameras.
     """
@@ -872,7 +876,7 @@ def list_camera_devices(max_indices: int = 4) -> None:
     found = False
 
     for idx in range(max_indices):
-        cap = cv2.VideoCapture(idx)
+        cap = open_camera(idx)
         try:
             if not cap.isOpened():
                 continue
@@ -906,7 +910,8 @@ def choose_camera_device(current_camera_device: Optional[int]) -> Optional[int]:
 
     try:
         camera_index = int(selection)
-        cap = cv2.VideoCapture(camera_index)
+        cap = open_camera(camera_index)
+
         try:
             if not cap.isOpened():
                 print("That camera could not be opened.\n")
@@ -919,6 +924,7 @@ def choose_camera_device(current_camera_device: Optional[int]) -> Optional[int]:
 
             print_ts(f"Using camera device [{camera_index}]")
             return camera_index
+
         finally:
             cap.release()
 
@@ -929,10 +935,18 @@ def choose_camera_device(current_camera_device: Optional[int]) -> Optional[int]:
 
 def open_camera(camera_device: Optional[int]) -> cv2.VideoCapture:
     """
-    Open the chosen camera.
+    Open the chosen camera using the correct backend for each OS.
     """
     camera_index = 0 if camera_device is None else camera_device
-    cap = cv2.VideoCapture(camera_index)
+
+    if sys.platform == "darwin":
+        backend = cv2.CAP_AVFOUNDATION
+    elif sys.platform.startswith("linux"):
+        backend = cv2.CAP_V4L2
+    else:
+        backend = cv2.CAP_ANY
+
+    cap = cv2.VideoCapture(camera_index, backend)
 
     if cap.isOpened():
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_FRAME_WIDTH)
@@ -1047,7 +1061,7 @@ def capture_face_emotion_during_recording(
                 2,
                 cv2.LINE_AA,
             )
-
+            preview_frame = cv2.resize(preview_frame, (640, 480))
             cv2.imshow(CAMERA_PREVIEW_WINDOW_NAME, preview_frame)
 
             key = cv2.waitKey(1) & 0xFF
@@ -1098,33 +1112,38 @@ def record_audio_and_capture_face_emotion(
     camera_device: Optional[int] = CAMERA_DEVICE,
 ) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
     """
-    Run microphone recording and camera emotion capture in parallel.
-    Ensures the camera thread stops and releases the webcam before returning.
+    Record audio in a background thread.
+    Run camera preview/emotion capture on the main thread.
+
+    This is important on macOS because cv2.namedWindow/cv2.imshow
+    can crash when called from a worker thread.
     """
-    face_result: dict[str, Optional[FaceEmotionCapture]] = {"data": None}
+    audio_result: dict[str, Optional[str]] = {"wav_path": None}
     stop_event = threading.Event()
 
-    def face_worker() -> None:
-        face_result["data"] = capture_face_emotion_during_recording(
-            duration_seconds=max_seconds,
-            camera_device=camera_device,
-            sample_every_seconds=CAMERA_SAMPLE_EVERY_SECONDS,
-            stop_event=stop_event,
-        )
+    def audio_worker() -> None:
+        try:
+            audio_result["wav_path"] = record_audio_to_wav(
+                max_seconds=max_seconds,
+                input_device=input_device,
+            )
+        finally:
+            stop_event.set()
 
-    thread = threading.Thread(target=face_worker, daemon=False)
+    thread = threading.Thread(target=audio_worker, daemon=False)
     thread.start()
 
-    try:
-        wav_path = record_audio_to_wav(
-            max_seconds=max_seconds,
-            input_device=input_device,
-        )
-    finally:
-        stop_event.set()
-        thread.join()
+    face_capture = capture_face_emotion_during_recording(
+        duration_seconds=max_seconds,
+        camera_device=camera_device,
+        sample_every_seconds=CAMERA_SAMPLE_EVERY_SECONDS,
+        stop_event=stop_event,
+    )
 
-    return wav_path, face_result.get("data")
+    stop_event.set()
+    thread.join()
+
+    return audio_result.get("wav_path"), face_capture
 
 
 # -----------------------------
