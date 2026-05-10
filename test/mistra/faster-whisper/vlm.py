@@ -31,19 +31,27 @@ from ollama import Client
 from silero_vad import load_silero_vad, VADIterator
 
 
+import platform
+
+IS_MAC = platform.system() == "Darwin"
+IS_LINUX = platform.system() == "Linux"
+
+CAMERA_DEVICE = 0 
+USE_ZED_HALF_FRAME_CROP = IS_LINUX
+
 # =========================
 # Local Ollama configuration
 # =========================
 
-# OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://computed-wine-permit-russell.trycloudflare.com"
+OLLAMA_HOST = "http://127.0.0.1:11434"
+# OLLAMA_HOST = "https://computed-wine-permit-russell.trycloudflare.com"
 
-# MODEL_NAME = "llama3:8b"
-MODEL_NAME = "mistral:7b"
+MODEL_NAME = "llama3:8b"
+# MODEL_NAME = "mistral:7b"
 
 # Separate Ollama endpoint for the vision model.
 # This fixes 404 errors when the chat model and VLM are served from different hosts.
-VISION_OLLAMA_HOST = "https://power-stress-vector-climb.trycloudflare.com"
+VISION_OLLAMA_HOST = "http://127.0.0.1:11434"
 
 
 # =========================
@@ -110,7 +118,7 @@ Do not mislead users about your capabilities or limitations.
 FAST_WHISPER_CONFIG = {
     "profile": "home_macbook_cpu",
     "model": "small",
-    "device": "cpu",
+    "device": "cuda",
     "compute_type": "int8",
     "language": "en",
     "beam_size": 1,
@@ -160,7 +168,7 @@ MIN_RMS_THRESHOLD = 0.003
 # Camera / VLM face emotion configuration
 # =========================
 
-CAMERA_DEVICE: Optional[int] = None
+CAMERA_DEVICE: 1
 CAMERA_FRAME_WIDTH = 320
 CAMERA_FRAME_HEIGHT = 240
 CAMERA_PREVIEW_ENABLED = True
@@ -175,7 +183,7 @@ VISION_IMAGE_JPEG_QUALITY = 85
 
 # Prevent the live audio/VAD loop from hanging if the remote VLM host is slow.
 # The camera preview captures frames quickly; VLM analysis happens after the utterance.
-VISION_REQUEST_TIMEOUT_SECONDS = 8.0
+VISION_REQUEST_TIMEOUT_SECONDS = 20
 VISION_MAX_FRAMES_PER_UTTERANCE = 1
 
 # Reliability filter. VLM-derived Plutchik scores are represented as percentages.
@@ -855,16 +863,44 @@ def get_camera_backend() -> int:
 
     return cv2.CAP_ANY
 
+def normalize_camera_frame(frame: np.ndarray) -> np.ndarray:
+    if USE_ZED_HALF_FRAME_CROP:
+        height, width = frame.shape[:2]
+        frame = frame[:, : width // 2]
+    return frame
+
 
 def open_camera(camera_device: Optional[int]) -> cv2.VideoCapture:
-    camera_index = 0 if camera_device is None else camera_device
-    cap = cv2.VideoCapture(camera_index, get_camera_backend())
+    candidates = []
 
-    if cap.isOpened():
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_FRAME_WIDTH)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_FRAME_HEIGHT)
+    if camera_device is not None:
+        candidates.append(camera_device)
 
-    return cap
+    candidates.extend([0, 1, 2, 3])
+
+    seen = set()
+
+    for camera_index in candidates:
+        if camera_index in seen:
+            continue
+
+        seen.add(camera_index)
+
+        cap = cv2.VideoCapture(camera_index, get_camera_backend())
+
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_FRAME_WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_FRAME_HEIGHT)
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+
+            ok, frame = cap.read()
+            if ok and frame is not None:
+                print_ts(f"Using camera device: /dev/video{camera_index}")
+                return cap
+
+        cap.release()
+
+    return cv2.VideoCapture(-1)
 
 
 def list_camera_devices(max_indices: int = 6) -> None:

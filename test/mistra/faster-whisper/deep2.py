@@ -29,17 +29,23 @@ from deepface import DeepFace
 from faster_whisper import WhisperModel
 from ollama import Client
 from silero_vad import load_silero_vad, VADIterator
+import platform
 
+IS_MAC = platform.system() == "Darwin"
+IS_LINUX = platform.system() == "Linux"
+
+CAMERA_DEVICE = 0 if IS_MAC else 1
+USE_ZED_HALF_FRAME_CROP = IS_LINUX
 
 # =========================
 # Local Ollama configuration
 # =========================
 
-# OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://sunday-spread-colony-gnome.trycloudflare.com"
+OLLAMA_HOST = "http://127.0.0.1:11434"
+# OLLAMA_HOST = "https://sunday-spread-colony-gnome.trycloudflare.com"
 
-# MODEL_NAME = "llama3:8b"
-MODEL_NAME = "mistral:7b"
+MODEL_NAME = "llama3:8b"
+# MODEL_NAME = "mistral:7b"
 
 
 # =========================
@@ -106,7 +112,7 @@ Do not mislead users about your capabilities or limitations.
 FAST_WHISPER_CONFIG = {
     "profile": "home_macbook_cpu",
     "model": "small",
-    "device": "cpu",
+    "device": "cuda",
     "compute_type": "int8",
     "language": "en",
     "beam_size": 1,
@@ -156,11 +162,27 @@ MIN_RMS_THRESHOLD = 0.003
 # Camera / DeepFace configuration
 # =========================
 
-CAMERA_DEVICE: Optional[int] = None
-CAMERA_FRAME_WIDTH = 320
-CAMERA_FRAME_HEIGHT = 240
+# =========================
+# Camera / DeepFace configuration
+# =========================
+
+CAMERA_DEVICE: Optional[int] = 0 if IS_LINUX else 0
+
+# ZED stereo frame is side-by-side.
+# 2560x720 means each eye becomes 1280x720 after cropping.
+ZED_STEREO_WIDTH = 2560
+ZED_STEREO_HEIGHT = 720
+
+CAMERA_FRAME_WIDTH = ZED_STEREO_WIDTH if IS_LINUX else 1280
+CAMERA_FRAME_HEIGHT = ZED_STEREO_HEIGHT if IS_LINUX else 720
+
+CAMERA_PREVIEW_WIDTH = 960
+CAMERA_PREVIEW_HEIGHT = 540
+
 CAMERA_PREVIEW_ENABLED = True
 CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
+
+USE_ZED_HALF_FRAME_CROP = IS_LINUX
 
 # DeepFace is sampled during the detected speech window, not while waiting for speech.
 CAMERA_SAMPLE_EVERY_SECONDS = 1.0
@@ -318,10 +340,6 @@ def default_face_emotion_json() -> dict:
         "started_at": None,
         "ended_at": None,
         "error": "No face emotion capture was provided.",
-        "note": (
-            "Facial expression analysis is unavailable. "
-            "Use only text-based emotion context."
-        ),
     }
 
 
@@ -678,36 +696,25 @@ def update_user_after_session(
 # Ollama setup helpers
 # =========================
 
-def check_ollama_available() -> None:
-    try:
-        client = Client(host=OLLAMA_HOST)
-        client.list()
-    except Exception as exc:
-        raise RuntimeError(
-            "Could not connect to Ollama.\n"
-            "Make sure the server is running with: ollama serve"
-        ) from exc
+def check_ollama_available(max_attempts: int = 10, delay_seconds: float = 1.0) -> None:
+    client = Client(host=OLLAMA_HOST)
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            client.list()
+            print_ts(f"Ollama is reachable at {OLLAMA_HOST}.")
+            return
+        except Exception as exc:
+            print_ts(f"Ollama not reachable yet, attempt {attempt}/{max_attempts}: {exc}")
+            time.sleep(delay_seconds)
+
+    raise RuntimeError(
+        f"Could not connect to Ollama at {OLLAMA_HOST} after {max_attempts} attempts."
+    )
 
 
 def ensure_model_available(model_name: str = MODEL_NAME) -> None:
-    if not OLLAMA_HOST.startswith("http://127.0.0.1") and not OLLAMA_HOST.startswith("http://localhost"):
-        print(f"Skipping local Ollama CLI check for remote host. Using model: {model_name}")
-        return
-
-    try:
-        result = subprocess.run(
-            ["ollama", "list"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if model_name not in result.stdout:
-            print_ts(f"Model {model_name} not found locally. Pulling it now...")
-            subprocess.run(["ollama", "pull", model_name], check=True)
-
-    except FileNotFoundError:
-        raise RuntimeError("Ollama CLI was not found. Install Ollama first.")
+    print_ts(f"Using Ollama model '{model_name}' from {OLLAMA_HOST}. Skipping local pull.")
 
 
 # =========================
@@ -830,6 +837,16 @@ transcribe_audio = transcribe_with_faster_whisper
 # Camera / DeepFace helpers
 # =========================
 
+def normalize_camera_frame(frame: np.ndarray) -> np.ndarray:
+    if USE_ZED_HALF_FRAME_CROP:
+        height, width = frame.shape[:2]
+
+        # ZED gives left + right images side by side.
+        # Keep only the left camera image.
+        frame = frame[:, : width // 2]
+
+    return frame
+
 def get_camera_backend() -> int:
     if sys.platform == "darwin":
         return cv2.CAP_AVFOUNDATION
@@ -840,15 +857,51 @@ def get_camera_backend() -> int:
     return cv2.CAP_ANY
 
 
-def open_camera(camera_device: Optional[int]) -> cv2.VideoCapture:
-    camera_index = 0 if camera_device is None else camera_device
-    cap = cv2.VideoCapture(camera_index, get_camera_backend())
 
-    if cap.isOpened():
+def open_camera(camera_device: Optional[int]) -> cv2.VideoCapture:
+    candidates = []
+
+    if camera_device is not None:
+        candidates.append(camera_device)
+
+    candidates.extend([0, 1, 2, 3])
+
+    seen = set()
+
+    for camera_index in candidates:
+        if camera_index in seen:
+            continue
+
+        seen.add(camera_index)
+
+        cap = cv2.VideoCapture(camera_index, get_camera_backend())
+
+        if not cap.isOpened():
+            cap.release()
+            continue
+
+        # MJPG is important for high-resolution ZED over USB.
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_FRAME_WIDTH)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_FRAME_HEIGHT)
+        cap.set(cv2.CAP_PROP_FPS, 30)
 
-    return cap
+        time.sleep(0.2)
+
+        ok, frame = cap.read()
+
+        if ok and frame is not None:
+            actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            print_ts(
+                f"Using camera device /dev/video{camera_index} "
+                f"at {actual_width}x{actual_height}"
+            )
+            return cap
+
+        cap.release()
+
+    return cv2.VideoCapture(-1)
 
 
 def list_camera_devices(max_indices: int = 6) -> None:
@@ -862,8 +915,8 @@ def list_camera_devices(max_indices: int = 6) -> None:
                 continue
 
             ok, frame = cap.read()
-            if not ok or frame is None:
-                continue
+            if ok and frame is not None:
+                frame = normalize_camera_frame(frame)
 
             found = True
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -944,6 +997,8 @@ class FaceEmotionSampler:
         if not ok or frame is None:
             return
 
+        frame = normalize_camera_frame(frame)
+
         self.frame_count += 1
         now = time.time()
         elapsed = now - self.capture_start_time
@@ -971,7 +1026,10 @@ class FaceEmotionSampler:
                     2,
                     cv2.LINE_AA,
                 )
-                preview_frame = cv2.resize(preview_frame, (640, 480))
+                preview_frame = cv2.resize(
+                    preview_frame,
+                    (CAMERA_PREVIEW_WIDTH, CAMERA_PREVIEW_HEIGHT),
+                )
                 cv2.imshow(CAMERA_PREVIEW_WINDOW_NAME, preview_frame)
                 cv2.waitKey(1)
             except Exception as exc:

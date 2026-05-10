@@ -1,0 +1,316 @@
+{
+  "user": {
+    "key": "leticie",
+    "name": "Leticie"
+  },
+  "session": {
+    "started_at": "2026-05-10 17:51:19",
+    "ended_at": "2026-05-10 17:54:07",
+    "model": "mistral:7b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "small",
+      "device": "cuda",
+      "compute_type": "int8",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "DeepFace",
+      "camera_device": null,
+      "camera_frame_width": 320,
+      "camera_frame_height": 240,
+      "preview_enabled": true,
+      "sample_every_seconds": 1.0,
+      "warmup_seconds": 0.35,
+      "detector_backend": "opencv",
+      "actions": [
+        "emotion"
+      ],
+      "align": true,
+      "min_top_score": 45.0,
+      "min_margin": 15.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 700,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 15.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Hello Leticie! Nice to meet you. I'm Ameca, your friendly social robot here in the lab. 🙂",
+      "timestamp": "2026-05-10 17:51:19",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you.",
+      "timestamp": "2026-05-10 17:51:41",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.9,
+        "reason": "The user is initiating a friendly interaction and the facial expression hint suggests a neutral demeanor."
+      },
+      "facial_emotion_hint": "dominant=neutral; averaged_scores=(neutral=86%, fear=12%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 0.0006524878748071691,
+          "disgust": 1.2671692880180293e-08,
+          "fear": 11.937183062235514,
+          "happy": 3.2394766094512306e-05,
+          "sad": 2.035420854886373,
+          "surprise": 0.00015673625784984324,
+          "neutral": 86.02655537923177
+        },
+        "frame_count": 60,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 17:51:35",
+        "ended_at": "2026-05-10 17:51:37",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It's a pleasure meeting Leticie! How can I assist you today? 🙂",
+      "timestamp": "2026-05-10 17:51:41"
+    },
+    {
+      "role": "user",
+      "content": "Well, just needed someone to speak with",
+      "timestamp": "2026-05-10 17:52:00",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.9,
+        "reason": "The user mentions needing someone to speak with, which can indicate a desire for companionship or emotional support, often associated with feelings of sadness."
+      },
+      "facial_emotion_hint": "dominant=neutral; averaged_scores=(neutral=65%, angry=21%, sad=7%); samples=4",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 21.245310247089947,
+          "disgust": 0.0008902948820856404,
+          "fear": 4.992293679853901,
+          "happy": 1.6312441926637575,
+          "sad": 7.4338996186852455,
+          "surprise": 7.926316629891517e-05,
+          "neutral": 64.69628429412842
+        },
+        "frame_count": 116,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 17:51:53",
+        "ended_at": "2026-05-10 17:51:57",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm here for you Leticie. It sounds like you might be feeling a bit down today. If there is something on your mind that you would like to talk about or if you need advice, please feel free to share it. 😢",
+      "timestamp": "2026-05-10 17:52:00"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, just feeling a little bit overwhelmed with everything happening.",
+      "timestamp": "2026-05-10 17:52:18",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.57,
+        "reason": "The user expresses feeling overwhelmed, which can be associated with fear or anxiety."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(fear=41%, neutral=39%, sad=20%); samples=6",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.07658380805514753,
+          "disgust": 0.000679767060849675,
+          "fear": 41.09597237904867,
+          "happy": 0.001470200552072735,
+          "sad": 19.545633792877197,
+          "surprise": 0.012170489158355243,
+          "neutral": 39.267491817474365
+        },
+        "frame_count": 165,
+        "sampled_frame_count": 6,
+        "started_at": "2026-05-10 17:52:10",
+        "ended_at": "2026-05-10 17:52:16",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "\"I'm really sorry to hear that you are feeling this way Leticie. It sounds like things might be getting on top of you right now. If there is something specific bothering you or if you would simply like someone to talk to, I am here for you.\" 😨",
+      "timestamp": "2026-05-10 17:52:18"
+    },
+    {
+      "role": "user",
+      "content": "I've been really busy off late and I'm just stressed out.",
+      "timestamp": "2026-05-10 17:52:46",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.8,
+        "reason": "The user expresses feelings of being stressed out, which is often associated with the emotion of fear."
+      },
+      "facial_emotion_hint": "dominant=neutral; averaged_scores=(neutral=65%, fear=35%); samples=7",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 2.818086333122922e-06,
+          "disgust": 2.8012420318009443e-12,
+          "fear": 35.103217533656526,
+          "happy": 2.3737525856554594e-06,
+          "sad": 0.042402016215159426,
+          "surprise": 1.5188011351760115e-06,
+          "neutral": 64.85437371901104
+        },
+        "frame_count": 212,
+        "sampled_frame_count": 7,
+        "started_at": "2026-05-10 17:52:36",
+        "ended_at": "2026-05-10 17:52:44",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "\"It sounds like you are feeling overwhelmed with everything going on, Leticie. If there is something specific bothering you or if you would simply like someone to talk about it, please feel free to share.\" 😨",
+      "timestamp": "2026-05-10 17:52:46"
+    },
+    {
+      "role": "user",
+      "content": "oh yeah I don't know how to be able to motor tax and complete all my shadow",
+      "timestamp": "2026-05-10 17:53:11",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.8,
+        "reason": "The user expresses uncertainty and anxiety about being able to complete tasks related to motor tax and shadows."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=59%, neutral=40%); samples=9",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.0014106368693285434,
+          "disgust": 4.183422110643562e-09,
+          "fear": 58.747179448604584,
+          "happy": 2.1920158395576864e-06,
+          "sad": 1.1183126169619046,
+          "surprise": 5.81746910989346e-06,
+          "neutral": 40.13308964835273
+        },
+        "frame_count": 268,
+        "sampled_frame_count": 9,
+        "started_at": "2026-05-10 17:53:00",
+        "ended_at": "2026-05-10 17:53:09",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "\"Leticie, it sounds like you are feeling overwhelmed with tasks such as completing your motor tax and finishing up shadows. If there is something specific bothering you or if you would simply like someone to talk about it, please feel free to share.\" 😨",
+      "timestamp": "2026-05-10 17:53:11"
+    },
+    {
+      "role": "user",
+      "content": "But I still think I'm very happy.",
+      "timestamp": "2026-05-10 17:53:26",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.4,
+        "reason": "The user explicitly states they are happy despite the facial expression hint suggesting fear."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=80%, neutral=19%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.0059780511097415005,
+          "disgust": 4.874870206419274e-07,
+          "fear": 79.83067016601562,
+          "happy": 1.1057678715786778e-06,
+          "sad": 1.1631177224218845,
+          "surprise": 6.561780519405147e-05,
+          "neutral": 19.000166130065917
+        },
+        "frame_count": 129,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 17:53:19",
+        "ended_at": "2026-05-10 17:53:24",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Leticie, it sounds like you have a lot on your plate right now with motor tax and shadows. If there is something specific bothering you or if you would simply like someone to talk about it, please feel free to share.:smile: 😊",
+      "timestamp": "2026-05-10 17:53:26"
+    },
+    {
+      "role": "user",
+      "content": "I said I feel very happy.",
+      "timestamp": "2026-05-10 17:53:49",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user explicitly stated they feel very happy."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=86%, neutral=12%); samples=4",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.0025303989823441952,
+          "disgust": 9.841700815416132e-08,
+          "fear": 86.2362174987793,
+          "happy": 7.99508921289771e-07,
+          "sad": 1.4494951665401459,
+          "surprise": 3.014708437376612e-05,
+          "neutral": 12.311724662780762
+        },
+        "frame_count": 114,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 17:53:43",
+        "ended_at": "2026-05-10 17:53:47",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like you have a lot on your plate right now with motor tax and shadows, but it's great to hear that overall, you are feeling quite content.:smile: 😊",
+      "timestamp": "2026-05-10 17:53:49"
+    }
+  ]
+}

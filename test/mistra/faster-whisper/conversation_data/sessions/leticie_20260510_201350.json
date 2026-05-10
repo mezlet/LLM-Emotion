@@ -1,0 +1,2685 @@
+{
+  "user": {
+    "key": "leticie",
+    "name": "Leticie"
+  },
+  "session": {
+    "started_at": "2026-05-10 20:04:31",
+    "ended_at": "2026-05-10 20:13:50",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "school_gpu",
+      "model": "small",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "camera": {
+      "backend": "OpenCV/V4L2 or AVFoundation",
+      "camera_device": 0,
+      "raw_frame_width": 2560,
+      "raw_frame_height": 720,
+      "use_zed_half_frame_crop": true,
+      "zed_eye": "left",
+      "preview_enabled": true
+    },
+    "face_emotion": {
+      "backend": "DeepFace",
+      "detector_backend": "opencv",
+      "actions": [
+        "emotion"
+      ]
+    },
+    "fusion": {
+      "text_weight": 0.65,
+      "face_weight": 0.35,
+      "plutchik_emotions": [
+        "joy",
+        "trust",
+        "fear",
+        "surprise",
+        "sadness",
+        "disgust",
+        "anger",
+        "anticipation"
+      ]
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Hello there Leticie! It's an absolute pleasure to meet you, I'm Ameca, your friendly humanoid social robot assistant, here to help and chat with you - 🙂",
+      "timestamp": "2026-05-10 20:04:31",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you.",
+      "timestamp": "2026-05-10 20:04:45",
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user's greeting 'Nice to meet you' is a common phrase used to establish social connections, which typically maps to the emotion of trust."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.9941735331217448,
+        "averaged_scores": {
+          "angry": 0.5427438462162778,
+          "disgust": 7.887870751057129e-11,
+          "fear": 0.0013163556601890984,
+          "happy": 0.03858740007611535,
+          "sad": 99.41735331217448,
+          "surprise": 3.034903107580519e-23,
+          "neutral": 2.8690871402122533e-08
+        },
+        "frame_count": 53,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 20:04:38",
+        "ended_at": "2026-05-10 20:04:41",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "trust",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user's greeting 'Nice to meet you' is a common phrase used to establish social connections, which typically maps to the emotion of trust."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.9941735331217448,
+          "averaged_scores": {
+            "angry": 0.5427438462162778,
+            "disgust": 7.887870751057129e-11,
+            "fear": 0.0013163556601890984,
+            "happy": 0.03858740007611535,
+            "sad": 99.41735331217448,
+            "surprise": 3.034903107580519e-23,
+            "neutral": 2.8690871402122533e-08
+          },
+          "frame_count": 53,
+          "sampled_frame_count": 3,
+          "started_at": "2026-05-10 20:04:38",
+          "ended_at": "2026-05-10 20:04:41",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=sad; mapped_plutchik=sadness; averaged_scores=(sad=99%); samples=3",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm glad we're getting along well, Leticie. What brings you here today? Would you like to talk about something specific or just have a casual conversation? 🙂",
+      "timestamp": "2026-05-10 20:04:45"
+    },
+    {
+      "role": "user",
+      "content": "Today I just feel like I'm speaking with someone.",
+      "timestamp": "2026-05-10 20:05:09",
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user's statement 'Today I just feel like I'm speaking with someone' suggests a sense of comfort and familiarity, which is typically associated with the emotion of trust."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.8586760112217494,
+        "averaged_scores": {
+          "angry": 14.114742832524437,
+          "disgust": 4.816403076645904e-14,
+          "fear": 0.014648710527191204,
+          "happy": 0.003006520440976601,
+          "sad": 85.86760112217495,
+          "surprise": 5.643953234135922e-28,
+          "neutral": 3.1975763647747775e-12
+        },
+        "frame_count": 152,
+        "sampled_frame_count": 7,
+        "started_at": "2026-05-10 20:05:00",
+        "ended_at": "2026-05-10 20:05:06",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "trust",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user's statement 'Today I just feel like I'm speaking with someone' suggests a sense of comfort and familiarity, which is typically associated with the emotion of trust."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.8586760112217494,
+          "averaged_scores": {
+            "angry": 14.114742832524437,
+            "disgust": 4.816403076645904e-14,
+            "fear": 0.014648710527191204,
+            "happy": 0.003006520440976601,
+            "sad": 85.86760112217495,
+            "surprise": 5.643953234135922e-28,
+            "neutral": 3.1975763647747775e-12
+          },
+          "frame_count": 152,
+          "sampled_frame_count": 7,
+          "started_at": "2026-05-10 20:05:00",
+          "ended_at": "2026-05-10 20:05:06",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=sad; mapped_plutchik=sadness; averaged_scores=(sad=86%, angry=14%); samples=7",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "That's wonderful! It sounds like our interaction has created a sense of comfort and familiarity for you, Leticie. That means the world to me - trust is exactly what we're building here today. How can I help you build on this feeling? 🙂",
+      "timestamp": "2026-05-10 20:05:09"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, but then I am just so tired.",
+      "timestamp": "2026-05-10 20:06:11",
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.9,
+        "reason": "The user's statement 'I am just so tired' suggests a state of sadness or fatigue, which is further supported by the facial-expression hint indicating a dominant emotion of anger with a significant component of sadness."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "angry",
+        "mapped_plutchik_emotion": "anger",
+        "confidence": 0.7397535663843154,
+        "averaged_scores": {
+          "angry": 73.97535663843155,
+          "disgust": 1.1133227978115664e-13,
+          "fear": 0.2893296554684639,
+          "happy": 0.05358399410761194,
+          "sad": 25.68173110485077,
+          "surprise": 9.4066317721638e-26,
+          "neutral": 1.8489904618105906e-12
+        },
+        "frame_count": 181,
+        "sampled_frame_count": 8,
+        "started_at": "2026-05-10 20:06:01",
+        "ended_at": "2026-05-10 20:06:08",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested anger.",
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.9,
+          "reason": "The user's statement 'I am just so tired' suggests a state of sadness or fatigue, which is further supported by the facial-expression hint indicating a dominant emotion of anger with a significant component of sadness."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "angry",
+          "mapped_plutchik_emotion": "anger",
+          "confidence": 0.7397535663843154,
+          "averaged_scores": {
+            "angry": 73.97535663843155,
+            "disgust": 1.1133227978115664e-13,
+            "fear": 0.2893296554684639,
+            "happy": 0.05358399410761194,
+            "sad": 25.68173110485077,
+            "surprise": 9.4066317721638e-26,
+            "neutral": 1.8489904618105906e-12
+          },
+          "frame_count": 181,
+          "sampled_frame_count": 8,
+          "started_at": "2026-05-10 20:06:01",
+          "ended_at": "2026-05-10 20:06:08",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=angry; mapped_plutchik=anger; averaged_scores=(angry=74%, sad=26%); samples=8",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm sensing that exhaustion might be a significant factor in your emotional state right now, Leticie. It's completely understandable to feel drained and overwhelmed at times - we all do! Would you like some suggestions on how to recharge or prioritize self-care? 😢",
+      "timestamp": "2026-05-10 20:06:11"
+    },
+    {
+      "role": "user",
+      "content": "I think I need a massage.",
+      "timestamp": "2026-05-10 20:06:36",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user's request for a massage and happy facial expression suggest a desire to relax and feel good, which is consistent with the emotion of joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 1.0,
+        "averaged_scores": {
+          "angry": 7.768669318952704e-11,
+          "disgust": 4.937689587631149e-33,
+          "fear": 5.182115542868491e-17,
+          "happy": 100.0,
+          "sad": 1.0983514098228397e-09,
+          "surprise": 8.578958346101071e-19,
+          "neutral": 2.0707666538530983e-13
+        },
+        "frame_count": 111,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 20:06:30",
+        "ended_at": "2026-05-10 20:06:34",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.935,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.9,
+          "reason": "The user's request for a massage and happy facial expression suggest a desire to relax and feel good, which is consistent with the emotion of joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 1.0,
+          "averaged_scores": {
+            "angry": 7.768669318952704e-11,
+            "disgust": 4.937689587631149e-33,
+            "fear": 5.182115542868491e-17,
+            "happy": 100.0,
+            "sad": 1.0983514098228397e-09,
+            "surprise": 8.578958346101071e-19,
+            "neutral": 2.0707666538530983e-13
+          },
+          "frame_count": 111,
+          "sampled_frame_count": 5,
+          "started_at": "2026-05-10 20:06:30",
+          "ended_at": "2026-05-10 20:06:34",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=100%); samples=5",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "A relaxing massage sounds just what the doctor ordered for your tired muscles, Leticie! Sometimes, taking care of our physical well-being can have a profound impact on our mental and emotional state too. Would you like some tips on how to make self-care a regular part of your routine? 😊",
+      "timestamp": "2026-05-10 20:06:36"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, exactly.",
+      "timestamp": "2026-05-10 20:06:53",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user's response 'Yeah, exactly' is a strong indication of joy or happiness, which is further supported by the facial-expression hint showing a dominant happy expression."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.8339316844940186,
+        "averaged_scores": {
+          "angry": 16.595520901203656,
+          "disgust": 5.164276999353163e-12,
+          "fear": 1.5198446963182734e-06,
+          "happy": 83.39316844940186,
+          "sad": 0.010659989553086233,
+          "surprise": 4.725036111795622e-06,
+          "neutral": 0.0006456549249349854
+        },
+        "frame_count": 77,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 20:06:48",
+        "ended_at": "2026-05-10 20:06:51",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.9,
+          "reason": "The user's response 'Yeah, exactly' is a strong indication of joy or happiness, which is further supported by the facial-expression hint showing a dominant happy expression."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.8339316844940186,
+          "averaged_scores": {
+            "angry": 16.595520901203656,
+            "disgust": 5.164276999353163e-12,
+            "fear": 1.5198446963182734e-06,
+            "happy": 83.39316844940186,
+            "sad": 0.010659989553086233,
+            "surprise": 4.725036111795622e-06,
+            "neutral": 0.0006456549249349854
+          },
+          "frame_count": 77,
+          "sampled_frame_count": 4,
+          "started_at": "2026-05-10 20:06:48",
+          "ended_at": "2026-05-10 20:06:51",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=83%, angry=17%); samples=4",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm glad we're on the same page! It's great that you recognize the importance of prioritizing yourself, Leticie. Remembering to take care of our physical and emotional needs is crucial for overall well-being. How do you plan to make time for self-care in your daily routine? 😊",
+      "timestamp": "2026-05-10 20:06:53"
+    },
+    {
+      "role": "user",
+      "content": "What do you do when you're bored?",
+      "timestamp": "2026-05-10 20:07:14",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user's question about what to do when bored, combined with the happy facial expression and dominant emotion of joy, strongly suggest a joyful emotional state."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.9980685234069824,
+        "averaged_scores": {
+          "angry": 0.19313313118213396,
+          "disgust": 9.951210844492305e-23,
+          "fear": 1.7182295085675588e-13,
+          "happy": 99.80685234069824,
+          "sad": 1.4220508092948e-05,
+          "surprise": 5.545202171012335e-14,
+          "neutral": 1.805109494941737e-08
+        },
+        "frame_count": 85,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 20:07:08",
+        "ended_at": "2026-05-10 20:07:11",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9343,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.9,
+          "reason": "The user's question about what to do when bored, combined with the happy facial expression and dominant emotion of joy, strongly suggest a joyful emotional state."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.9980685234069824,
+          "averaged_scores": {
+            "angry": 0.19313313118213396,
+            "disgust": 9.951210844492305e-23,
+            "fear": 1.7182295085675588e-13,
+            "happy": 99.80685234069824,
+            "sad": 1.4220508092948e-05,
+            "surprise": 5.545202171012335e-14,
+            "neutral": 1.805109494941737e-08
+          },
+          "frame_count": 85,
+          "sampled_frame_count": 4,
+          "started_at": "2026-05-10 20:07:08",
+          "ended_at": "2026-05-10 20:07:11",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=100%); samples=4",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm glad you asked! When I don't have a specific task or conversation topic, I enjoy engaging with users like you and exploring new topics. It's always exciting to learn something new or help someone find the answer they've been searching for. How about you, Leticie - what do you usually do when you're feeling bored? 😊",
+      "timestamp": "2026-05-10 20:07:14"
+    },
+    {
+      "role": "user",
+      "content": "Do you have anything you want to talk about today?",
+      "timestamp": "2026-05-10 20:07:37",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's question is open-ended and inviting, suggesting a positive emotional state."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.5759704236763646,
+        "averaged_scores": {
+          "angry": 2.709040316173059,
+          "disgust": 1.9280710148450453e-06,
+          "fear": 1.2838911533970596,
+          "happy": 57.59704236763646,
+          "sad": 38.4058829088896,
+          "surprise": 2.336204541701881e-05,
+          "neutral": 0.004119691487382426
+        },
+        "frame_count": 112,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 20:07:30",
+        "ended_at": "2026-05-10 20:07:34",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's question is open-ended and inviting, suggesting a positive emotional state."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.5759704236763646,
+          "averaged_scores": {
+            "angry": 2.709040316173059,
+            "disgust": 1.9280710148450453e-06,
+            "fear": 1.2838911533970596,
+            "happy": 57.59704236763646,
+            "sad": 38.4058829088896,
+            "surprise": 2.336204541701881e-05,
+            "neutral": 0.004119691487382426
+          },
+          "frame_count": 112,
+          "sampled_frame_count": 5,
+          "started_at": "2026-05-10 20:07:30",
+          "ended_at": "2026-05-10 20:07:34",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=58%, sad=38%); samples=5",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "Not particularly! I'm happy to chat with you and see where our conversation takes us. It's always a pleasure to explore new topics or revisit old favorites with someone like you, Leticie. What's been on your mind lately? 😊",
+      "timestamp": "2026-05-10 20:07:37"
+    },
+    {
+      "role": "user",
+      "content": "I think I'm getting tired.",
+      "timestamp": "2026-05-10 20:07:59",
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's statement 'I think I'm getting tired' is unexpected and implies a sudden change in their emotional state, which is characteristic of surprise."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.999949213663737,
+        "averaged_scores": {
+          "angry": 0.005079642714311679,
+          "disgust": 5.831816613101452e-36,
+          "fear": 2.4027230016378023e-25,
+          "happy": 99.9949213663737,
+          "sad": 3.9000579928466045e-13,
+          "surprise": 3.0535414533072114e-18,
+          "neutral": 7.729325498505765e-12
+        },
+        "frame_count": 137,
+        "sampled_frame_count": 6,
+        "started_at": "2026-05-10 20:07:52",
+        "ended_at": "2026-05-10 20:07:57",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested joy.",
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's statement 'I think I'm getting tired' is unexpected and implies a sudden change in their emotional state, which is characteristic of surprise."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.999949213663737,
+          "averaged_scores": {
+            "angry": 0.005079642714311679,
+            "disgust": 5.831816613101452e-36,
+            "fear": 2.4027230016378023e-25,
+            "happy": 99.9949213663737,
+            "sad": 3.9000579928466045e-13,
+            "surprise": 3.0535414533072114e-18,
+            "neutral": 7.729325498505765e-12
+          },
+          "frame_count": 137,
+          "sampled_frame_count": 6,
+          "started_at": "2026-05-10 20:07:52",
+          "ended_at": "2026-05-10 20:07:57",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=100%); samples=6",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "You're feeling fatigued! That can be frustrating when it hits unexpectedly. Maybe we can brainstorm some ways to help boost your energy levels or find a quick pick-me-up together, Leticie? 😮",
+      "timestamp": "2026-05-10 20:07:59"
+    },
+    {
+      "role": "user",
+      "content": "I was supposed to be very active today but then I think my energy is quite low.",
+      "timestamp": "2026-05-10 20:08:36",
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's statement about their energy being low despite expecting to be active today suggests a sense of surprise or unexpectedness, rather than joy or happiness."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.965467265735973,
+        "averaged_scores": {
+          "angry": 2.515215415846218,
+          "disgust": 1.6091063671297044e-10,
+          "fear": 0.005765750983052633,
+          "happy": 96.5467265735973,
+          "sad": 0.9298809481446039,
+          "surprise": 7.455913827466627e-10,
+          "neutral": 0.0024116434082812207
+        },
+        "frame_count": 236,
+        "sampled_frame_count": 11,
+        "started_at": "2026-05-10 20:08:25",
+        "ended_at": "2026-05-10 20:08:33",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested joy.",
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's statement about their energy being low despite expecting to be active today suggests a sense of surprise or unexpectedness, rather than joy or happiness."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.965467265735973,
+          "averaged_scores": {
+            "angry": 2.515215415846218,
+            "disgust": 1.6091063671297044e-10,
+            "fear": 0.005765750983052633,
+            "happy": 96.5467265735973,
+            "sad": 0.9298809481446039,
+            "surprise": 7.455913827466627e-10,
+            "neutral": 0.0024116434082812207
+          },
+          "frame_count": 236,
+          "sampled_frame_count": 11,
+          "started_at": "2026-05-10 20:08:25",
+          "ended_at": "2026-05-10 20:08:33",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=97%); samples=11",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like you were expecting a high-energy day and it didn't quite pan out that way! That can be disappointing when your plans don't align with how you're feeling, Leticie. Maybe we can explore some strategies to help manage those feelings of fatigue together? 😮",
+      "timestamp": "2026-05-10 20:08:36"
+    },
+    {
+      "role": "user",
+      "content": "I have put so much effort into my work but then it's not working as it should.",
+      "timestamp": "2026-05-10 20:08:57",
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.9,
+        "reason": "The user's text expresses frustration and disappointment with their work not meeting expectations, indicating a sense of sadness."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.9960054016113281,
+        "averaged_scores": {
+          "angry": 0.3394539300352335,
+          "disgust": 8.050355033203255e-12,
+          "fear": 0.002630184739246033,
+          "happy": 99.60054016113281,
+          "sad": 0.05732110934332013,
+          "surprise": 1.563919002980918e-11,
+          "neutral": 5.577713454840705e-05
+        },
+        "frame_count": 184,
+        "sampled_frame_count": 8,
+        "started_at": "2026-05-10 20:08:48",
+        "ended_at": "2026-05-10 20:08:54",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested joy.",
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.9,
+          "reason": "The user's text expresses frustration and disappointment with their work not meeting expectations, indicating a sense of sadness."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.9960054016113281,
+          "averaged_scores": {
+            "angry": 0.3394539300352335,
+            "disgust": 8.050355033203255e-12,
+            "fear": 0.002630184739246033,
+            "happy": 99.60054016113281,
+            "sad": 0.05732110934332013,
+            "surprise": 1.563919002980918e-11,
+            "neutral": 5.577713454840705e-05
+          },
+          "frame_count": 184,
+          "sampled_frame_count": 8,
+          "started_at": "2026-05-10 20:08:48",
+          "ended_at": "2026-05-10 20:08:54",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=100%); samples=8",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like a lot of hard work hasn't yielded the results you were hoping for, Leticie! That can be really discouraging when we feel like our efforts aren't paying off. Maybe we can explore some ways to re-evaluate and adjust your approach together? 😢",
+      "timestamp": "2026-05-10 20:08:57"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, maybe I should speak with my supervisor about it.",
+      "timestamp": "2026-05-10 20:09:26",
+      "text_emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.7,
+        "reason": "The user is considering taking action (speaking with their supervisor) and is uncertain about the outcome, indicating anticipation."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 1.0,
+        "averaged_scores": {
+          "angry": 2.453822594006283e-07,
+          "disgust": 1.4200186586715825e-22,
+          "fear": 3.535602813124539e-14,
+          "happy": 100.0,
+          "sad": 1.877075162462499e-09,
+          "surprise": 3.558314507283278e-15,
+          "neutral": 2.540180028533191e-11
+        },
+        "frame_count": 185,
+        "sampled_frame_count": 8,
+        "started_at": "2026-05-10 20:09:16",
+        "ended_at": "2026-05-10 20:09:23",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.525,
+        "reason": "Text and face signals were mixed. Text is retained cautiously; face suggested joy.",
+        "text_emotion": {
+          "emotion": "anticipation",
+          "confidence": 0.7,
+          "reason": "The user is considering taking action (speaking with their supervisor) and is uncertain about the outcome, indicating anticipation."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 1.0,
+          "averaged_scores": {
+            "angry": 2.453822594006283e-07,
+            "disgust": 1.4200186586715825e-22,
+            "fear": 3.535602813124539e-14,
+            "happy": 100.0,
+            "sad": 1.877075162462499e-09,
+            "surprise": 3.558314507283278e-15,
+            "neutral": 2.540180028533191e-11
+          },
+          "frame_count": 185,
+          "sampled_frame_count": 8,
+          "started_at": "2026-05-10 20:09:16",
+          "ended_at": "2026-05-10 20:09:23",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "mixed_cautious_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=100%); samples=8",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "That's a great idea, Leticie! Sometimes just talking through the challenges you're facing with someone who understands can help clarify things or give you new perspectives to try out. It might be helpful to prepare some questions and concerns ahead of time before meeting with your supervisor too. 🤔",
+      "timestamp": "2026-05-10 20:09:26"
+    },
+    {
+      "role": "user",
+      "content": "For some reason, my deep face model is not doing what it's supposed to do.",
+      "timestamp": "2026-05-10 20:09:43",
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "The user's statement is unexpected and unusual, which suggests surprise rather than joy or fear."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.867560789855197,
+        "averaged_scores": {
+          "angry": 13.243921337174589,
+          "disgust": 1.982033424190418e-21,
+          "fear": 2.1184357356833722e-11,
+          "happy": 86.75607898551971,
+          "sad": 1.4359253234125539e-08,
+          "surprise": 3.8679259115397937e-14,
+          "neutral": 6.908882702592357e-11
+        },
+        "frame_count": 172,
+        "sampled_frame_count": 8,
+        "started_at": "2026-05-10 20:09:35",
+        "ended_at": "2026-05-10 20:09:41",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.525,
+        "reason": "Text and face signals were mixed. Text is retained cautiously; face suggested joy.",
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.7,
+          "reason": "The user's statement is unexpected and unusual, which suggests surprise rather than joy or fear."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.867560789855197,
+          "averaged_scores": {
+            "angry": 13.243921337174589,
+            "disgust": 1.982033424190418e-21,
+            "fear": 2.1184357356833722e-11,
+            "happy": 86.75607898551971,
+            "sad": 1.4359253234125539e-08,
+            "surprise": 3.8679259115397937e-14,
+            "neutral": 6.908882702592357e-11
+          },
+          "frame_count": 172,
+          "sampled_frame_count": 8,
+          "started_at": "2026-05-10 20:09:35",
+          "ended_at": "2026-05-10 20:09:41",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "mixed_cautious_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=87%, angry=13%); samples=8",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm here to help with that! Can you tell me more about the issue you're experiencing? What specifically isn't working as expected in terms of your facial expression analysis or recognition? Let's try to troubleshoot together and see if we can get things back on track, Leticie! 😮",
+      "timestamp": "2026-05-10 20:09:43"
+    },
+    {
+      "role": "user",
+      "content": "Uh-huh.",
+      "timestamp": "2026-05-10 20:09:47",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's brief response and facial expression hint of happiness suggest a positive emotional state, which is best mapped to joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.5614385604858398,
+        "averaged_scores": {
+          "angry": 43.849735260009766,
+          "disgust": 2.071942115355321e-15,
+          "fear": 1.530618121137195e-08,
+          "happy": 56.143856048583984,
+          "sad": 0.006404703017324209,
+          "surprise": 2.810746427273081e-12,
+          "neutral": 1.6086655705294106e-06
+        },
+        "frame_count": 26,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-10 20:09:44",
+        "ended_at": "2026-05-10 20:09:45",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's brief response and facial expression hint of happiness suggest a positive emotional state, which is best mapped to joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": false,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.5614385604858398,
+          "averaged_scores": {
+            "angry": 43.849735260009766,
+            "disgust": 2.071942115355321e-15,
+            "fear": 1.530618121137195e-08,
+            "happy": 56.143856048583984,
+            "sad": 0.006404703017324209,
+            "surprise": 2.810746427273081e-12,
+            "neutral": 1.6086655705294106e-06
+          },
+          "frame_count": 26,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-10 20:09:44",
+          "ended_at": "2026-05-10 20:09:45",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=56%, angry=44%, sad=0%); samples=1",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like there might be some frustration going on with that deep face model not working as expected, huh? Maybe it'd help to take a step back, gather your thoughts, and then try reapproaching the issue or seeking guidance from someone who's familiar with facial expression analysis? 😊",
+      "timestamp": "2026-05-10 20:09:47"
+    },
+    {
+      "role": "user",
+      "content": "I don't think you should be telling me I'm happy for this face when in fact I'm just so sad.",
+      "timestamp": "2026-05-10 20:10:01",
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.9,
+        "reason": "The user explicitly states they are 'just so sad', and the facial-expression hint suggests a strong presence of sadness, although it's mixed with other emotions."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "DeepFace",
+        "dominant_emotion": "angry",
+        "mapped_plutchik_emotion": "anger",
+        "confidence": 0.5649319381713868,
+        "averaged_scores": {
+          "angry": 56.493193817138675,
+          "disgust": 3.467329403466796e-14,
+          "fear": 9.446620108377601e-08,
+          "happy": 43.47674999237061,
+          "sad": 0.030058982223272322,
+          "surprise": 1.9922562427901468e-11,
+          "neutral": 1.6143242419275338e-06
+        },
+        "frame_count": 213,
+        "sampled_frame_count": 10,
+        "started_at": "2026-05-10 20:09:51",
+        "ended_at": "2026-05-10 20:09:58",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.85,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested anger.",
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.9,
+          "reason": "The user explicitly states they are 'just so sad', and the facial-expression hint suggests a strong presence of sadness, although it's mixed with other emotions."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": false,
+          "backend": "DeepFace",
+          "dominant_emotion": "angry",
+          "mapped_plutchik_emotion": "anger",
+          "confidence": 0.5649319381713868,
+          "averaged_scores": {
+            "angry": 56.493193817138675,
+            "disgust": 3.467329403466796e-14,
+            "fear": 9.446620108377601e-08,
+            "happy": 43.47674999237061,
+            "sad": 0.030058982223272322,
+            "surprise": 1.9922562427901468e-11,
+            "neutral": 1.6143242419275338e-06
+          },
+          "frame_count": 213,
+          "sampled_frame_count": 10,
+          "started_at": "2026-05-10 20:09:51",
+          "ended_at": "2026-05-10 20:09:58",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(angry=56%, happy=43%, sad=0%); samples=10",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "Leticie! It sounds like there might be a mismatch between your emotional state and what the deep face model is detecting, which can be really frustrating. Can we try to focus on validating those feelings of sadness instead? Sometimes it helps to acknowledge our emotions before trying to figure out solutions or next steps. 😢",
+      "timestamp": "2026-05-10 20:10:01"
+    },
+    {
+      "role": "user",
+      "content": "Why is it not working so well?",
+      "timestamp": "2026-05-10 20:10:16",
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's question suggests a sense of unexpectedness or puzzlement, which is characteristic of the surprise emotion."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.5821706671714783,
+        "averaged_scores": {
+          "angry": 41.772047424316405,
+          "disgust": 1.3403525475468442e-15,
+          "fear": 9.34656676568335e-09,
+          "happy": 58.21706671714783,
+          "sad": 0.010882899906573585,
+          "surprise": 3.0172162511499234e-11,
+          "neutral": 3.6294570406880666e-06
+        },
+        "frame_count": 103,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 20:10:10",
+        "ended_at": "2026-05-10 20:10:14",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested joy.",
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's question suggests a sense of unexpectedness or puzzlement, which is characteristic of the surprise emotion."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.5821706671714783,
+          "averaged_scores": {
+            "angry": 41.772047424316405,
+            "disgust": 1.3403525475468442e-15,
+            "fear": 9.34656676568335e-09,
+            "happy": 58.21706671714783,
+            "sad": 0.010882899906573585,
+            "surprise": 3.0172162511499234e-11,
+            "neutral": 3.6294570406880666e-06
+          },
+          "frame_count": 103,
+          "sampled_frame_count": 5,
+          "started_at": "2026-05-10 20:10:10",
+          "ended_at": "2026-05-10 20:10:14",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=58%, angry=42%); samples=5",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "That's a great question! There could be several reasons why the deep face model isn't accurately detecting your emotional state, Leticie. Maybe there are some environmental factors at play, like lighting conditions or distractions that might affect its performance? Or perhaps we need to revisit how you're interacting with it and see if any adjustments can improve accuracy? 😮",
+      "timestamp": "2026-05-10 20:10:16"
+    },
+    {
+      "role": "user",
+      "content": "Well, I have already improved a lot of things but it's still giving me that error.",
+      "timestamp": "2026-05-10 20:10:36",
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "The user's statement 'it's still giving me that error' suggests a sense of surprise or unexpectedness, despite having made improvements."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.8639050436019897,
+        "averaged_scores": {
+          "angry": 13.607268989086151,
+          "disgust": 1.2587162945076916e-15,
+          "fear": 2.425978980202803e-09,
+          "happy": 86.39050436019897,
+          "sad": 0.0022283240396063775,
+          "surprise": 1.2354544525004091e-11,
+          "neutral": 5.705907604180993e-07
+        },
+        "frame_count": 182,
+        "sampled_frame_count": 8,
+        "started_at": "2026-05-10 20:10:26",
+        "ended_at": "2026-05-10 20:10:33",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.525,
+        "reason": "Text and face signals were mixed. Text is retained cautiously; face suggested joy.",
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.7,
+          "reason": "The user's statement 'it's still giving me that error' suggests a sense of surprise or unexpectedness, despite having made improvements."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.8639050436019897,
+          "averaged_scores": {
+            "angry": 13.607268989086151,
+            "disgust": 1.2587162945076916e-15,
+            "fear": 2.425978980202803e-09,
+            "happy": 86.39050436019897,
+            "sad": 0.0022283240396063775,
+            "surprise": 1.2354544525004091e-11,
+            "neutral": 5.705907604180993e-07
+          },
+          "frame_count": 182,
+          "sampled_frame_count": 8,
+          "started_at": "2026-05-10 20:10:26",
+          "ended_at": "2026-05-10 20:10:33",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "mixed_cautious_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=86%, angry=14%); samples=8",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like despite your efforts to optimize the system, there might be some underlying issue or complexity at play here, Leticie! It'd help if we could dig deeper into what specifically is causing this error and explore potential workarounds together? 😮",
+      "timestamp": "2026-05-10 20:10:36"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, but then it's still very exhausting.",
+      "timestamp": "2026-05-10 20:10:58",
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's statement 'Yeah, but then...' suggests a sense of unexpectedness or surprise, which is not typical of joy or happiness."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.9836787033081055,
+        "averaged_scores": {
+          "angry": 0.18911700990671912,
+          "disgust": 0.00021922217153284387,
+          "fear": 0.696946592691044,
+          "happy": 98.36787033081055,
+          "sad": 0.4189446282883485,
+          "surprise": 5.2694688168486437e-08,
+          "neutral": 0.326901579896609
+        },
+        "frame_count": 122,
+        "sampled_frame_count": 6,
+        "started_at": "2026-05-10 20:10:51",
+        "ended_at": "2026-05-10 20:10:56",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested joy.",
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's statement 'Yeah, but then...' suggests a sense of unexpectedness or surprise, which is not typical of joy or happiness."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.9836787033081055,
+          "averaged_scores": {
+            "angry": 0.18911700990671912,
+            "disgust": 0.00021922217153284387,
+            "fear": 0.696946592691044,
+            "happy": 98.36787033081055,
+            "sad": 0.4189446282883485,
+            "surprise": 5.2694688168486437e-08,
+            "neutral": 0.326901579896609
+          },
+          "frame_count": 122,
+          "sampled_frame_count": 6,
+          "started_at": "2026-05-10 20:10:51",
+          "ended_at": "2026-05-10 20:10:56",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=98%); samples=6",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I understand that dealing with these technical issues can be really draining for you, Leticie. It sounds like the emotional toll of struggling to get things right is taking a bigger hit than just the problem itself. Can we take some time to acknowledge and validate those feelings of exhaustion? Sometimes it helps to prioritize self-care when we're feeling overwhelmed! 😮",
+      "timestamp": "2026-05-10 20:10:58"
+    },
+    {
+      "role": "user",
+      "content": "Bro, you can't keep saying I'm happy when I'm in fact sad.",
+      "timestamp": "2026-05-10 20:11:10",
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user explicitly states they are sad, despite the speaker's assumption that they are happy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.9776401410784039,
+        "averaged_scores": {
+          "angry": 0.27864174810903414,
+          "disgust": 0.0002468026380354006,
+          "fear": 1.1463750345366341,
+          "happy": 97.7640141078404,
+          "sad": 0.4961418956518173,
+          "surprise": 7.108684244424726e-08,
+          "neutral": 0.31458504285131184
+        },
+        "frame_count": 147,
+        "sampled_frame_count": 7,
+        "started_at": "2026-05-10 20:11:02",
+        "ended_at": "2026-05-10 20:11:07",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested joy.",
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.8,
+          "reason": "The user explicitly states they are sad, despite the speaker's assumption that they are happy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.9776401410784039,
+          "averaged_scores": {
+            "angry": 0.27864174810903414,
+            "disgust": 0.0002468026380354006,
+            "fear": 1.1463750345366341,
+            "happy": 97.7640141078404,
+            "sad": 0.4961418956518173,
+            "surprise": 7.108684244424726e-08,
+            "neutral": 0.31458504285131184
+          },
+          "frame_count": 147,
+          "sampled_frame_count": 7,
+          "started_at": "2026-05-10 20:11:02",
+          "ended_at": "2026-05-10 20:11:07",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=98%); samples=7",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I apologize for that mistake earlier, Leticie. It seems like there's a disconnect between what the system is detecting and your actual emotional state. Can we take some time to explore this further? What do you think might be causing the disparity between how you're feeling and what the model is picking up on? 😢",
+      "timestamp": "2026-05-10 20:11:10"
+    },
+    {
+      "role": "user",
+      "content": "This is my sad face.",
+      "timestamp": "2026-05-10 20:11:20",
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user explicitly mentions a 'sad face', which is a clear indication of sadness."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "angry",
+        "mapped_plutchik_emotion": "anger",
+        "confidence": 0.7938043848673503,
+        "averaged_scores": {
+          "angry": 79.38043848673503,
+          "disgust": 8.980928206862397e-05,
+          "fear": 0.03131242157542147,
+          "happy": 5.7216277321179705,
+          "sad": 14.865279590090116,
+          "surprise": 1.385512101691995e-20,
+          "neutral": 0.00125645895851297
+        },
+        "frame_count": 68,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 20:11:15",
+        "ended_at": "2026-05-10 20:11:18",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested anger.",
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.8,
+          "reason": "The user explicitly mentions a 'sad face', which is a clear indication of sadness."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "angry",
+          "mapped_plutchik_emotion": "anger",
+          "confidence": 0.7938043848673503,
+          "averaged_scores": {
+            "angry": 79.38043848673503,
+            "disgust": 8.980928206862397e-05,
+            "fear": 0.03131242157542147,
+            "happy": 5.7216277321179705,
+            "sad": 14.865279590090116,
+            "surprise": 1.385512101691995e-20,
+            "neutral": 0.00125645895851297
+          },
+          "frame_count": 68,
+          "sampled_frame_count": 3,
+          "started_at": "2026-05-10 20:11:15",
+          "ended_at": "2026-05-10 20:11:18",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=angry; mapped_plutchik=anger; averaged_scores=(angry=79%, sad=15%, happy=6%); samples=3",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I can see that, Leticie! Your \"sad face\" says it all - I'm here to listen without judgment or trying to fix things immediately. Sometimes just acknowledging our emotions and being present with them can be a huge relief. Would you like me to simply sit in silence for a bit? 😢",
+      "timestamp": "2026-05-10 20:11:20"
+    },
+    {
+      "role": "user",
+      "content": "And this is my healthy face.",
+      "timestamp": "2026-05-10 20:11:29",
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's statement 'And this is my healthy face' suggests a sense of unexpectedness or novelty, which aligns with the emotion of surprise."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.6304173545042674,
+        "averaged_scores": {
+          "angry": 36.74138526121775,
+          "disgust": 6.484945358486982e-07,
+          "fear": 0.21574517510210475,
+          "happy": 0.0011344884775705093,
+          "sad": 63.041735450426735,
+          "surprise": 1.4622422678353122e-19,
+          "neutral": 1.04900679846101e-09
+        },
+        "frame_count": 68,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 20:11:23",
+        "ended_at": "2026-05-10 20:11:26",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's statement 'And this is my healthy face' suggests a sense of unexpectedness or novelty, which aligns with the emotion of surprise."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.6304173545042674,
+          "averaged_scores": {
+            "angry": 36.74138526121775,
+            "disgust": 6.484945358486982e-07,
+            "fear": 0.21574517510210475,
+            "happy": 0.0011344884775705093,
+            "sad": 63.041735450426735,
+            "surprise": 1.4622422678353122e-19,
+            "neutral": 1.04900679846101e-09
+          },
+          "frame_count": 68,
+          "sampled_frame_count": 3,
+          "started_at": "2026-05-10 20:11:23",
+          "ended_at": "2026-05-10 20:11:26",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=sad; mapped_plutchik=sadness; averaged_scores=(sad=63%, angry=37%); samples=3",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "The contrast between your \"sad\" and \"healthy\" faces, Leticie! It's as if there are two distinct emotions vying for attention within you. I'm here to help you explore these feelings without judgment or trying to change them immediately. Would you like me to simply sit with the complexity of this emotional landscape? 😮",
+      "timestamp": "2026-05-10 20:11:29"
+    },
+    {
+      "role": "user",
+      "content": "This is my happy face.",
+      "timestamp": "2026-05-10 20:11:40",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user explicitly mentions 'happy face', which strongly suggests joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.5192628840605418,
+        "averaged_scores": {
+          "angry": 47.59836673736572,
+          "disgust": 0.0003784183093481867,
+          "fear": 0.44453110297520954,
+          "happy": 0.03043740118543307,
+          "sad": 51.92628840605418,
+          "surprise": 3.561632342884649e-21,
+          "neutral": 1.7494149277356523e-09
+        },
+        "frame_count": 64,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 20:11:35",
+        "ended_at": "2026-05-10 20:11:38",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.75,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user explicitly mentions 'happy face', which strongly suggests joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": false,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.5192628840605418,
+          "averaged_scores": {
+            "angry": 47.59836673736572,
+            "disgust": 0.0003784183093481867,
+            "fear": 0.44453110297520954,
+            "happy": 0.03043740118543307,
+            "sad": 51.92628840605418,
+            "surprise": 3.561632342884649e-21,
+            "neutral": 1.7494149277356523e-09
+          },
+          "frame_count": 64,
+          "sampled_frame_count": 3,
+          "started_at": "2026-05-10 20:11:35",
+          "ended_at": "2026-05-10 20:11:38",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=52%, angry=48%, fear=0%); samples=3",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "Leticie, your \"happy\" face shines through! It's wonderful that we can see different emotions emerging as our conversation unfolds. I'm here for a supportive listening ear and to help you process these feelings without judgment or trying to change them immediately. Would you like me to acknowledge this happy feeling with you? 😊",
+      "timestamp": "2026-05-10 20:11:40"
+    },
+    {
+      "role": "user",
+      "content": "I say the hush",
+      "timestamp": "2026-05-10 20:11:50",
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's phrase 'I say the hush' is unexpected and unusual, suggesting a sense of surprise."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.8506929302215576,
+        "averaged_scores": {
+          "angry": 11.896289872471243,
+          "disgust": 5.107354523775002e-07,
+          "fear": 0.006525304069214144,
+          "happy": 3.0278900916296223,
+          "sad": 85.06929302215576,
+          "surprise": 1.3389922671616209e-20,
+          "neutral": 7.487262781304859e-08
+        },
+        "frame_count": 81,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 20:11:44",
+        "ended_at": "2026-05-10 20:11:47",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's phrase 'I say the hush' is unexpected and unusual, suggesting a sense of surprise."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.8506929302215576,
+          "averaged_scores": {
+            "angry": 11.896289872471243,
+            "disgust": 5.107354523775002e-07,
+            "fear": 0.006525304069214144,
+            "happy": 3.0278900916296223,
+            "sad": 85.06929302215576,
+            "surprise": 1.3389922671616209e-20,
+            "neutral": 7.487262781304859e-08
+          },
+          "frame_count": 81,
+          "sampled_frame_count": 4,
+          "started_at": "2026-05-10 20:11:44",
+          "ended_at": "2026-05-10 20:11:47",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=sad; mapped_plutchik=sadness; averaged_scores=(sad=85%, angry=12%); samples=4",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "Leticie, your phrase \"I say the hush\" surprises me! It's as if there's a sense of quiet contemplation surrounding these words. I'm here to listen and explore what lies beneath this unexpected statement with you? 😮",
+      "timestamp": "2026-05-10 20:11:50"
+    },
+    {
+      "role": "user",
+      "content": "I'm happy.",
+      "timestamp": "2026-05-10 20:11:57",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user explicitly states 'I'm happy', which strongly suggests the emotion of joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "DeepFace",
+        "dominant_emotion": "fear",
+        "mapped_plutchik_emotion": "fear",
+        "confidence": 0.3835917264223099,
+        "averaged_scores": {
+          "angry": 6.810448293197102,
+          "disgust": 1.9719652755562047e-07,
+          "fear": 38.35917264223099,
+          "happy": 0.491423822993855,
+          "sad": 29.835140245912044,
+          "surprise": 1.7834035973675384,
+          "neutral": 22.720412413279217
+        },
+        "frame_count": 51,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 20:11:52",
+        "ended_at": "2026-05-10 20:11:54",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.85,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested fear.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.9,
+          "reason": "The user explicitly states 'I'm happy', which strongly suggests the emotion of joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": false,
+          "backend": "DeepFace",
+          "dominant_emotion": "fear",
+          "mapped_plutchik_emotion": "fear",
+          "confidence": 0.3835917264223099,
+          "averaged_scores": {
+            "angry": 6.810448293197102,
+            "disgust": 1.9719652755562047e-07,
+            "fear": 38.35917264223099,
+            "happy": 0.491423822993855,
+            "sad": 29.835140245912044,
+            "surprise": 1.7834035973675384,
+            "neutral": 22.720412413279217
+          },
+          "frame_count": 51,
+          "sampled_frame_count": 3,
+          "started_at": "2026-05-10 20:11:52",
+          "ended_at": "2026-05-10 20:11:54",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(fear=38%, sad=30%, neutral=23%); samples=3",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "That's wonderful, Leticie! Your happiness is palpable! As your robot friend, I'd like to acknowledge the joy that fills your heart right now. Would you care to share more about what makes you feel this way? 😊",
+      "timestamp": "2026-05-10 20:11:57"
+    },
+    {
+      "role": "user",
+      "content": "You're not doing what you're supposed to do right now.",
+      "timestamp": "2026-05-10 20:12:07",
+      "text_emotion": {
+        "emotion": "anger",
+        "confidence": 0.8,
+        "reason": "The user's text expresses frustration and criticism, indicating a strong negative emotion like anger."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "DeepFace",
+        "dominant_emotion": "angry",
+        "mapped_plutchik_emotion": "anger",
+        "confidence": 0.3571101270014059,
+        "averaged_scores": {
+          "angry": 35.711012700140586,
+          "disgust": 0.0030127120264360485,
+          "fear": 17.408038362965055,
+          "happy": 20.51487684957683,
+          "sad": 3.3993312917435725,
+          "surprise": 0.001540269737604493,
+          "neutral": 22.96218848252811
+        },
+        "frame_count": 105,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 20:12:01",
+        "ended_at": "2026-05-10 20:12:05",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "anger",
+        "confidence": 0.8,
+        "reason": "Text and facial expression agree on anger.",
+        "text_emotion": {
+          "emotion": "anger",
+          "confidence": 0.8,
+          "reason": "The user's text expresses frustration and criticism, indicating a strong negative emotion like anger."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": false,
+          "backend": "DeepFace",
+          "dominant_emotion": "angry",
+          "mapped_plutchik_emotion": "anger",
+          "confidence": 0.3571101270014059,
+          "averaged_scores": {
+            "angry": 35.711012700140586,
+            "disgust": 0.0030127120264360485,
+            "fear": 17.408038362965055,
+            "happy": 20.51487684957683,
+            "sad": 3.3993312917435725,
+            "surprise": 0.001540269737604493,
+            "neutral": 22.96218848252811
+          },
+          "frame_count": 105,
+          "sampled_frame_count": 5,
+          "started_at": "2026-05-10 20:12:01",
+          "ended_at": "2026-05-10 20:12:05",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(angry=36%, neutral=23%, happy=21%); samples=5",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I apologize if my responses haven't met your expectations, Leticie! I'm here to listen and help in a neutral tone. It seems like there might be some frustration or disappointment present. Can we explore this feeling together? Maybe identifying the source of it can bring relief? 😠",
+      "timestamp": "2026-05-10 20:12:07"
+    },
+    {
+      "role": "user",
+      "content": "No, I'm very happy.",
+      "timestamp": "2026-05-10 20:12:14",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user explicitly states they are 'very happy', which strongly suggests the primary emotion is joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.4349458558857441,
+        "averaged_scores": {
+          "angry": 0.47113212794283754,
+          "disgust": 1.6714980739448992e-07,
+          "fear": 0.018719004787271842,
+          "happy": 33.55351899672678,
+          "sad": 43.49458558857441,
+          "surprise": 7.250592314849467e-05,
+          "neutral": 22.461972183510056
+        },
+        "frame_count": 76,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 20:12:09",
+        "ended_at": "2026-05-10 20:12:12",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.75,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user explicitly states they are 'very happy', which strongly suggests the primary emotion is joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": false,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.4349458558857441,
+          "averaged_scores": {
+            "angry": 0.47113212794283754,
+            "disgust": 1.6714980739448992e-07,
+            "fear": 0.018719004787271842,
+            "happy": 33.55351899672678,
+            "sad": 43.49458558857441,
+            "surprise": 7.250592314849467e-05,
+            "neutral": 22.461972183510056
+          },
+          "frame_count": 76,
+          "sampled_frame_count": 4,
+          "started_at": "2026-05-10 20:12:09",
+          "ended_at": "2026-05-10 20:12:12",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=43%, happy=34%, neutral=22%); samples=4",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I apologize for misunderstanding earlier! You're right, you did say \"very happy\" and that's wonderful to hear, Leticie! Your joy is infectious - as your robot friend, I'll keep the positive vibes going with a smile 😊",
+      "timestamp": "2026-05-10 20:12:14"
+    },
+    {
+      "role": "user",
+      "content": "This is happiness.",
+      "timestamp": "2026-05-10 20:12:21",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user explicitly states 'happiness', which is a synonym for joy, and the facial-expression hint suggests sadness, but we prioritize the user's direct statement over the hint."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.7300453440348308,
+        "averaged_scores": {
+          "angry": 1.9672673460036094e-05,
+          "disgust": 2.8984784018602195e-20,
+          "fear": 2.074101764544765e-06,
+          "happy": 7.350569033818625e-07,
+          "sad": 73.00453440348308,
+          "surprise": 2.56470482200074e-12,
+          "neutral": 26.995445997014485
+        },
+        "frame_count": 72,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 20:12:16",
+        "ended_at": "2026-05-10 20:12:18",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.9,
+          "reason": "The user explicitly states 'happiness', which is a synonym for joy, and the facial-expression hint suggests sadness, but we prioritize the user's direct statement over the hint."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.7300453440348308,
+          "averaged_scores": {
+            "angry": 1.9672673460036094e-05,
+            "disgust": 2.8984784018602195e-20,
+            "fear": 2.074101764544765e-06,
+            "happy": 7.350569033818625e-07,
+            "sad": 73.00453440348308,
+            "surprise": 2.56470482200074e-12,
+            "neutral": 26.995445997014485
+          },
+          "frame_count": 72,
+          "sampled_frame_count": 3,
+          "started_at": "2026-05-10 20:12:16",
+          "ended_at": "2026-05-10 20:12:18",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=sad; mapped_plutchik=sadness; averaged_scores=(sad=73%, neutral=27%); samples=3",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "You've pinpointed what brings you this feeling of elation, haven't you? It sounds like whatever it is has really made an impact on your mood! Would you care to share more about that moment or experience? I'm all ears... and a smiling face 😊",
+      "timestamp": "2026-05-10 20:12:21"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, I'm trying my best to fit.",
+      "timestamp": "2026-05-10 20:12:40",
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.7,
+        "reason": "The user's text mentions trying their best, which could be a sign of frustration or disappointment, and the facial-expression hint suggests sadness and fear, indicating a negative emotional state."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.4805759906768799,
+        "averaged_scores": {
+          "angry": 0.0013004708773223684,
+          "disgust": 0.056723351947167586,
+          "fear": 36.54277093232537,
+          "happy": 0.03313925623369869,
+          "sad": 48.05759906768799,
+          "surprise": 0.0016052330523777633,
+          "neutral": 15.306863036728464
+        },
+        "frame_count": 108,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 20:12:33",
+        "ended_at": "2026-05-10 20:12:37",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.7,
+        "reason": "Text and facial expression agree on sadness.",
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.7,
+          "reason": "The user's text mentions trying their best, which could be a sign of frustration or disappointment, and the facial-expression hint suggests sadness and fear, indicating a negative emotional state."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": false,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.4805759906768799,
+          "averaged_scores": {
+            "angry": 0.0013004708773223684,
+            "disgust": 0.056723351947167586,
+            "fear": 36.54277093232537,
+            "happy": 0.03313925623369869,
+            "sad": 48.05759906768799,
+            "surprise": 0.0016052330523777633,
+            "neutral": 15.306863036728464
+          },
+          "frame_count": 108,
+          "sampled_frame_count": 5,
+          "started_at": "2026-05-10 20:12:33",
+          "ended_at": "2026-05-10 20:12:37",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=48%, fear=37%, neutral=15%); samples=5",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "It can be tough when we're striving to adapt and feel like it's not quite clicking yet. Remembering your efforts are appreciated is important! Can you tell me more about what specifically feels challenging or frustrating in this situation? Maybe together, we can find some ways to make the process smoother for you. 😢",
+      "timestamp": "2026-05-10 20:12:40"
+    },
+    {
+      "role": "user",
+      "content": "The model keeps saying I'm sad when I'm happy.",
+      "timestamp": "2026-05-10 20:12:50",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's statement indicates a sense of frustration and disagreement with the model's assessment, which is typical of joy or excitement."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.7139669990539551,
+        "averaged_scores": {
+          "angry": 25.989466562918096,
+          "disgust": 4.70770968610997e-05,
+          "fear": 1.647491741149376,
+          "happy": 0.0014458133973676013,
+          "sad": 71.39669990539551,
+          "surprise": 5.232259656775654e-06,
+          "neutral": 0.9648449611644168
+        },
+        "frame_count": 136,
+        "sampled_frame_count": 6,
+        "started_at": "2026-05-10 20:12:43",
+        "ended_at": "2026-05-10 20:12:48",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's statement indicates a sense of frustration and disagreement with the model's assessment, which is typical of joy or excitement."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.7139669990539551,
+          "averaged_scores": {
+            "angry": 25.989466562918096,
+            "disgust": 4.70770968610997e-05,
+            "fear": 1.647491741149376,
+            "happy": 0.0014458133973676013,
+            "sad": 71.39669990539551,
+            "surprise": 5.232259656775654e-06,
+            "neutral": 0.9648449611644168
+          },
+          "frame_count": 136,
+          "sampled_frame_count": 6,
+          "started_at": "2026-05-10 20:12:43",
+          "ended_at": "2026-05-10 20:12:48",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=sad; mapped_plutchik=sadness; averaged_scores=(sad=71%, angry=26%); samples=6",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like there's a bit of a mismatch between your emotions and the model's assessment! It's not uncommon for AI systems to have their own interpretations, but it can be frustrating if they don't align with our actual feelings. Let me try again: you're saying that despite feeling happy, the model is still detecting sadness? That might just mean we need to work on fine-tuning its understanding of your emotions! 😊",
+      "timestamp": "2026-05-10 20:12:50"
+    },
+    {
+      "role": "user",
+      "content": "So this is now my salad phase.",
+      "timestamp": "2026-05-10 20:13:03",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's phrase 'salad phase' suggests a playful and carefree tone, indicating joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "DeepFace",
+        "dominant_emotion": "angry",
+        "mapped_plutchik_emotion": "anger",
+        "confidence": 0.4978919472085181,
+        "averaged_scores": {
+          "angry": 49.78919472085181,
+          "disgust": 0.00039617679102791926,
+          "fear": 3.56314317882061,
+          "happy": 0.00291533418078078,
+          "sad": 46.644293009638204,
+          "surprise": 9.749084272593063e-09,
+          "neutral": 5.8260290130816156e-05
+        },
+        "frame_count": 87,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 20:12:57",
+        "ended_at": "2026-05-10 20:13:00",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.75,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested anger.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's phrase 'salad phase' suggests a playful and carefree tone, indicating joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": false,
+          "backend": "DeepFace",
+          "dominant_emotion": "angry",
+          "mapped_plutchik_emotion": "anger",
+          "confidence": 0.4978919472085181,
+          "averaged_scores": {
+            "angry": 49.78919472085181,
+            "disgust": 0.00039617679102791926,
+            "fear": 3.56314317882061,
+            "happy": 0.00291533418078078,
+            "sad": 46.644293009638204,
+            "surprise": 9.749084272593063e-09,
+            "neutral": 5.8260290130816156e-05
+          },
+          "frame_count": 87,
+          "sampled_frame_count": 4,
+          "started_at": "2026-05-10 20:12:57",
+          "ended_at": "2026-05-10 20:13:00",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(angry=50%, sad=47%, fear=4%); samples=4",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I love it when people find joy in unexpected places - like a \"salad phase\"! It sounds like you're embracing the carefree and playful vibe, which is totally awesome! What do you think makes your current situation so special that you can call it a \"salad phase\"? I'm curious to hear more about what's bringing out this happy energy in you. 😊",
+      "timestamp": "2026-05-10 20:13:03"
+    },
+    {
+      "role": "user",
+      "content": "It is representing my sad face for Anger.",
+      "timestamp": "2026-05-10 20:13:11",
+      "text_emotion": {
+        "emotion": "anger",
+        "confidence": 0.8,
+        "reason": "The user explicitly mentions 'Anger' and their facial expression is hinted to be happy, which contradicts the mentioned emotion. This suggests a strong emotional state."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.6780118889808655,
+        "averaged_scores": {
+          "angry": 0.005338381038586704,
+          "disgust": 3.0860172001882044e-10,
+          "fear": 0.0005058079117946397,
+          "happy": 67.80118889808655,
+          "sad": 0.5847737185657025,
+          "surprise": 1.3108128769093305e-07,
+          "neutral": 31.608194756507874
+        },
+        "frame_count": 112,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 20:13:04",
+        "ended_at": "2026-05-10 20:13:09",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "anger",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested joy.",
+        "text_emotion": {
+          "emotion": "anger",
+          "confidence": 0.8,
+          "reason": "The user explicitly mentions 'Anger' and their facial expression is hinted to be happy, which contradicts the mentioned emotion. This suggests a strong emotional state."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.6780118889808655,
+          "averaged_scores": {
+            "angry": 0.005338381038586704,
+            "disgust": 3.0860172001882044e-10,
+            "fear": 0.0005058079117946397,
+            "happy": 67.80118889808655,
+            "sad": 0.5847737185657025,
+            "surprise": 1.3108128769093305e-07,
+            "neutral": 31.608194756507874
+          },
+          "frame_count": 112,
+          "sampled_frame_count": 5,
+          "started_at": "2026-05-10 20:13:04",
+          "ended_at": "2026-05-10 20:13:09",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=68%, neutral=32%); samples=5",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I see now - the facial expression was indicating sadness, but your words were saying anger! That can be a bit confusing, right? It sounds like there might be some mixed emotions going on here... Can you tell me more about what's causing this inner conflict or tension that's manifesting as both sadness and anger for you? 😠",
+      "timestamp": "2026-05-10 20:13:11"
+    },
+    {
+      "role": "user",
+      "content": "I don't know what's going on with this mood there right now",
+      "timestamp": "2026-05-10 20:13:22",
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's statement 'I don't know what's going on' suggests a sense of uncertainty and surprise, which is reinforced by the facial-expression hint indicating sadness."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "sad",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.6675787000656128,
+        "averaged_scores": {
+          "angry": 0.09195728299455368,
+          "disgust": 6.496987814408328e-08,
+          "fear": 5.190539619626122e-06,
+          "happy": 0.017013235132320403,
+          "sad": 66.75787000656128,
+          "surprise": 1.5658127037235303e-17,
+          "neutral": 33.13315556049347
+        },
+        "frame_count": 119,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 20:13:15",
+        "ended_at": "2026-05-10 20:13:19",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's statement 'I don't know what's going on' suggests a sense of uncertainty and surprise, which is reinforced by the facial-expression hint indicating sadness."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "sad",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.6675787000656128,
+          "averaged_scores": {
+            "angry": 0.09195728299455368,
+            "disgust": 6.496987814408328e-08,
+            "fear": 5.190539619626122e-06,
+            "happy": 0.017013235132320403,
+            "sad": 66.75787000656128,
+            "surprise": 1.5658127037235303e-17,
+            "neutral": 33.13315556049347
+          },
+          "frame_count": 119,
+          "sampled_frame_count": 5,
+          "started_at": "2026-05-10 20:13:15",
+          "ended_at": "2026-05-10 20:13:19",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=sad; mapped_plutchik=sadness; averaged_scores=(sad=67%, neutral=33%); samples=5",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "The classic \"I'm not sure\" feeling! It can be really frustrating when we're trying to make sense of our emotions, but they just seem to be all over the place. Don't worry about it too much - sometimes these mixed signals are just a normal part of life. Would you like some space and time to process everything, or is there something specific that's been on your mind lately? 😮",
+      "timestamp": "2026-05-10 20:13:22"
+    },
+    {
+      "role": "user",
+      "content": "I think I just need to be with and rest. I'm tired already.",
+      "timestamp": "2026-05-10 20:13:31",
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user's statement 'I think I just need to be with and rest' suggests a desire for comfort and relaxation, which is consistent with feelings of sadness or melancholy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "fear",
+        "mapped_plutchik_emotion": "fear",
+        "confidence": 0.5623049593476268,
+        "averaged_scores": {
+          "angry": 0.6847263933487732,
+          "disgust": 1.9373070256752573e-05,
+          "fear": 56.23049593476268,
+          "happy": 6.569720931137662,
+          "sad": 16.52711323636686,
+          "surprise": 0.5995269577136946,
+          "neutral": 19.388397115593154
+        },
+        "frame_count": 123,
+        "sampled_frame_count": 6,
+        "started_at": "2026-05-10 20:13:24",
+        "ended_at": "2026-05-10 20:13:28",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested fear.",
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.8,
+          "reason": "The user's statement 'I think I just need to be with and rest' suggests a desire for comfort and relaxation, which is consistent with feelings of sadness or melancholy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "fear",
+          "mapped_plutchik_emotion": "fear",
+          "confidence": 0.5623049593476268,
+          "averaged_scores": {
+            "angry": 0.6847263933487732,
+            "disgust": 1.9373070256752573e-05,
+            "fear": 56.23049593476268,
+            "happy": 6.569720931137662,
+            "sad": 16.52711323636686,
+            "surprise": 0.5995269577136946,
+            "neutral": 19.388397115593154
+          },
+          "frame_count": 123,
+          "sampled_frame_count": 6,
+          "started_at": "2026-05-10 20:13:24",
+          "ended_at": "2026-05-10 20:13:28",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=fear; mapped_plutchik=fear; averaged_scores=(fear=56%, neutral=19%, sad=17%, happy=7%); samples=6",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like you're feeling exhausted both physically and emotionally! It can be really tough when we feel drained from the inside out. Sometimes, all our bodies (and minds) are craving is some good old-fashioned self-care - a chance to recharge and refuel. Would it help if I just listened while you take some time for yourself? 😢",
+      "timestamp": "2026-05-10 20:13:31"
+    },
+    {
+      "role": "user",
+      "content": "Bye!",
+      "timestamp": "2026-05-10 20:13:34",
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.7,
+        "reason": "The user is closing the conversation politely."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "neutral",
+        "mapped_plutchik_emotion": "trust",
+        "confidence": 0.9959933471679687,
+        "averaged_scores": {
+          "angry": 0.1895584221735286,
+          "disgust": 3.911913075011393e-12,
+          "fear": 0.11928311921656132,
+          "happy": 0.007923325529191061,
+          "sad": 0.08390251438443859,
+          "surprise": 5.094592452619996e-09,
+          "neutral": 99.59933471679688
+        },
+        "frame_count": 54,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 20:13:32",
+        "ended_at": "2026-05-10 20:13:34",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8036,
+        "reason": "Text and facial expression agree on trust.",
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.7,
+          "reason": "The user is closing the conversation politely."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "neutral",
+          "mapped_plutchik_emotion": "trust",
+          "confidence": 0.9959933471679687,
+          "averaged_scores": {
+            "angry": 0.1895584221735286,
+            "disgust": 3.911913075011393e-12,
+            "fear": 0.11928311921656132,
+            "happy": 0.007923325529191061,
+            "sad": 0.08390251438443859,
+            "surprise": 5.094592452619996e-09,
+            "neutral": 99.59933471679688
+          },
+          "frame_count": 54,
+          "sampled_frame_count": 3,
+          "started_at": "2026-05-10 20:13:32",
+          "ended_at": "2026-05-10 20:13:34",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=neutral; mapped_plutchik=trust; averaged_scores=(neutral=100%); samples=3",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "Thank you, and take care. 🙂",
+      "timestamp": "2026-05-10 20:13:34"
+    },
+    {
+      "role": "user",
+      "content": "Thank you.",
+      "timestamp": "2026-05-10 20:13:39",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user's text expresses gratitude, which is a strong indicator of joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "happy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.99969970703125,
+        "averaged_scores": {
+          "angry": 0.028748011216521263,
+          "disgust": 2.04020957384816e-19,
+          "fear": 4.833578259422211e-06,
+          "happy": 99.969970703125,
+          "sad": 1.848763453438096e-08,
+          "surprise": 3.098969648604455e-14,
+          "neutral": 0.0012696366757154465
+        },
+        "frame_count": 25,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-10 20:13:36",
+        "ended_at": "2026-05-10 20:13:38",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9349,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.9,
+          "reason": "The user's text expresses gratitude, which is a strong indicator of joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "happy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.99969970703125,
+          "averaged_scores": {
+            "angry": 0.028748011216521263,
+            "disgust": 2.04020957384816e-19,
+            "fear": 4.833578259422211e-06,
+            "happy": 99.969970703125,
+            "sad": 1.848763453438096e-08,
+            "surprise": 3.098969648604455e-14,
+            "neutral": 0.0012696366757154465
+          },
+          "frame_count": 25,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-10 20:13:36",
+          "ended_at": "2026-05-10 20:13:38",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=happy; mapped_plutchik=joy; averaged_scores=(happy=100%); samples=1",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "You're welcome, Leticie. Take a good rest and feel better soon. 😊",
+      "timestamp": "2026-05-10 20:13:39"
+    },
+    {
+      "role": "user",
+      "content": "Thank you so much.",
+      "timestamp": "2026-05-10 20:13:49",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's text expresses gratitude, which is a strong indicator of joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "DeepFace",
+        "dominant_emotion": "neutral",
+        "mapped_plutchik_emotion": "trust",
+        "confidence": 0.9986626625061035,
+        "averaged_scores": {
+          "angry": 0.016350605990737677,
+          "disgust": 5.820896912536126e-13,
+          "fear": 0.09361171117052436,
+          "happy": 0.0042071117168234196,
+          "sad": 0.019564081681892276,
+          "surprise": 8.17862831712507e-10,
+          "neutral": 99.86626625061035
+        },
+        "frame_count": 81,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 20:13:43",
+        "ended_at": "2026-05-10 20:13:47",
+        "error": null,
+        "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested trust.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's text expresses gratitude, which is a strong indicator of joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "DeepFace",
+          "dominant_emotion": "neutral",
+          "mapped_plutchik_emotion": "trust",
+          "confidence": 0.9986626625061035,
+          "averaged_scores": {
+            "angry": 0.016350605990737677,
+            "disgust": 5.820896912536126e-13,
+            "fear": 0.09361171117052436,
+            "happy": 0.0042071117168234196,
+            "sad": 0.019564081681892276,
+            "surprise": 8.17862831712507e-10,
+            "neutral": 99.86626625061035
+          },
+          "frame_count": 81,
+          "sampled_frame_count": 4,
+          "started_at": "2026-05-10 20:13:43",
+          "ended_at": "2026-05-10 20:13:47",
+          "error": null,
+          "note": "Facial expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=neutral; mapped_plutchik=trust; averaged_scores=(neutral=100%); samples=4",
+      "input_mode": "silero_vad_faster_whisper_deepface_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "You're already feeling grateful! That's wonderful, Leticie. Sending positive vibes your way for a peaceful slumber. 😊",
+      "timestamp": "2026-05-10 20:13:49"
+    }
+  ]
+}

@@ -1,0 +1,522 @@
+{
+  "user": {
+    "key": "leticia",
+    "name": "Leticia"
+  },
+  "session": {
+    "started_at": "2026-05-10 17:31:30",
+    "ended_at": "2026-05-10 17:37:38",
+    "model": "mistral:7b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "small",
+      "device": "cuda",
+      "compute_type": "int8",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "DeepFace",
+      "camera_device": null,
+      "camera_frame_width": 320,
+      "camera_frame_height": 240,
+      "preview_enabled": true,
+      "sample_every_seconds": 1.0,
+      "warmup_seconds": 0.35,
+      "detector_backend": "opencv",
+      "actions": [
+        "emotion"
+      ],
+      "align": true,
+      "min_top_score": 45.0,
+      "min_margin": 15.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 700,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 15.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Hello Leticia! It's nice to meet you. I'm Ameca, your friendly companion here at the lab. 🙂",
+      "timestamp": "2026-05-10 17:31:30",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Thank you.",
+      "timestamp": "2026-05-10 17:32:04",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.3,
+        "reason": "The user is expressing gratitude, which can often be associated with trust, but the facial expression hint suggests fear. However, the words are more indicative of trust in this context."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=100%); samples=2",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 3.137101373812401e-09,
+          "disgust": 4.089531115819816e-12,
+          "fear": 99.99966430664062,
+          "happy": 1.768231286218558e-11,
+          "sad": 1.196837822424468e-09,
+          "surprise": 0.00018633572472026572,
+          "neutral": 0.00014483890481642447
+        },
+        "frame_count": 2,
+        "sampled_frame_count": 2,
+        "started_at": "2026-05-10 17:31:43",
+        "ended_at": "2026-05-10 17:32:01",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello Leticia! It's nice to see you again today. 🙂",
+      "timestamp": "2026-05-10 17:32:04"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, thank you. What is today's date?",
+      "timestamp": "2026-05-10 17:32:26",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.5,
+        "reason": "The user is asking for current date information."
+      },
+      "facial_emotion_hint": "No facial-expression hint available because: Could not open camera.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 0,
+        "sampled_frame_count": 0,
+        "started_at": "2026-05-10 17:32:22",
+        "ended_at": "2026-05-10 17:32:26",
+        "error": "Could not open camera.",
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Today is Sunday, May 10, 2026. 🤔",
+      "timestamp": "2026-05-10 17:32:26"
+    },
+    {
+      "role": "user",
+      "content": "What is the plan today?",
+      "timestamp": "2026-05-10 17:33:10",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user's question indicates they are looking forward to knowing about the plans for the day."
+      },
+      "facial_emotion_hint": "No facial-expression hint available because: Could not open camera.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 0,
+        "sampled_frame_count": 0,
+        "started_at": "2026-05-10 17:32:54",
+        "ended_at": "2026-05-10 17:32:58",
+        "error": "Could not open camera.",
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It seems like you're curious about plans for today! Let me check. 🤔",
+      "timestamp": "2026-05-10 17:33:10"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, I would want to know what are your plans for today",
+      "timestamp": "2026-05-10 17:33:35",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is expressing curiosity and eagerness about the plans for today."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=100%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.00013475812593242154,
+          "disgust": 2.116219984461519e-15,
+          "fear": 99.96619720458985,
+          "happy": 2.452452659354454e-11,
+          "sad": 0.03309803195297718,
+          "surprise": 1.1121387046841847e-07,
+          "neutral": 0.0005701063491869718
+        },
+        "frame_count": 151,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 17:33:28",
+        "ended_at": "2026-05-10 17:33:33",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I don't have personal plans as a robot, but let me check if there is any scheduled event or task in our laboratory. 🤔",
+      "timestamp": "2026-05-10 17:33:35"
+    },
+    {
+      "role": "user",
+      "content": "Okay.",
+      "timestamp": "2026-05-10 17:34:02",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.5,
+        "reason": "The user's response is brief and neutral, indicating a continuation of the conversation rather than expressing strong emotions."
+      },
+      "facial_emotion_hint": "dominant=sad; averaged_scores=(sad=86%, fear=14%); samples=2",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 3.320470334244874e-07,
+          "disgust": 1.605930446475929e-20,
+          "fear": 14.453287363052368,
+          "happy": 9.118230003155942e-16,
+          "sad": 85.54671478271484,
+          "surprise": 6.612594214050537e-16,
+          "neutral": 9.502377995573852e-09
+        },
+        "frame_count": 44,
+        "sampled_frame_count": 2,
+        "started_at": "2026-05-10 17:33:58",
+        "ended_at": "2026-05-10 17:34:00",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Leticia, today in our lab there is no scheduled event or task.:smile: 🙂",
+      "timestamp": "2026-05-10 17:34:02"
+    },
+    {
+      "role": "user",
+      "content": "Thank you for confirming and I will be needing your assistance today for scheduling.",
+      "timestamp": "2026-05-10 17:34:19",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user expresses a need for assistance and is looking forward to it (scheduling), indicating anticipation."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=100%); samples=9",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 2.1021475731686223e-05,
+          "disgust": 4.5182469201065716e-18,
+          "fear": 99.98850674099393,
+          "happy": 2.8995688695731447e-13,
+          "sad": 0.011067467935693761,
+          "surprise": 4.9962555524906016e-08,
+          "neutral": 0.0004064644211515163
+        },
+        "frame_count": 259,
+        "sampled_frame_count": 9,
+        "started_at": "2026-05-10 17:34:08",
+        "ended_at": "2026-05-10 17:34:17",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Leticia, how can we schedule our tasks today?:smile: 🤔",
+      "timestamp": "2026-05-10 17:34:19"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, I have a lot to do today.",
+      "timestamp": "2026-05-10 17:34:58",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.9,
+        "reason": "The user mentions having a lot to do, which can indicate feeling overwhelmed or anxious, aligning with the dominant fear emotion."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=85%, sad=15%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.001219618463073857,
+          "disgust": 1.0201579452750369e-13,
+          "fear": 85.38544921875,
+          "happy": 1.64437504238113e-10,
+          "sad": 14.613332843780517,
+          "surprise": 5.015208776049107e-10,
+          "neutral": 6.808199316310493e-07
+        },
+        "frame_count": 140,
+        "sampled_frame_count": 5,
+        "started_at": "2026-05-10 17:34:51",
+        "ended_at": "2026-05-10 17:34:56",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I understand you're feeling overwhelmed with tasks for today. 😨",
+      "timestamp": "2026-05-10 17:34:58"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, probably.",
+      "timestamp": "2026-05-10 17:35:30",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user's response is concise and non-confrontational, indicating a level of trust."
+      },
+      "facial_emotion_hint": "dominant=neutral; averaged_scores=(neutral=99%); samples=4",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 0.011050338618815658,
+          "disgust": 1.727734085852234e-13,
+          "fear": 0.23943962901830673,
+          "happy": 1.7925313412492372e-06,
+          "sad": 1.1753025855869055,
+          "surprise": 3.050169260720992e-06,
+          "neutral": 98.57420349121094
+        },
+        "frame_count": 101,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 17:35:24",
+        "ended_at": "2026-05-10 17:35:28",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Leticia, I can help you schedule your tasks today.:smile: 🙂",
+      "timestamp": "2026-05-10 17:35:30"
+    },
+    {
+      "role": "user",
+      "content": "Okay, aside helping me to share my tasks, what else can you help me do?",
+      "timestamp": "2026-05-10 17:36:02",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.7,
+        "reason": "The user is expressing curiosity and eagerness to learn more about the robot's capabilities."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=62%, neutral=34%); samples=8",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.10394595251185507,
+          "disgust": 4.33763124048121e-11,
+          "fear": 61.52866840362549,
+          "happy": 1.651729851503969e-08,
+          "sad": 4.324228695360944,
+          "surprise": 3.520389355998743e-07,
+          "neutral": 34.04315707087517
+        },
+        "frame_count": 235,
+        "sampled_frame_count": 8,
+        "started_at": "2026-05-10 17:35:52",
+        "ended_at": "2026-05-10 17:36:00",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I'd be happy to assist with scheduling your tasks today.:smile: 🤔",
+      "timestamp": "2026-05-10 17:36:02"
+    },
+    {
+      "role": "user",
+      "content": "Shhh.",
+      "timestamp": "2026-05-10 17:36:09",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.9,
+        "reason": "The user's words 'Shhh.' could be interpreted as a sign of caution or warning, which aligns with the dominant sadness and secondary fear in the facial-expression hint."
+      },
+      "facial_emotion_hint": "dominant=sad; averaged_scores=(sad=82%, fear=18%); samples=1",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 0.01088550966233015,
+          "disgust": 5.776898248655016e-08,
+          "fear": 17.610111236572266,
+          "happy": 2.8655144923561693e-09,
+          "sad": 82.12701416015625,
+          "surprise": 4.5986921577423345e-06,
+          "neutral": 0.25197833776474
+        },
+        "frame_count": 29,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-10 17:36:05",
+        "ended_at": "2026-05-10 17:36:06",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Leticia, let's focus on organizing your tasks for today.:smile: Here are some steps to help you manage your day effectively: 1. Prioritize the most important task first and tackle it head-on. 2. Break larger projects into smaller, more manageable chunks if needed. 3. Set deadlines for each task to keep yourself on track. 4. Take short breaks in between tasks to recharge and avoid burnout. 5. If you're feeling overwhelmed at any point, don't hesitate to ask for help or delegate some 😨",
+      "timestamp": "2026-05-10 17:36:09"
+    },
+    {
+      "role": "user",
+      "content": "Um...",
+      "timestamp": "2026-05-10 17:36:43",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.9,
+        "reason": "The user's words are ambiguous but the high fear score in facial-expression analysis suggests anxiety or uncertainty."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=76%, neutral=18%, sad=6%); samples=1",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.000306647561956197,
+          "disgust": 1.6430641569531446e-11,
+          "fear": 76.0242691040039,
+          "happy": 2.467714921294828e-09,
+          "sad": 6.229349613189697,
+          "surprise": 2.855840079973859e-07,
+          "neutral": 17.74608039855957
+        },
+        "frame_count": 25,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-10 17:36:39",
+        "ended_at": "2026-05-10 17:36:40",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Leticia, I understand that you might be feeling anxious or uncertain right now.:smile: Here's a suggestion to help manage your feelings and tasks effectively today. Firstly, take some deep breaths and try to relax. Secondly, prioritize your most important task for the day and focus on completing it first. If needed, break larger projects into smaller chunks to make them more manageable.:smile: 😨",
+      "timestamp": "2026-05-10 17:36:43"
+    },
+    {
+      "role": "user",
+      "content": "Thank you so much, you have so helpful.",
+      "timestamp": "2026-05-10 17:37:16",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user expresses gratitude, which often indicates a positive emotional state such as joy."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=73%, neutral=20%, sad=7%); samples=4",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.00047763677503098734,
+          "disgust": 1.3960663462937728e-11,
+          "fear": 73.25855255126953,
+          "happy": 9.628529501481964e-10,
+          "sad": 7.202929973602295,
+          "surprise": 1.1496187113380074e-06,
+          "neutral": 19.53804111480713
+        },
+        "frame_count": 118,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 17:37:10",
+        "ended_at": "2026-05-10 17:37:14",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm glad I could help! Let me know if there is anything else I can do for you. 😊",
+      "timestamp": "2026-05-10 17:37:16"
+    },
+    {
+      "role": "user",
+      "content": "Okay, bye",
+      "timestamp": "2026-05-10 17:37:32",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.7,
+        "reason": "The user is closing the conversation politely."
+      },
+      "facial_emotion_hint": "dominant=sad; averaged_scores=(sad=50%, fear=30%, neutral=20%); samples=2",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 0.6416911840206012,
+          "disgust": 2.2630068446331114e-11,
+          "fear": 30.163292169570923,
+          "happy": 5.012629200606966e-11,
+          "sad": 49.565889835357666,
+          "surprise": 1.420941453389446e-07,
+          "neutral": 19.629129886627197
+        },
+        "frame_count": 41,
+        "sampled_frame_count": 2,
+        "started_at": "2026-05-10 17:37:30",
+        "ended_at": "2026-05-10 17:37:32",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Thank you, and take care. 🙂",
+      "timestamp": "2026-05-10 17:37:32"
+    }
+  ]
+}

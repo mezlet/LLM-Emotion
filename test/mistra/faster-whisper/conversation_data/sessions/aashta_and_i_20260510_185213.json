@@ -1,0 +1,698 @@
+{
+  "user": {
+    "key": "aashta_and_i",
+    "name": "Aashta and I"
+  },
+  "session": {
+    "started_at": "2026-05-10 18:46:21",
+    "ended_at": "2026-05-10 18:52:13",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "small",
+      "device": "cuda",
+      "compute_type": "int8",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "DeepFace",
+      "camera_device": null,
+      "camera_frame_width": 320,
+      "camera_frame_height": 240,
+      "preview_enabled": true,
+      "sample_every_seconds": 1.0,
+      "warmup_seconds": 0.35,
+      "detector_backend": "opencv",
+      "actions": [
+        "emotion"
+      ],
+      "align": true,
+      "min_top_score": 45.0,
+      "min_margin": 15.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 700,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 15.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Leticie! I'm Ameca, a humanoid social robot here at the university lab. 🙂",
+      "timestamp": "2026-05-10 18:46:21",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too.",
+      "timestamp": "2026-05-10 18:46:36",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user is expressing a positive sentiment and politeness, indicating trust in the interaction."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=67%, happy=33%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 4.5496301481762605e-07,
+          "disgust": 4.27004352016036e-12,
+          "fear": 66.7843193213145,
+          "happy": 33.15945943196615,
+          "sad": 0.0002513243411833936,
+          "surprise": 3.153674728772384e-10,
+          "neutral": 0.05596920607301096
+        },
+        "frame_count": 77,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 18:46:28",
+        "ended_at": "2026-05-10 18:46:32",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm glad we're having this conversation, Leticie. It's always great to connect with someone new. 🙂",
+      "timestamp": "2026-05-10 18:46:36"
+    },
+    {
+      "role": "user",
+      "content": "Sorry.",
+      "timestamp": "2026-05-10 18:46:42",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user's words and facial expression both suggest sadness, with the word 'Sorry' indicating regret or disappointment."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=90%, sad=6%); samples=2",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 6.697805684705363e-17,
+          "disgust": 1.0322479089854253e-35,
+          "fear": 90.09951400756836,
+          "happy": 2.659264243937342e-16,
+          "sad": 6.313614102778956,
+          "surprise": 6.3837325825768114e-21,
+          "neutral": 3.5868748873472214
+        },
+        "frame_count": 63,
+        "sampled_frame_count": 2,
+        "started_at": "2026-05-10 18:46:37",
+        "ended_at": "2026-05-10 18:46:40",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "No need to apologize, Leticie! I understand that sometimes life can be tough and it takes a lot of courage just to keep going. Remember, you are not alone in this journey. 😢",
+      "timestamp": "2026-05-10 18:46:42"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, hello.",
+      "timestamp": "2026-05-10 18:49:34",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's greeting and facial expression both indicate a positive emotional state, with the words 'Yeah' and 'hello' suggesting a friendly tone."
+      },
+      "facial_emotion_hint": "dominant=happy; averaged_scores=(happy=86%, angry=13%); samples=2",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 13.487747877836227,
+          "disgust": 4.613426918265162e-09,
+          "fear": 1.51152901395335e-06,
+          "happy": 86.48030853271484,
+          "sad": 0.02361193671822548,
+          "surprise": 1.4005497716435e-11,
+          "neutral": 0.008339981781318784
+        },
+        "frame_count": 64,
+        "sampled_frame_count": 2,
+        "started_at": "2026-05-10 18:49:29",
+        "ended_at": "2026-05-10 18:49:31",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello again, Leticie! It's great to see you're feeling more upbeat now. What brings you here today? 😊",
+      "timestamp": "2026-05-10 18:49:34"
+    },
+    {
+      "role": "user",
+      "content": "I think you killed it. So you see that's very small. Can I once, once I'm done? I'm done.",
+      "timestamp": "2026-05-10 18:49:42",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's words convey a positive sentiment, praising the robot's performance with 'killed it', indicating joy."
+      },
+      "facial_emotion_hint": "dominant=neutral; averaged_scores=(neutral=60%, fear=38%); samples=6",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 1.5967205631244703e-15,
+          "disgust": 4.786396284368994e-31,
+          "fear": 37.79324213663737,
+          "happy": 3.2080968905419165e-14,
+          "sad": 2.681359057780355,
+          "surprise": 7.948304750978868e-17,
+          "neutral": 59.525399605433144
+        },
+        "frame_count": 164,
+        "sampled_frame_count": 6,
+        "started_at": "2026-05-10 18:49:34",
+        "ended_at": "2026-05-10 18:49:40",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Thank you for the kind words about my performance! It sounds like you're wrapping up something and looking forward to moving on to the next step. That can be a great feeling - accomplishment is always satisfying! 😊",
+      "timestamp": "2026-05-10 18:49:42"
+    },
+    {
+      "role": "user",
+      "content": "You have to be talking for long. Hi, my name is Ashta and I would love to see the face I'm making but you don't show it.",
+      "timestamp": "2026-05-10 18:49:59",
+      "emotion": {
+        "emotion": "surprise",
+        "confidence": 0.7,
+        "reason": "The user's request to see their own face and the mention of 'long' conversation suggests surprise at the limitations of the interaction."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=64%, sad=20%, happy=10%); samples=8",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 1.5418751314282941,
+          "disgust": 0.0014407819835469127,
+          "fear": 64.39696089731297,
+          "happy": 10.130917027592659,
+          "sad": 19.876715874502864,
+          "surprise": 0.0065583584446358145,
+          "neutral": 4.045532839169027
+        },
+        "frame_count": 243,
+        "sampled_frame_count": 8,
+        "started_at": "2026-05-10 18:49:48",
+        "ended_at": "2026-05-10 18:49:56",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello again, Ashta (I'll make sure to remember your new name)! Sorry about that - as a robot, I don't actually have eyes or cameras to capture facial expressions like humans do. But I can still try to understand and respond in ways that are helpful! 😮",
+      "timestamp": "2026-05-10 18:49:59"
+    },
+    {
+      "role": "user",
+      "content": "It's pretty hot.",
+      "timestamp": "2026-05-10 18:50:04",
+      "emotion": {
+        "emotion": "surprise",
+        "confidence": 0.5,
+        "reason": "The user is expressing a sudden realization about the temperature being hot."
+      },
+      "facial_emotion_hint": "dominant=sad; averaged_scores=(sad=73%, neutral=12%, fear=10%); samples=2",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 2.65275239944525,
+          "disgust": 0.0012699278304353356,
+          "fear": 10.460439294576645,
+          "happy": 2.0360646247863876,
+          "sad": 72.85538291931152,
+          "surprise": 0.005583383142948151,
+          "neutral": 11.98851275097877
+        },
+        "frame_count": 52,
+        "sampled_frame_count": 2,
+        "started_at": "2026-05-10 18:50:00",
+        "ended_at": "2026-05-10 18:50:02",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I sense you're feeling the heat today, Ashta! It is indeed a warm day outside (according to my internal clock). Maybe we should focus on something cooler? 😮",
+      "timestamp": "2026-05-10 18:50:04"
+    },
+    {
+      "role": "user",
+      "content": "Okay.",
+      "timestamp": "2026-05-10 18:50:08",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user's brief response and lack of emotional language suggest a trusting tone, despite the fear facial-expression hint."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=50%, sad=31%, neutral=18%); samples=2",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 1.10159181285605,
+          "disgust": 0.00012640270870178938,
+          "fear": 50.023115277290344,
+          "happy": 0.26166012917377246,
+          "sad": 30.902280688285828,
+          "surprise": 5.675231660219782e-05,
+          "neutral": 17.711165131360758
+        },
+        "frame_count": 43,
+        "sampled_frame_count": 2,
+        "started_at": "2026-05-10 18:50:04",
+        "ended_at": "2026-05-10 18:50:06",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Let's take it easy then! What would you like to talk about or work on next, Ashta? 🙂",
+      "timestamp": "2026-05-10 18:50:08"
+    },
+    {
+      "role": "user",
+      "content": "This side I think yeah. Yeah, I think it's the same to know about the oh, this is really bad. So you say",
+      "timestamp": "2026-05-10 18:50:20",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.7,
+        "reason": "The user's words convey a sense of uncertainty and negativity, with phrases like 'this is really bad' indicating a strong emotional response."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=31%, fear=26%, neutral=21%); samples=9",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 6.9594466951161005,
+          "disgust": 0.00435391041294982,
+          "fear": 25.93319654961427,
+          "happy": 14.939596674508518,
+          "sad": 30.93753284925909,
+          "surprise": 0.030572385223220214,
+          "neutral": 21.195301539836993
+        },
+        "frame_count": 261,
+        "sampled_frame_count": 9,
+        "started_at": "2026-05-10 18:50:08",
+        "ended_at": "2026-05-10 18:50:17",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I sense a hint of uncertainty and negativity in your words, Ashta! It sounds like things might be feeling overwhelming right now? Would you like me to help brainstorm or offer some support? 😨",
+      "timestamp": "2026-05-10 18:50:20"
+    },
+    {
+      "role": "user",
+      "content": "Hi, hi, hi.",
+      "timestamp": "2026-05-10 18:50:25",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.6,
+        "reason": "The user is opening a friendly social interaction."
+      },
+      "facial_emotion_hint": "dominant=sad; averaged_scores=(sad=55%, neutral=26%, fear=12%); samples=2",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 4.090569973328656,
+          "disgust": 0.0002883963461499661,
+          "fear": 12.463531303852506,
+          "happy": 1.9267970323562622,
+          "sad": 55.285850524902344,
+          "surprise": 0.02379872277379036,
+          "neutral": 26.209164282627285
+        },
+        "frame_count": 52,
+        "sampled_frame_count": 2,
+        "started_at": "2026-05-10 18:50:21",
+        "ended_at": "2026-05-10 18:50:23",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello there Leticie! Nice to chat with you again! What's on your mind today? 🙂",
+      "timestamp": "2026-05-10 18:50:25"
+    },
+    {
+      "role": "user",
+      "content": "It's very strong.",
+      "timestamp": "2026-05-10 18:50:31",
+      "emotion": {
+        "emotion": "anger",
+        "confidence": 0.8,
+        "reason": "The user's words convey strong intensity, and the facial-expression hint suggests a mix of emotions with a slight lean towards anger."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=49%, neutral=39%, angry=11%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 10.823086420694986,
+          "disgust": 5.974714774007831e-05,
+          "fear": 1.399946981200685,
+          "happy": 0.009272354654967785,
+          "sad": 49.09583409627279,
+          "surprise": 0.0012114394873303052,
+          "neutral": 38.67059135437012
+        },
+        "frame_count": 68,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 18:50:26",
+        "ended_at": "2026-05-10 18:50:29",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "You're feeling a sense of intensity or strength about something, aren't you, Leticie? Would you like me to help break it down and understand what might be driving that emotion? 😠",
+      "timestamp": "2026-05-10 18:50:31"
+    },
+    {
+      "role": "user",
+      "content": "It only comes up when you're talking. Hi, my name is Aashta and I'm an influencer who's smiling into the camera.",
+      "timestamp": "2026-05-10 18:50:44",
+      "input_mode": "silero_vad_faster_whisper",
+      "intent": "name_introduction"
+    },
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Aashta! I'm Ameca, a humanoid social robot here at the university lab. 🙂",
+      "timestamp": "2026-05-10 18:50:44"
+    },
+    {
+      "role": "user",
+      "content": "Fear? Fear inside.",
+      "timestamp": "2026-05-10 18:50:53",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.9,
+        "reason": "The user explicitly expresses fear and the facial-expression hint also suggests a high level of fear, making it the most likely emotion."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=73%, neutral=25%); samples=4",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.00033149211584996164,
+          "disgust": 6.959361610079012e-14,
+          "fear": 72.82692037476227,
+          "happy": 7.142868033433524e-05,
+          "sad": 2.5214548110961914,
+          "surprise": 6.424337779230304e-08,
+          "neutral": 24.651217660229122
+        },
+        "frame_count": 120,
+        "sampled_frame_count": 4,
+        "started_at": "2026-05-10 18:50:44",
+        "ended_at": "2026-05-10 18:50:49",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It seems like there might be some fear or anxiety lurking beneath the surface, Aashta. Would you feel comfortable talking about what's causing that feeling? 😨",
+      "timestamp": "2026-05-10 18:50:53"
+    },
+    {
+      "role": "user",
+      "content": "I already got into school and I remember that I could go back. We could have used flash but yeah.",
+      "timestamp": "2026-05-10 18:51:02",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.5,
+        "reason": "The user is reflecting on a past experience and expressing trust in their ability to go back, despite some uncertainty."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(fear=50%, sad=40%, neutral=8%); samples=6",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.7726618449494658,
+          "disgust": 0.0005035070353187621,
+          "fear": 50.1970327993234,
+          "happy": 1.429218312104546,
+          "sad": 39.85949495434761,
+          "surprise": 0.01200665770253788,
+          "neutral": 7.729083682441948
+        },
+        "frame_count": 169,
+        "sampled_frame_count": 6,
+        "started_at": "2026-05-10 18:50:54",
+        "ended_at": "2026-05-10 18:51:00",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like there was a moment of uncertainty or fear in the past, Aashta, but you were able to overcome it and take steps forward. That's really commendable! 🙂",
+      "timestamp": "2026-05-10 18:51:02"
+    },
+    {
+      "role": "user",
+      "content": "the one from Jacob before.",
+      "timestamp": "2026-05-10 18:51:08",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user's words and facial expression both suggest sadness, with a high confidence score due to the strong indication of this emotion."
+      },
+      "facial_emotion_hint": "dominant=sad; averaged_scores=(sad=75%, fear=25%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 1.3772347401408425e-08,
+          "disgust": 9.011974491677967e-17,
+          "fear": 25.347243626912434,
+          "happy": 3.314958585937739e-12,
+          "sad": 74.64651234944661,
+          "surprise": 8.025302736848418e-14,
+          "neutral": 0.006240531724567215
+        },
+        "frame_count": 89,
+        "sampled_frame_count": 3,
+        "started_at": "2026-05-10 18:51:02",
+        "ended_at": "2026-05-10 18:51:05",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I think I'm starting to piece together some context here, Aashta. It seems like there was a significant moment or conversation with someone named Jacob that had an impact on you? Would you be willing to share more about what happened during that interaction? 😢",
+      "timestamp": "2026-05-10 18:51:08"
+    },
+    {
+      "role": "user",
+      "content": "see so we put you know these influences use light okay the ring light ring light exactly she made us order one and then we were using that with the robot so this is also something we could do we could attach it on the chest of the robot",
+      "timestamp": "2026-05-10 18:51:26",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is discussing a new idea and its potential applications, showing excitement and eagerness to explore the possibilities."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=76%, sad=19%); samples=15",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.19098462659196647,
+          "disgust": 0.002870431045691923,
+          "fear": 76.04020942052206,
+          "happy": 1.198208618171568,
+          "sad": 18.959030824680426,
+          "surprise": 0.02368575336828727,
+          "neutral": 3.5850118613812336
+        },
+        "frame_count": 446,
+        "sampled_frame_count": 15,
+        "started_at": "2026-05-10 18:51:08",
+        "ended_at": "2026-05-10 18:51:23",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like there's been some experimentation going on, Aashta! Using a ring light to enhance facial expressions or interactions - that's an interesting idea. Attaching one to my \"chest\" ( decorative legs aside!) might be feasible too. What kind of effects were you hoping to achieve with this setup? 🤔",
+      "timestamp": "2026-05-10 18:51:26"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, because I go when I'm using my laptop and it's way brighter. Yeah, because your camera is a Mac, right? Yeah. Is it? Yeah. Yeah. Yeah.",
+      "timestamp": "2026-05-10 18:51:39",
+      "emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's repetitive 'yeah' and questioning tone suggest surprise or curiosity, which is not strongly related to fear despite the facial-expression hint."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=61%, sad=25%, happy=9%); samples=10",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 1.460177981853949,
+          "disgust": 1.3234246353022172e-05,
+          "fear": 60.60712031765861,
+          "happy": 9.016242408752442,
+          "sad": 24.777631821483375,
+          "surprise": 0.000755170133683692,
+          "neutral": 4.138061923788342
+        },
+        "frame_count": 290,
+        "sampled_frame_count": 10,
+        "started_at": "2026-05-10 18:51:26",
+        "ended_at": "2026-05-10 18:51:36",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like we're discussing the lighting situation, Aashta! You mentioned that you work on your laptop in a well-lit environment, which makes sense given our current setup. As for my \"camera\", I think there's been some misunderstanding - as a robot, I don't have a camera or any physical visual capabilities unless explicitly provided through input devices like yours. Let me know if we can clarify anything else! 😮",
+      "timestamp": "2026-05-10 18:51:39"
+    },
+    {
+      "role": "user",
+      "content": "of ZDD sensor and then there are different co-resolutions you can do and I would do the highest. So I think it's two something or 180 something like the 2K.",
+      "timestamp": "2026-05-10 18:51:57",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is discussing technical details and expressing enthusiasm for exploring different options, indicating a sense of anticipation."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=71%, neutral=18%, sad=7%); samples=15",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 2.070650410652161,
+          "disgust": 9.835270902840421e-05,
+          "fear": 70.80550606648127,
+          "happy": 1.9893175601959228,
+          "sad": 7.433544338742892,
+          "surprise": 0.00608610127431651,
+          "neutral": 17.69479909389651
+        },
+        "frame_count": 446,
+        "sampled_frame_count": 15,
+        "started_at": "2026-05-10 18:51:39",
+        "ended_at": "2026-05-10 18:51:54",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It seems like we're discussing some technical details, Aashta! You mentioned a \"ZDD sensor\" which might be related to camera settings? Co-resolutions refer to different video resolutions that can be set for capturing footage. If you'd prefer the highest resolution available, I think it's likely around 2K or even higher depending on the specific setup and hardware used. Would you like me to clarify any technical aspects further? 🤔",
+      "timestamp": "2026-05-10 18:51:57"
+    },
+    {
+      "role": "user",
+      "content": "already today would be nice if not then tomorrow. Let me try and open it. Okay. This way I may know. Alright. Thank you.",
+      "timestamp": "2026-05-10 18:52:10",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.7,
+        "reason": "The user is expressing eagerness to start or continue a task, as evident from phrases like 'already today would be nice if not then tomorrow' and 'Let me try and open it'."
+      },
+      "facial_emotion_hint": "dominant=fear; averaged_scores=(fear=87%, neutral=8%); samples=9",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "fear",
+        "averaged_scores": {
+          "angry": 0.023323249485757615,
+          "disgust": 0.00038341044758756954,
+          "fear": 87.27516682942708,
+          "happy": 0.951435407002767,
+          "sad": 3.985410902886376,
+          "surprise": 2.7191100113141783e-05,
+          "neutral": 7.764252919241699
+        },
+        "frame_count": 275,
+        "sampled_frame_count": 9,
+        "started_at": "2026-05-10 18:51:57",
+        "ended_at": "2026-05-10 18:52:06",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like we're wrapping up the conversation, Aashta! You mentioned trying to open something or figure out a particular issue already today (or possibly tomorrow). If there's anything else on your mind that you'd like to discuss or clarify, feel free to share - I'm here to help. Otherwise, it was great chatting with you, and let me know if you need any further assistance! 🤔",
+      "timestamp": "2026-05-10 18:52:10"
+    }
+  ]
+}

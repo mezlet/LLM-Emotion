@@ -1,0 +1,63 @@
+{
+  "leticia": {
+    "name": "Leticia",
+    "created_at": "2026-05-10 17:30:43",
+    "last_seen": "2026-05-10 19:32:15",
+    "session_files": [
+      "conversation_data/sessions/leticia_20260510_173317.json",
+      "conversation_data/sessions/leticia_20260510_173738.json",
+      "conversation_data/sessions/leticia_20260510_183900.json",
+      "conversation_data/sessions/leticia_20260510_193215.json"
+    ],
+    "conversation_summary": ""
+  },
+  "lecicia": {
+    "name": "Lecicia",
+    "created_at": "2026-05-10 18:15:41",
+    "last_seen": "2026-05-10 18:20:23",
+    "session_files": [
+      "conversation_data/sessions/lecicia_20260510_182023.json"
+    ],
+    "conversation_summary": ""
+  },
+  "we_were_update_so_i_know_when_you_are_ta": {
+    "name": "We were update so I know when you are ta",
+    "created_at": "2026-05-10 18:44:26",
+    "last_seen": "2026-05-10 18:44:40",
+    "session_files": [
+      "conversation_data/sessions/we_were_update_so_i_know_when_you_are_ta_20260510_184440.json"
+    ],
+    "conversation_summary": ""
+  },
+  "i_think_you_can_untie_it": {
+    "name": "I think you can untie it",
+    "created_at": "2026-05-10 18:45:23",
+    "last_seen": "2026-05-10 18:45:51",
+    "session_files": [
+      "conversation_data/sessions/i_think_you_can_untie_it_20260510_184551.json"
+    ],
+    "conversation_summary": ""
+  },
+  "aashta_and_i": {
+    "name": "Aashta and I",
+    "created_at": "2026-05-10 17:51:18",
+    "last_seen": "2026-05-10 18:52:13",
+    "session_files": [
+      "conversation_data/sessions/leticie_20260510_175407.json",
+      "conversation_data/sessions/leticie_20260510_181306.json",
+      "conversation_data/sessions/leticie_20260510_182810.json",
+      "conversation_data/sessions/leticie_20260510_183746.json",
+      "conversation_data/sessions/aashta_and_i_20260510_185213.json"
+    ],
+    "conversation_summary": ""
+  },
+  "leticie": {
+    "name": "Leticie",
+    "created_at": "2026-05-10 20:04:30",
+    "last_seen": "2026-05-10 20:13:50",
+    "session_files": [
+      "conversation_data/sessions/leticie_20260510_201350.json"
+    ],
+    "conversation_summary": ""
+  }
+}
