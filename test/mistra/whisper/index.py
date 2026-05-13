@@ -25,11 +25,11 @@ from silero_vad import load_silero_vad, VADIterator
 # Local Ollama configuration
 # =========================
 
-# OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://strengthening-leo-senator-poll.trycloudflare.com"
+OLLAMA_HOST = "http://127.0.0.1:11434"
+# OLLAMA_HOST = "https://strengthening-leo-senator-poll.trycloudflare.com"
 
-# MODEL_NAME = "llama3:8b"
-MODEL_NAME = "mistral:7b"
+MODEL_NAME = "llama3:8b"
+# MODEL_NAME = "mistral:7b"
 
 
 # =========================
@@ -96,7 +96,7 @@ Do not mislead users about your capabilities or limitations.
 WHISPERX_CONFIG = {
     "profile": "home_macbook_cpu",
     "model": "small",
-    "device": "cpu",
+    "device": "cuda",
     "compute_type": "int8",
     "language": "en",
 }

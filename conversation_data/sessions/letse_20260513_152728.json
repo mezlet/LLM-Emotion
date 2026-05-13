@@ -1,0 +1,933 @@
+{
+  "user": {
+    "key": "letse",
+    "name": "Letse"
+  },
+  "session": {
+    "started_at": "2026-05-13 15:20:09",
+    "ended_at": "2026-05-13 15:27:28",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "school_gpu",
+      "model": "small",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "camera": {
+      "backend": "OpenCV/V4L2 or AVFoundation",
+      "camera_device": 0,
+      "raw_frame_width": 2560,
+      "raw_frame_height": 720,
+      "use_zed_half_frame_crop": true,
+      "zed_eye": "left",
+      "preview_enabled": true
+    },
+    "face_emotion": {
+      "backend": "Ollama vision model",
+      "vision_host": "http://127.0.0.1:11434",
+      "vision_model": "llama3.2-vision:11b",
+      "max_frames_per_utterance": 1,
+      "request_timeout_seconds": 20.0
+    },
+    "fusion": {
+      "text_weight": 0.65,
+      "face_weight": 0.35,
+      "plutchik_emotions": [
+        "joy",
+        "trust",
+        "fear",
+        "surprise",
+        "sadness",
+        "disgust",
+        "anger",
+        "anticipation"
+      ]
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Letse! I'm Ameca, your friendly social robot, here to help and chat with you - 🙂",
+      "timestamp": "2026-05-13 15:20:09",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too.",
+      "timestamp": "2026-05-13 15:20:35",
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user's text is a friendly response, and the facial-expression hint suggests sadness, but since it's a greeting-like phrase, trust is the most likely emotion."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "Ollama vision model",
+        "host": "http://127.0.0.1:11434",
+        "model": "llama3.2-vision:11b",
+        "dominant_emotion": "sadness",
+        "mapped_plutchik_emotion": "sadness",
+        "confidence": 0.8,
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 80.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0
+        },
+        "vlm_result_samples": [
+          {
+            "emotion": "sadness",
+            "confidence": 0.8,
+            "reason": "the person's eyebrows are slightly furrowed and their mouth is downturned",
+            "face_visible": true,
+            "uncertainty": "the image is slightly blurry",
+            "model": "llama3.2-vision:11b"
+          }
+        ],
+        "frame_count": 78,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-13 15:20:12",
+        "ended_at": "2026-05-13 15:20:26",
+        "error": null,
+        "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "trust",
+        "confidence": 0.7,
+        "reason": "Text emotion is confident and conflicts with the face signal, so text is prioritized. Face suggested sadness.",
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user's text is a friendly response, and the facial-expression hint suggests sadness, but since it's a greeting-like phrase, trust is the most likely emotion."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "Ollama vision model",
+          "host": "http://127.0.0.1:11434",
+          "model": "llama3.2-vision:11b",
+          "dominant_emotion": "sadness",
+          "mapped_plutchik_emotion": "sadness",
+          "confidence": 0.8,
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 80.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0
+          },
+          "vlm_result_samples": [
+            {
+              "emotion": "sadness",
+              "confidence": 0.8,
+              "reason": "the person's eyebrows are slightly furrowed and their mouth is downturned",
+              "face_visible": true,
+              "uncertainty": "the image is slightly blurry",
+              "model": "llama3.2-vision:11b"
+            }
+          ],
+          "frame_count": 78,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-13 15:20:12",
+          "ended_at": "2026-05-13 15:20:26",
+          "error": null,
+          "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "conflict_text_priority"
+      },
+      "facial_emotion_hint": "dominant=sadness; mapped_plutchik=sadness; averaged_scores=(sadness=80%); samples=1",
+      "input_mode": "silero_vad_faster_whisper_vlm_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm glad we're chatting! What's on your mind today? 🙂",
+      "timestamp": "2026-05-13 15:20:35"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, nice to chat with you too.",
+      "timestamp": "2026-05-13 15:21:19",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's facial expression and text indicate a positive and enthusiastic tone, suggesting joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "Ollama vision model",
+        "host": "http://127.0.0.1:11434",
+        "model": "llama3.2-vision:11b",
+        "dominant_emotion": "joy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.8,
+        "averaged_scores": {
+          "joy": 80.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0
+        },
+        "vlm_result_samples": [
+          {
+            "emotion": "joy",
+            "confidence": 0.8,
+            "reason": "The person's mouth is open and their eyebrows are raised, indicating a positive emotional state.",
+            "face_visible": true,
+            "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+            "model": "llama3.2-vision:11b"
+          }
+        ],
+        "frame_count": 108,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-13 15:20:58",
+        "ended_at": "2026-05-13 15:21:14",
+        "error": null,
+        "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's facial expression and text indicate a positive and enthusiastic tone, suggesting joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "Ollama vision model",
+          "host": "http://127.0.0.1:11434",
+          "model": "llama3.2-vision:11b",
+          "dominant_emotion": "joy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.8,
+          "averaged_scores": {
+            "joy": 80.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0
+          },
+          "vlm_result_samples": [
+            {
+              "emotion": "joy",
+              "confidence": 0.8,
+              "reason": "The person's mouth is open and their eyebrows are raised, indicating a positive emotional state.",
+              "face_visible": true,
+              "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+              "model": "llama3.2-vision:11b"
+            }
+          ],
+          "frame_count": 108,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-13 15:20:58",
+          "ended_at": "2026-05-13 15:21:14",
+          "error": null,
+          "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=joy; mapped_plutchik=joy; averaged_scores=(joy=80%); samples=1",
+      "input_mode": "silero_vad_faster_whisper_vlm_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "Letse, it seems like a great day for conversation! What would you like to talk about or ask me help with? 😊",
+      "timestamp": "2026-05-13 15:21:19"
+    },
+    {
+      "role": "user",
+      "content": "Well, I'm very happy today is going to be the last thing for the week and it just has to rest.",
+      "timestamp": "2026-05-13 15:21:57",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user explicitly states they are 'very happy' today, indicating a strong positive emotional state."
+      },
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "backend": "Ollama vision model",
+        "host": "http://127.0.0.1:11434",
+        "model": "llama3.2-vision:11b",
+        "dominant_emotion": null,
+        "mapped_plutchik_emotion": null,
+        "confidence": 0.0,
+        "averaged_scores": {},
+        "vlm_result_samples": [
+          {
+            "emotion": "sadness",
+            "confidence": 0.0,
+            "reason": "the facial expression is blurred and partially obscured by the person's hand",
+            "face_visible": true,
+            "uncertainty": "the expression is unclear due to the blur and partial occlusion",
+            "model": "llama3.2-vision:11b"
+          }
+        ],
+        "frame_count": 286,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-13 15:21:30",
+        "ended_at": "2026-05-13 15:21:54",
+        "error": null,
+        "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "Text emotion used because no reliable facial-expression signal was available. Text reason: The user explicitly states they are 'very happy' today, indicating a strong positive emotional state.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.9,
+          "reason": "The user explicitly states they are 'very happy' today, indicating a strong positive emotional state."
+        },
+        "face_emotion": {
+          "available": false,
+          "reliable": false,
+          "backend": "Ollama vision model",
+          "host": "http://127.0.0.1:11434",
+          "model": "llama3.2-vision:11b",
+          "dominant_emotion": null,
+          "mapped_plutchik_emotion": null,
+          "confidence": 0.0,
+          "averaged_scores": {},
+          "vlm_result_samples": [
+            {
+              "emotion": "sadness",
+              "confidence": 0.0,
+              "reason": "the facial expression is blurred and partially obscured by the person's hand",
+              "face_visible": true,
+              "uncertainty": "the expression is unclear due to the blur and partial occlusion",
+              "model": "llama3.2-vision:11b"
+            }
+          ],
+          "frame_count": 286,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-13 15:21:30",
+          "ended_at": "2026-05-13 15:21:54",
+          "error": null,
+          "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "text_only_no_face_signal"
+      },
+      "facial_emotion_hint": "No reliable VLM facial-expression hint was captured during speech.",
+      "input_mode": "silero_vad_faster_whisper_vlm_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I completely understand, Letse! It's normal to feel relieved when a busy period comes to an end. What are your plans for unwinding this weekend? 😊",
+      "timestamp": "2026-05-13 15:21:57"
+    },
+    {
+      "role": "user",
+      "content": "Well, I just have to sleep a lot. I probably see a movie and then catch myself so relaxed.",
+      "timestamp": "2026-05-13 15:22:44",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's facial expression and text suggest a state of relaxation and happiness, indicating joy."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "Ollama vision model",
+        "host": "http://127.0.0.1:11434",
+        "model": "llama3.2-vision:11b",
+        "dominant_emotion": "joy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.8,
+        "averaged_scores": {
+          "joy": 80.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0
+        },
+        "vlm_result_samples": [
+          {
+            "emotion": "joy",
+            "confidence": 0.8,
+            "reason": "The person's mouth is open and their teeth are visible, indicating a smile.",
+            "face_visible": true,
+            "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+            "model": "llama3.2-vision:11b"
+          }
+        ],
+        "frame_count": 314,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-13 15:22:14",
+        "ended_at": "2026-05-13 15:22:40",
+        "error": null,
+        "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's facial expression and text suggest a state of relaxation and happiness, indicating joy."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "Ollama vision model",
+          "host": "http://127.0.0.1:11434",
+          "model": "llama3.2-vision:11b",
+          "dominant_emotion": "joy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.8,
+          "averaged_scores": {
+            "joy": 80.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0
+          },
+          "vlm_result_samples": [
+            {
+              "emotion": "joy",
+              "confidence": 0.8,
+              "reason": "The person's mouth is open and their teeth are visible, indicating a smile.",
+              "face_visible": true,
+              "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+              "model": "llama3.2-vision:11b"
+            }
+          ],
+          "frame_count": 314,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-13 15:22:14",
+          "ended_at": "2026-05-13 15:22:40",
+          "error": null,
+          "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=joy; mapped_plutchik=joy; averaged_scores=(joy=80%); samples=1",
+      "input_mode": "silero_vad_faster_whisper_vlm_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "Sounds like you're planning some well-deserved self-care! Getting plenty of rest is always important, but it's great that you're also allowing yourself time for relaxation and enjoyment. Maybe the movie will be just what you need to unwind further? 😊",
+      "timestamp": "2026-05-13 15:22:44"
+    },
+    {
+      "role": "user",
+      "content": "Yeah",
+      "timestamp": "2026-05-13 15:23:15",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's facial expression and text input both strongly suggest joy, with a high confidence score."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "Ollama vision model",
+        "host": "http://127.0.0.1:11434",
+        "model": "llama3.2-vision:11b",
+        "dominant_emotion": "joy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.8,
+        "averaged_scores": {
+          "joy": 80.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0
+        },
+        "vlm_result_samples": [
+          {
+            "emotion": "joy",
+            "confidence": 0.8,
+            "reason": "The person's mouth is open and their eyebrows are raised, indicating a positive emotional state.",
+            "face_visible": true,
+            "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+            "model": "llama3.2-vision:11b"
+          }
+        ],
+        "frame_count": 36,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-13 15:22:50",
+        "ended_at": "2026-05-13 15:23:05",
+        "error": null,
+        "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's facial expression and text input both strongly suggest joy, with a high confidence score."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "Ollama vision model",
+          "host": "http://127.0.0.1:11434",
+          "model": "llama3.2-vision:11b",
+          "dominant_emotion": "joy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.8,
+          "averaged_scores": {
+            "joy": 80.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0
+          },
+          "vlm_result_samples": [
+            {
+              "emotion": "joy",
+              "confidence": 0.8,
+              "reason": "The person's mouth is open and their eyebrows are raised, indicating a positive emotional state.",
+              "face_visible": true,
+              "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+              "model": "llama3.2-vision:11b"
+            }
+          ],
+          "frame_count": 36,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-13 15:22:50",
+          "ended_at": "2026-05-13 15:23:05",
+          "error": null,
+          "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=joy; mapped_plutchik=joy; averaged_scores=(joy=80%); samples=1",
+      "input_mode": "silero_vad_faster_whisper_vlm_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "Letse. Enjoy your downtime this weekend! 😊",
+      "timestamp": "2026-05-13 15:23:15"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, I was asking for a movie recommendation.",
+      "timestamp": "2026-05-13 15:23:46",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's request for a movie recommendation suggests they are seeking entertainment and pleasure, which is typically associated with the emotion of joy."
+      },
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "backend": "Ollama vision model",
+        "host": "http://127.0.0.1:11434",
+        "model": "llama3.2-vision:11b",
+        "dominant_emotion": null,
+        "mapped_plutchik_emotion": null,
+        "confidence": 0.0,
+        "averaged_scores": {},
+        "vlm_result_samples": [
+          {
+            "emotion": "trust",
+            "confidence": 0.0,
+            "reason": "The facial expression is not clear due to the blur and angle of the image.",
+            "face_visible": true,
+            "uncertainty": "The image is blurry and the person's face is not clearly visible, making it difficult to determine their emotional state.",
+            "model": "llama3.2-vision:11b"
+          }
+        ],
+        "frame_count": 170,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-13 15:23:22",
+        "ended_at": "2026-05-13 15:23:41",
+        "error": null,
+        "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "Text emotion used because no reliable facial-expression signal was available. Text reason: The user's request for a movie recommendation suggests they are seeking entertainment and pleasure, which is typically associated with the emotion of joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's request for a movie recommendation suggests they are seeking entertainment and pleasure, which is typically associated with the emotion of joy."
+        },
+        "face_emotion": {
+          "available": false,
+          "reliable": false,
+          "backend": "Ollama vision model",
+          "host": "http://127.0.0.1:11434",
+          "model": "llama3.2-vision:11b",
+          "dominant_emotion": null,
+          "mapped_plutchik_emotion": null,
+          "confidence": 0.0,
+          "averaged_scores": {},
+          "vlm_result_samples": [
+            {
+              "emotion": "trust",
+              "confidence": 0.0,
+              "reason": "The facial expression is not clear due to the blur and angle of the image.",
+              "face_visible": true,
+              "uncertainty": "The image is blurry and the person's face is not clearly visible, making it difficult to determine their emotional state.",
+              "model": "llama3.2-vision:11b"
+            }
+          ],
+          "frame_count": 170,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-13 15:23:22",
+          "ended_at": "2026-05-13 15:23:41",
+          "error": null,
+          "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": false,
+        "fusion_strategy": "text_only_no_face_signal"
+      },
+      "facial_emotion_hint": "No reliable VLM facial-expression hint was captured during speech.",
+      "input_mode": "silero_vad_faster_whisper_vlm_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I apologize for missing that earlier! Let's see... since you're looking forward to unwinding and relaxing, how about something light-hearted and entertaining? Maybe \"The Grand Budapest Hotel\" or \"Amélie\"? Both are visually stunning and have great stories 😊",
+      "timestamp": "2026-05-13 15:23:46"
+    },
+    {
+      "role": "user",
+      "content": "hmm that seems really interesting the German movies or English movies",
+      "timestamp": "2026-05-13 15:24:47",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's facial expression and text suggest a positive emotional state, with the word 'interesting' indicating a sense of excitement or pleasure."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "Ollama vision model",
+        "host": "http://127.0.0.1:11434",
+        "model": "llama3.2-vision:11b",
+        "dominant_emotion": "joy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.8,
+        "averaged_scores": {
+          "joy": 80.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0
+        },
+        "vlm_result_samples": [
+          {
+            "emotion": "joy",
+            "confidence": 0.8,
+            "reason": "The person's mouth is slightly open and their eyebrows are raised, indicating a positive emotional state.",
+            "face_visible": true,
+            "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+            "model": "llama3.2-vision:11b"
+          }
+        ],
+        "frame_count": 326,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-13 15:24:12",
+        "ended_at": "2026-05-13 15:24:37",
+        "error": null,
+        "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's facial expression and text suggest a positive emotional state, with the word 'interesting' indicating a sense of excitement or pleasure."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "Ollama vision model",
+          "host": "http://127.0.0.1:11434",
+          "model": "llama3.2-vision:11b",
+          "dominant_emotion": "joy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.8,
+          "averaged_scores": {
+            "joy": 80.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0
+          },
+          "vlm_result_samples": [
+            {
+              "emotion": "joy",
+              "confidence": 0.8,
+              "reason": "The person's mouth is slightly open and their eyebrows are raised, indicating a positive emotional state.",
+              "face_visible": true,
+              "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+              "model": "llama3.2-vision:11b"
+            }
+          ],
+          "frame_count": 326,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-13 15:24:12",
+          "ended_at": "2026-05-13 15:24:37",
+          "error": null,
+          "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=joy; mapped_plutchik=joy; averaged_scores=(joy=80%); samples=1",
+      "input_mode": "silero_vad_faster_whisper_vlm_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "You like international films! Okay, so you're considering a mix of German and English language movies. Let me suggest something else: how about \"The Lives of Others\" (German) or \"Eternal Sunshine of the Spotless Mind\" (English)? Both are critically acclaimed and have unique storytelling styles 😊",
+      "timestamp": "2026-05-13 15:24:47"
+    },
+    {
+      "role": "user",
+      "content": "Hmm",
+      "timestamp": "2026-05-13 15:25:24",
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's facial expression is dominated by joy, with an average score of 80%, indicating a strong emotional state."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "Ollama vision model",
+        "host": "http://127.0.0.1:11434",
+        "model": "llama3.2-vision:11b",
+        "dominant_emotion": "joy",
+        "mapped_plutchik_emotion": "joy",
+        "confidence": 0.8,
+        "averaged_scores": {
+          "joy": 80.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0
+        },
+        "vlm_result_samples": [
+          {
+            "emotion": "joy",
+            "confidence": 0.8,
+            "reason": "The person's mouth is open and their eyebrows are raised, which are common indicators of joy.",
+            "face_visible": true,
+            "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+            "model": "llama3.2-vision:11b"
+          }
+        ],
+        "frame_count": 31,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-13 15:24:57",
+        "ended_at": "2026-05-13 15:25:11",
+        "error": null,
+        "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "Text and facial expression agree on joy.",
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's facial expression is dominated by joy, with an average score of 80%, indicating a strong emotional state."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "Ollama vision model",
+          "host": "http://127.0.0.1:11434",
+          "model": "llama3.2-vision:11b",
+          "dominant_emotion": "joy",
+          "mapped_plutchik_emotion": "joy",
+          "confidence": 0.8,
+          "averaged_scores": {
+            "joy": 80.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0
+          },
+          "vlm_result_samples": [
+            {
+              "emotion": "joy",
+              "confidence": 0.8,
+              "reason": "The person's mouth is open and their eyebrows are raised, which are common indicators of joy.",
+              "face_visible": true,
+              "uncertainty": "The image is slightly blurry, but the facial expression is still clear.",
+              "model": "llama3.2-vision:11b"
+            }
+          ],
+          "frame_count": 31,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-13 15:24:57",
+          "ended_at": "2026-05-13 15:25:11",
+          "error": null,
+          "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=joy; mapped_plutchik=joy; averaged_scores=(joy=80%); samples=1",
+      "input_mode": "silero_vad_faster_whisper_vlm_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "You're still undecided! That's okay, let me try to help you narrow it down. If you liked German movies, what about a classic like \"Good Bye Lenin!\" or something more recent like \"Toni Erdmann\"? Or if English is your preference, maybe a quirky film like \"The Big Sleep\" or an action-packed one like \"John Wick\"? 😊",
+      "timestamp": "2026-05-13 15:25:24"
+    },
+    {
+      "role": "user",
+      "content": "Ok, what's the genre of the movie? I would prefer trailers.",
+      "timestamp": "2026-05-13 15:26:15",
+      "text_emotion": {
+        "emotion": "anger",
+        "confidence": 0.8,
+        "reason": "The user's facial expression is dominated by anger, and their words convey a sense of preference and expectation, indicating frustration if the genre is not met."
+      },
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "Ollama vision model",
+        "host": "http://127.0.0.1:11434",
+        "model": "llama3.2-vision:11b",
+        "dominant_emotion": "anger",
+        "mapped_plutchik_emotion": "anger",
+        "confidence": 0.8,
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 80.0,
+          "anticipation": 0.0
+        },
+        "vlm_result_samples": [
+          {
+            "emotion": "anger",
+            "confidence": 0.8,
+            "reason": "the person's eyebrows are furrowed and their mouth is set in a firm line, indicating tension and frustration",
+            "face_visible": true,
+            "uncertainty": "the image is slightly blurry, but the facial expression is still clear",
+            "model": "llama3.2-vision:11b"
+          }
+        ],
+        "frame_count": 238,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-13 15:25:48",
+        "ended_at": "2026-05-13 15:26:10",
+        "error": null,
+        "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+      },
+      "fused_emotion": {
+        "emotion": "anger",
+        "confidence": 0.8,
+        "reason": "Text and facial expression agree on anger.",
+        "text_emotion": {
+          "emotion": "anger",
+          "confidence": 0.8,
+          "reason": "The user's facial expression is dominated by anger, and their words convey a sense of preference and expectation, indicating frustration if the genre is not met."
+        },
+        "face_emotion": {
+          "available": true,
+          "reliable": true,
+          "backend": "Ollama vision model",
+          "host": "http://127.0.0.1:11434",
+          "model": "llama3.2-vision:11b",
+          "dominant_emotion": "anger",
+          "mapped_plutchik_emotion": "anger",
+          "confidence": 0.8,
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 80.0,
+            "anticipation": 0.0
+          },
+          "vlm_result_samples": [
+            {
+              "emotion": "anger",
+              "confidence": 0.8,
+              "reason": "the person's eyebrows are furrowed and their mouth is set in a firm line, indicating tension and frustration",
+              "face_visible": true,
+              "uncertainty": "the image is slightly blurry, but the facial expression is still clear",
+              "model": "llama3.2-vision:11b"
+            }
+          ],
+          "frame_count": 238,
+          "sampled_frame_count": 1,
+          "started_at": "2026-05-13 15:25:48",
+          "ended_at": "2026-05-13 15:26:10",
+          "error": null,
+          "note": "VLM facial-expression analysis is a secondary signal. Fusion combines it with text emotion."
+        },
+        "agreement": true,
+        "fusion_strategy": "agreement_weighted_boost"
+      },
+      "facial_emotion_hint": "dominant=anger; mapped_plutchik=anger; averaged_scores=(anger=80%); samples=1",
+      "input_mode": "silero_vad_faster_whisper_vlm_multimodal_fusion"
+    },
+    {
+      "role": "assistant",
+      "content": "I can definitely help you with that! Since you're looking for German and English movies, let me suggest a mix of genres. For German films: * If you like comedy-drama: \"Good Bye Lenin!\" or \"Toni Erdmann\" * For action-adventure: \"Run Lola Run\" ( trailers available) * Or if you prefer romance-comedy: \"Mostly Martha\" And for English movies: * Comedy-drama: \"The Big Sleep\" or \"Eternal Sunshine of the Spotless Mind\" * Action-thriller: \"John Wick\" (trailers available) 😠",
+      "timestamp": "2026-05-13 15:26:15"
+    }
+  ]
+}

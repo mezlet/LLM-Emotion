@@ -111,9 +111,9 @@ Do not mislead users about your capabilities or limitations.
 
 FAST_WHISPER_CONFIG = {
     "profile": "home_macbook_cpu",
-    "model": "small",
+    "model": "large-v3",
     "device": "cuda",
-    "compute_type": "int8",
+    "compute_type": "float16",
     "language": "en",
     "beam_size": 1,
     "vad_filter": False,
@@ -1109,11 +1109,11 @@ def listen_for_utterance_with_silero_vad(
         audio_queue.put(indata[:, 0].copy())
 
     print_ts(f"Listening automatically for {prompt_label}. Speak when ready. Press Ctrl+C to quit.")
-    print_ts(
-        f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
-        f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
-        f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
-    )
+    #print_ts(
+    #    f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
+    #    f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
+    #    f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
+    #)
 
     try:
         sd.check_input_settings(
@@ -1441,7 +1441,7 @@ def prompt_for_user_name(
 
     for attempt in range(2):
         print()
-        print_ts("Please say your name. For example: 'My name is Leticia'.")
+        print_ts("Please say your name")
         print()
 
         wav_path = listen_for_utterance_with_silero_vad(
