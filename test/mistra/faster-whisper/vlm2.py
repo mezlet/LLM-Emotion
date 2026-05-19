@@ -1277,7 +1277,7 @@ def listen_for_utterance_with_silero_vad(
 def listen_for_utterance_with_silero_vad_and_face_emotion(
     input_device: Optional[int],
     silero_model,
-    client: Client,
+    client: Client, 
     camera_device: Optional[int] = CAMERA_DEVICE,
     prompt_label: str = "utterance",
 ) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
@@ -1293,29 +1293,24 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
         speech_pad_ms=SILERO_SPEECH_PAD_MS,
     )
 
-    pre_roll_max_chunks = max(
-        1, int((VAD_PRE_ROLL_SECONDS * SILERO_SAMPLE_RATE) / SILERO_CHUNK_SIZE)
-    )
+    pre_roll_max_chunks = max(1, int((VAD_PRE_ROLL_SECONDS * SILERO_SAMPLE_RATE) / SILERO_CHUNK_SIZE))
     pre_roll_chunks: list[np.ndarray] = []
     recorded_chunks: list[np.ndarray] = []
 
     is_recording = False
     speech_started_at: Optional[float] = None
     leftover_16k = np.array([], dtype=np.float32)
-
-    # Face sampler starts immediately so the camera is warm before speech begins.
-    # Its background thread handles all frame reads, preview rendering, and VLM
-    # calls — the audio loop below never blocks on any camera or VLM work.
-    face_sampler = FaceEmotionSampler(camera_device=camera_device, client=client)
-    face_sampler.start()
+    face_sampler: Optional[FaceEmotionSampler] = None
     face_capture: Optional[FaceEmotionCapture] = None
 
     def audio_callback(indata, frames, callback_time, status) -> None:
         audio_queue.put(indata[:, 0].copy())
 
+    print_ts(f"Listening automatically for {prompt_label}. Speak when ready. Press Ctrl+C to quit.")
     print_ts(
-        f"Listening automatically for {prompt_label}. "
-        "Speak when ready. Press Ctrl+C to quit."
+        f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
+        f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
+        f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
     )
 
     try:
@@ -1338,12 +1333,12 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                 try:
                     block = audio_queue.get(timeout=0.1)
                 except queue.Empty:
+                    # if face_sampler is not None:
+                        # face_sampler.sample_if_due()
                     continue
 
                 block_16k = resample_audio(block, input_sample_rate, SILERO_SAMPLE_RATE)
-                combined = np.concatenate([leftover_16k, block_16k]).astype(
-                    np.float32, copy=False
-                )
+                combined = np.concatenate([leftover_16k, block_16k]).astype(np.float32, copy=False)
 
                 usable_len = (len(combined) // SILERO_CHUNK_SIZE) * SILERO_CHUNK_SIZE
                 if usable_len == 0:
@@ -1362,10 +1357,10 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             pre_roll_chunks.pop(0)
                     else:
                         recorded_chunks.append(chunk.copy())
+                        if face_sampler is not None:
+                            face_sampler.sample_if_due()
 
-                    speech_event = vad_iterator(
-                        torch.from_numpy(chunk), return_seconds=True
-                    )
+                    speech_event = vad_iterator(torch.from_numpy(chunk), return_seconds=True)
                     now = time.time()
 
                     if speech_event:
@@ -1377,23 +1372,22 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             pre_roll_chunks.clear()
 
                             print()
-                            print_ts(
-                                "Speech detected. Recording utterance and "
-                                "sampling facial expression..."
-                            )
+                            print_ts("Speech detected. Recording utterance and sampling facial expression...")
+
+                            face_sampler = FaceEmotionSampler(camera_device=camera_device, client=client)
+                            face_sampler.start()
+                            face_sampler.sample_if_due()
 
                         if "end" in speech_event and is_recording:
                             utterance_duration = now - (speech_started_at or now)
+
                             if utterance_duration >= VAD_MIN_UTTERANCE_SECONDS:
                                 print_ts("Speech ended. Processing utterance...")
                                 raise StopIteration
 
                     if is_recording and speech_started_at is not None:
                         if now - speech_started_at >= VAD_MAX_UTTERANCE_SECONDS:
-                            print_ts(
-                                "Maximum utterance length reached. "
-                                "Processing utterance..."
-                            )
+                            print_ts("Maximum utterance length reached. Processing utterance...")
                             raise StopIteration
 
     except StopIteration:
@@ -1401,11 +1395,11 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
     except KeyboardInterrupt:
         raise
     except Exception as exc:
-        print_ts(f"Silero VAD / audio error: {exc}")
+        print_ts(f"Silero VAD/audio/camera error: {exc}")
         return None, face_capture
     finally:
-        # Stop the background thread and collect whatever was sampled.
-        face_capture = face_sampler.finish()
+        if face_sampler is not None:
+            face_capture = face_sampler.finish()
 
         try:
             vad_iterator.reset_states()
@@ -1417,6 +1411,7 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
 
     audio_16k = np.concatenate(recorded_chunks).astype(np.float32, copy=False)
     return save_audio_to_temp_wav(audio_16k), face_capture
+
 
 def ask_user_to_spell_name(
     whisper_model: WhisperModel,
