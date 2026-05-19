@@ -171,14 +171,14 @@ CAMERA_DEVICE: Optional[int] = 0 if IS_LINUX else 0
 
 # ZED stereo frame is side-by-side.
 # 2560x720 means each eye becomes 1280x720 after cropping.
-ZED_STEREO_WIDTH = 2560
-ZED_STEREO_HEIGHT = 720
+ZED_STEREO_WIDTH = 3840
+ZED_STEREO_HEIGHT = 1080
 
-CAMERA_FRAME_WIDTH = ZED_STEREO_WIDTH if IS_LINUX else 1280
-CAMERA_FRAME_HEIGHT = ZED_STEREO_HEIGHT if IS_LINUX else 720
+CAMERA_FRAME_WIDTH = ZED_STEREO_WIDTH if IS_LINUX else 1920
+CAMERA_FRAME_HEIGHT = ZED_STEREO_HEIGHT if IS_LINUX else 1080
 
-CAMERA_PREVIEW_WIDTH = 960
-CAMERA_PREVIEW_HEIGHT = 540
+CAMERA_PREVIEW_WIDTH = 1280
+CAMERA_PREVIEW_HEIGHT = 720
 
 CAMERA_PREVIEW_ENABLED = True
 CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
@@ -186,7 +186,7 @@ CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
 USE_ZED_HALF_FRAME_CROP = IS_LINUX
 
 # DeepFace is sampled during the detected speech window, not while waiting for speech.
-CAMERA_SAMPLE_EVERY_SECONDS = 1.0
+CAMERA_SAMPLE_EVERY_SECONDS = 3.0
 CAMERA_WARMUP_SECONDS = 0.35
 
 DEEPFACE_DETECTOR_BACKEND = "opencv"
@@ -932,7 +932,7 @@ def list_camera_devices(max_indices: int = 6) -> None:
 
 
 def encode_frame_to_base64(frame_bgr: np.ndarray) -> str:
-    _, buffer = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    _, buffer = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 70])
     return base64.b64encode(buffer.tobytes()).decode("utf-8")
 
 
