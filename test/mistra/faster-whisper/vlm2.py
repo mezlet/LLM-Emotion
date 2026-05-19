@@ -1002,9 +1002,9 @@ Rules:
 
 
 class FaceEmotionSampler:
-    def __init__(self, camera_device: Optional[int], client: Client) -> None:  # <-- add client
+    def __init__(self, camera_device: Optional[int], client: Client) -> None:
         self.camera_device = camera_device
-        self.client = client                                                    # <-- store it
+        self.client = client
         self.cap: Optional[cv2.VideoCapture] = None
         self.window_created = False
         self.started_at = now_ts()
@@ -1015,6 +1015,10 @@ class FaceEmotionSampler:
         self.capture_start_time: Optional[float] = None
         self.last_sample_time = 0.0
         self.last_status = "warming up..."
+
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._lock = threading.Lock()
 
     def start(self) -> None:
         self.started_at = now_ts()
@@ -1034,72 +1038,93 @@ class FaceEmotionSampler:
             except Exception as exc:
                 self.error = f"Camera preview could not start: {exc}"
 
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        """Background thread: reads frames, updates preview, fires VLM samples."""
+        while not self._stop_event.is_set():
+            if self.cap is None or self.capture_start_time is None:
+                break
+
+            ok, frame = self.cap.read()
+            if not ok or frame is None:
+                time.sleep(0.01)
+                continue
+
+            frame = normalize_camera_frame(frame)
+
+            with self._lock:
+                self.frame_count += 1
+
+            now = time.time()
+            elapsed = now - self.capture_start_time
+
+            # --- preview (always, independent of VLM sampling) ---
+            if CAMERA_PREVIEW_ENABLED and self.window_created:
+                try:
+                    preview_frame = frame.copy()
+                    with self._lock:
+                        status = self.last_status
+                    cv2.putText(
+                        preview_frame,
+                        "Recording speech...",
+                        (20, 35),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8,
+                        (0, 255, 0),
+                        2,
+                        cv2.LINE_AA,
+                    )
+                    cv2.putText(
+                        preview_frame,
+                        f"Emotion: {status}",
+                        (20, 70),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.7,
+                        (255, 255, 255),
+                        2,
+                        cv2.LINE_AA,
+                    )
+                    preview_frame = cv2.resize(
+                        preview_frame,
+                        (CAMERA_PREVIEW_WIDTH, CAMERA_PREVIEW_HEIGHT),
+                    )
+                    cv2.imshow(CAMERA_PREVIEW_WINDOW_NAME, preview_frame)
+                    cv2.waitKey(1)
+                except Exception as exc:
+                    with self._lock:
+                        self.error = f"Camera preview failed: {exc}"
+
+            # --- VLM sampling (throttled, blocks only this thread) ---
+            should_sample = (
+                elapsed >= CAMERA_WARMUP_SECONDS
+                and now - self.last_sample_time >= CAMERA_SAMPLE_EVERY_SECONDS
+            )
+
+            if should_sample:
+                self.last_sample_time = now
+                scores = analyze_frame_emotion_scores_vlm(frame, self.client)
+
+                with self._lock:
+                    self.sampled_frame_count += 1
+                    if scores:
+                        self.emotion_score_samples.append(scores)
+                        top_emotion, top_score = max(scores.items(), key=lambda item: item[1])
+                        self.last_status = f"{top_emotion}: {top_score:.0f}%"
+                    else:
+                        self.last_status = "no face/emotion detected"
+
+    # sample_if_due is now a no-op; the background thread handles everything.
     def sample_if_due(self) -> None:
-        if self.cap is None or self.capture_start_time is None:
-            return
-
-        ok, frame = self.cap.read()
-        if not ok or frame is None:
-            return
-
-        frame = normalize_camera_frame(frame)
-
-        self.frame_count += 1
-        now = time.time()
-        elapsed = now - self.capture_start_time
-
-        if CAMERA_PREVIEW_ENABLED and self.window_created:
-            try:
-                preview_frame = frame.copy()
-                cv2.putText(
-                    preview_frame,
-                    "Recording speech...",
-                    (20, 35),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
-                    (0, 255, 0),
-                    2,
-                    cv2.LINE_AA,
-                )
-                cv2.putText(
-                    preview_frame,
-                    f"Emotion: {self.last_status}",
-                    (20, 70),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (255, 255, 255),
-                    2,
-                    cv2.LINE_AA,
-                )
-                preview_frame = cv2.resize(
-                    preview_frame,
-                    (CAMERA_PREVIEW_WIDTH, CAMERA_PREVIEW_HEIGHT),
-                )
-                cv2.imshow(CAMERA_PREVIEW_WINDOW_NAME, preview_frame)
-                cv2.waitKey(1)
-            except Exception as exc:
-                self.error = f"Camera preview failed: {exc}"
-
-        should_sample = (
-            elapsed >= CAMERA_WARMUP_SECONDS
-            and now - self.last_sample_time >= CAMERA_SAMPLE_EVERY_SECONDS
-        )
-
-        if not should_sample:
-            return
-
-        self.last_sample_time = now
-        self.sampled_frame_count += 1
-        scores = analyze_frame_emotion_scores_vlm(frame, self.client)
-
-        if scores:
-            self.emotion_score_samples.append(scores)
-            top_emotion, top_score = max(scores.items(), key=lambda item: item[1])
-            self.last_status = f"{top_emotion}: {top_score:.0f}%"
-        else:
-            self.last_status = "no face/emotion detected"
+        pass
 
     def finish(self) -> FaceEmotionCapture:
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+
         if self.cap is not None:
             self.cap.release()
             self.cap = None
@@ -1111,15 +1136,15 @@ class FaceEmotionSampler:
             except Exception:
                 pass
 
-        return FaceEmotionCapture(
-            emotion_score_samples=self.emotion_score_samples,
-            frame_count=self.frame_count,
-            sampled_frame_count=self.sampled_frame_count,
-            started_at=self.started_at,
-            ended_at=now_ts(),
-            error=self.error,
-        )
-
+        with self._lock:
+            return FaceEmotionCapture(
+                emotion_score_samples=list(self.emotion_score_samples),
+                frame_count=self.frame_count,
+                sampled_frame_count=self.sampled_frame_count,
+                started_at=self.started_at,
+                ended_at=now_ts(),
+                error=self.error,
+            )
 
 # =========================
 # Silero VAD listener
@@ -1252,7 +1277,7 @@ def listen_for_utterance_with_silero_vad(
 def listen_for_utterance_with_silero_vad_and_face_emotion(
     input_device: Optional[int],
     silero_model,
-    client: Client, 
+    client: Client,
     camera_device: Optional[int] = CAMERA_DEVICE,
     prompt_label: str = "utterance",
 ) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
@@ -1268,24 +1293,29 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
         speech_pad_ms=SILERO_SPEECH_PAD_MS,
     )
 
-    pre_roll_max_chunks = max(1, int((VAD_PRE_ROLL_SECONDS * SILERO_SAMPLE_RATE) / SILERO_CHUNK_SIZE))
+    pre_roll_max_chunks = max(
+        1, int((VAD_PRE_ROLL_SECONDS * SILERO_SAMPLE_RATE) / SILERO_CHUNK_SIZE)
+    )
     pre_roll_chunks: list[np.ndarray] = []
     recorded_chunks: list[np.ndarray] = []
 
     is_recording = False
     speech_started_at: Optional[float] = None
     leftover_16k = np.array([], dtype=np.float32)
-    face_sampler: Optional[FaceEmotionSampler] = None
+
+    # Face sampler starts immediately so the camera is warm before speech begins.
+    # Its background thread handles all frame reads, preview rendering, and VLM
+    # calls — the audio loop below never blocks on any camera or VLM work.
+    face_sampler = FaceEmotionSampler(camera_device=camera_device, client=client)
+    face_sampler.start()
     face_capture: Optional[FaceEmotionCapture] = None
 
     def audio_callback(indata, frames, callback_time, status) -> None:
         audio_queue.put(indata[:, 0].copy())
 
-    print_ts(f"Listening automatically for {prompt_label}. Speak when ready. Press Ctrl+C to quit.")
     print_ts(
-        f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
-        f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
-        f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
+        f"Listening automatically for {prompt_label}. "
+        "Speak when ready. Press Ctrl+C to quit."
     )
 
     try:
@@ -1308,12 +1338,12 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                 try:
                     block = audio_queue.get(timeout=0.1)
                 except queue.Empty:
-                    if face_sampler is not None:
-                        face_sampler.sample_if_due()
                     continue
 
                 block_16k = resample_audio(block, input_sample_rate, SILERO_SAMPLE_RATE)
-                combined = np.concatenate([leftover_16k, block_16k]).astype(np.float32, copy=False)
+                combined = np.concatenate([leftover_16k, block_16k]).astype(
+                    np.float32, copy=False
+                )
 
                 usable_len = (len(combined) // SILERO_CHUNK_SIZE) * SILERO_CHUNK_SIZE
                 if usable_len == 0:
@@ -1332,10 +1362,10 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             pre_roll_chunks.pop(0)
                     else:
                         recorded_chunks.append(chunk.copy())
-                        if face_sampler is not None:
-                            face_sampler.sample_if_due()
 
-                    speech_event = vad_iterator(torch.from_numpy(chunk), return_seconds=True)
+                    speech_event = vad_iterator(
+                        torch.from_numpy(chunk), return_seconds=True
+                    )
                     now = time.time()
 
                     if speech_event:
@@ -1347,22 +1377,23 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             pre_roll_chunks.clear()
 
                             print()
-                            print_ts("Speech detected. Recording utterance and sampling facial expression...")
-
-                            face_sampler = FaceEmotionSampler(camera_device=camera_device, client=client)
-                            face_sampler.start()
-                            face_sampler.sample_if_due()
+                            print_ts(
+                                "Speech detected. Recording utterance and "
+                                "sampling facial expression..."
+                            )
 
                         if "end" in speech_event and is_recording:
                             utterance_duration = now - (speech_started_at or now)
-
                             if utterance_duration >= VAD_MIN_UTTERANCE_SECONDS:
                                 print_ts("Speech ended. Processing utterance...")
                                 raise StopIteration
 
                     if is_recording and speech_started_at is not None:
                         if now - speech_started_at >= VAD_MAX_UTTERANCE_SECONDS:
-                            print_ts("Maximum utterance length reached. Processing utterance...")
+                            print_ts(
+                                "Maximum utterance length reached. "
+                                "Processing utterance..."
+                            )
                             raise StopIteration
 
     except StopIteration:
@@ -1370,11 +1401,11 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
     except KeyboardInterrupt:
         raise
     except Exception as exc:
-        print_ts(f"Silero VAD/audio/camera error: {exc}")
+        print_ts(f"Silero VAD / audio error: {exc}")
         return None, face_capture
     finally:
-        if face_sampler is not None:
-            face_capture = face_sampler.finish()
+        # Stop the background thread and collect whatever was sampled.
+        face_capture = face_sampler.finish()
 
         try:
             vad_iterator.reset_states()
@@ -1386,7 +1417,6 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
 
     audio_16k = np.concatenate(recorded_chunks).astype(np.float32, copy=False)
     return save_audio_to_temp_wav(audio_16k), face_capture
-
 
 def ask_user_to_spell_name(
     whisper_model: WhisperModel,
