@@ -2,12 +2,21 @@
   "leticia": {
     "name": "Leticia",
     "created_at": "2026-05-10 17:30:43",
-    "last_seen": "2026-05-10 19:32:15",
+    "last_seen": "2026-05-22 16:02:06",
     "session_files": [
       "conversation_data/sessions/leticia_20260510_173317.json",
       "conversation_data/sessions/leticia_20260510_173738.json",
       "conversation_data/sessions/leticia_20260510_183900.json",
-      "conversation_data/sessions/leticia_20260510_193215.json"
+      "conversation_data/sessions/leticia_20260510_193215.json",
+      "conversation_data/sessions/leticia_20260521_142053.json",
+      "conversation_data/sessions/leticia_20260521_144722.json",
+      "conversation_data/sessions/leticia_20260521_145106.json",
+      "conversation_data/sessions/leticia_20260522_145614.json",
+      "conversation_data/sessions/leticia_20260522_150635.json",
+      "conversation_data/sessions/leticia_20260522_152206.json",
+      "conversation_data/sessions/leticia_20260522_152957.json",
+      "conversation_data/sessions/leticia_20260522_155040.json",
+      "conversation_data/sessions/leticia_20260522_160206.json"
     ],
     "conversation_summary": ""
   },
@@ -57,6 +66,49 @@
     "last_seen": "2026-05-13 12:54:36",
     "session_files": [
       "conversation_data/sessions/leticie_20260510_201350.json"
+    ],
+    "conversation_summary": ""
+  },
+  "lets_see": {
+    "name": "Lets see",
+    "created_at": "2026-05-19 15:41:49",
+    "last_seen": "2026-05-19 15:55:07",
+    "session_files": [
+      "conversation_data/sessions/lets_see_20260519_155507.json"
+    ],
+    "conversation_summary": ""
+  },
+  "leticie": {
+    "name": "Leticie",
+    "created_at": "2026-05-19 15:58:06",
+    "last_seen": "2026-05-22 15:35:49",
+    "session_files": [
+      "conversation_data/sessions/leticie_20260519_160647.json",
+      "conversation_data/sessions/leticie_20260521_140307.json",
+      "conversation_data/sessions/leticie_20260521_142518.json",
+      "conversation_data/sessions/leticie_20260521_150158.json",
+      "conversation_data/sessions/leticie_20260521_151505.json",
+      "conversation_data/sessions/leticie_20260521_152901.json",
+      "conversation_data/sessions/leticie_20260522_145017.json",
+      "conversation_data/sessions/leticie_20260522_153549.json"
+    ],
+    "conversation_summary": ""
+  },
+  "laticie": {
+    "name": "Laticie",
+    "created_at": "2026-05-21 15:41:03",
+    "last_seen": "2026-05-21 15:59:33",
+    "session_files": [
+      "conversation_data/sessions/laticie_20260521_155933.json"
+    ],
+    "conversation_summary": ""
+  },
+  "legicie": {
+    "name": "Legicie",
+    "created_at": "2026-05-21 16:00:18",
+    "last_seen": "2026-05-21 16:06:26",
+    "session_files": [
+      "conversation_data/sessions/legicie_20260521_160626.json"
     ],
     "conversation_summary": ""
   }

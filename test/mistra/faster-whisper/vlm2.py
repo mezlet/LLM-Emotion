@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
+import base64
 import json
 import os
 import queue
@@ -7,7 +9,6 @@ import re
 import sys
 import tempfile
 import subprocess
-import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -28,7 +29,6 @@ import torch
 from faster_whisper import WhisperModel
 from ollama import Client
 from silero_vad import load_silero_vad, VADIterator
-import base64
 import platform
 
 IS_MAC = platform.system() == "Darwin"
@@ -47,7 +47,8 @@ OLLAMA_HOST = "http://127.0.0.1:11434"
 MODEL_NAME = "llama3:8b"
 # MODEL_NAME = "mistral:7b"
 
-VLM_MODEL_NAME = "llama3.2-vision:11b"
+VISION_MODEL_NAME = "llama3.2-vision:11b"
+
 
 # =========================
 # Persistent memory / transcript configuration
@@ -160,42 +161,56 @@ MIN_RMS_THRESHOLD = 0.003
 
 
 # =========================
-# Camera / DeepFace configuration
+# Camera / Qwen2.5-VL configuration
 # =========================
 
 # =========================
-# Camera / DeepFace configuration
+# Camera / Qwen2.5-VL configuration
 # =========================
 
 CAMERA_DEVICE: Optional[int] = 0 if IS_LINUX else 0
 
 # ZED stereo frame is side-by-side.
 # 2560x720 means each eye becomes 1280x720 after cropping.
-ZED_STEREO_WIDTH = 3840
-ZED_STEREO_HEIGHT = 1080
+ZED_STEREO_WIDTH = 2560
+ZED_STEREO_HEIGHT = 720
 
-CAMERA_FRAME_WIDTH = ZED_STEREO_WIDTH if IS_LINUX else 1920
-CAMERA_FRAME_HEIGHT = ZED_STEREO_HEIGHT if IS_LINUX else 1080
+CAMERA_FRAME_WIDTH = ZED_STEREO_WIDTH if IS_LINUX else 1280
+CAMERA_FRAME_HEIGHT = ZED_STEREO_HEIGHT if IS_LINUX else 720
 
-CAMERA_PREVIEW_WIDTH = 1280
-CAMERA_PREVIEW_HEIGHT = 720
+CAMERA_PREVIEW_WIDTH = 960
+CAMERA_PREVIEW_HEIGHT = 540
 
 CAMERA_PREVIEW_ENABLED = True
 CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
 
 USE_ZED_HALF_FRAME_CROP = IS_LINUX
 
-# DeepFace is sampled during the detected speech window, not while waiting for speech.
-CAMERA_SAMPLE_EVERY_SECONDS = 3.0
-CAMERA_WARMUP_SECONDS = 0.35
+# Qwen2.5-VL captures one cleaned snapshot during speech and analyzes it synchronously after speech ends.
+CAMERA_SAMPLE_EVERY_SECONDS = float(os.environ.get("CAMERA_SAMPLE_EVERY_SECONDS", "999.0"))
+CAMERA_WARMUP_SECONDS = float(os.environ.get("CAMERA_WARMUP_SECONDS", "0.35"))
 
-DEEPFACE_DETECTOR_BACKEND = "opencv"
-DEEPFACE_ACTIONS = ["emotion"]
-DEEPFACE_ALIGN = True
+VISION_JPEG_QUALITY = int(os.environ.get("VISION_JPEG_QUALITY", "80"))
+VISION_MODEL_TIMEOUT_SECONDS = int(os.environ.get("VISION_MODEL_TIMEOUT_SECONDS", "20"))
+VISION_DEBUG = os.environ.get("VISION_DEBUG", "1") == "1"
+VISION_DEBUG_DIR = os.environ.get("VISION_DEBUG_DIR", "vision_debug_frames")
+VISION_MAX_IMAGE_SIDE = int(os.environ.get("VISION_MAX_IMAGE_SIDE", "640"))
 
-# Reliability filter. DeepFace emotion scores are percentages.
-FACE_MIN_TOP_SCORE = 45.0
-FACE_MIN_MARGIN = 15.0
+# Image preprocessing for Qwen2.5-VL. These reduce ZED/camera noise before VLM inference.
+VISION_DENOISE_ENABLED = os.environ.get("VISION_DENOISE_ENABLED", "1") == "1"
+VISION_LIGHTING_ENHANCE_ENABLED = os.environ.get("VISION_LIGHTING_ENHANCE_ENABLED", "1") == "1"
+VISION_SHARPEN_ENABLED = os.environ.get("VISION_SHARPEN_ENABLED", "1") == "1"
+VISION_DENOISE_H = float(os.environ.get("VISION_DENOISE_H", "5"))
+VISION_DENOISE_H_COLOR = float(os.environ.get("VISION_DENOISE_H_COLOR", "5"))
+VISION_CLAHE_CLIP_LIMIT = float(os.environ.get("VISION_CLAHE_CLIP_LIMIT", "2.0"))
+VISION_MIN_BRIGHTNESS = float(os.environ.get("VISION_MIN_BRIGHTNESS", "35.0"))
+VISION_MAX_BRIGHTNESS = float(os.environ.get("VISION_MAX_BRIGHTNESS", "220.0"))
+VISION_MIN_SHARPNESS = float(os.environ.get("VISION_MIN_SHARPNESS", "20.0"))
+
+# Reliability filter. Qwen2.5-VL emotion scores are percentages.
+# VLM scores are usually less calibrated than DeepFace scores, so these defaults are softer.
+FACE_MIN_TOP_SCORE = float(os.environ.get("FACE_MIN_TOP_SCORE", "35.0"))
+FACE_MIN_MARGIN = float(os.environ.get("FACE_MIN_MARGIN", "8.0"))
 
 
 # =========================
@@ -305,7 +320,7 @@ class FaceEmotionCapture:
             "ended_at": self.ended_at,
             "error": self.error,
             "note": (
-                "Facial expression analysis is a weak supporting signal only. "
+                "Qwen2.5-VL facial expression analysis is a weak supporting signal only. "
                 "Text-based emotion should remain the primary signal."
             ),
         }
@@ -565,15 +580,15 @@ def save_session_transcript(
                 **FAST_WHISPER_CONFIG,
             },
             "face_emotion": {
-                "backend": "VLM",                    # was "DeepFace"
-                "model": VLM_MODEL_NAME,             # add this
+                "backend": "qwen2.5vl:7b via Ollama",
                 "camera_device": CAMERA_DEVICE,
-                # remove detector_backend, align, actions — not applicable
                 "camera_frame_width": CAMERA_FRAME_WIDTH,
                 "camera_frame_height": CAMERA_FRAME_HEIGHT,
                 "preview_enabled": CAMERA_PREVIEW_ENABLED,
                 "sample_every_seconds": CAMERA_SAMPLE_EVERY_SECONDS,
                 "warmup_seconds": CAMERA_WARMUP_SECONDS,
+                "vision_model": VISION_MODEL_NAME,
+                "jpeg_quality": VISION_JPEG_QUALITY,
                 "min_top_score": FACE_MIN_TOP_SCORE,
                 "min_margin": FACE_MIN_MARGIN,
             },
@@ -834,7 +849,7 @@ transcribe_audio = transcribe_with_faster_whisper
 
 
 # =========================
-# Camera / DeepFace helpers
+# Camera / Qwen2.5-VL helpers
 # =========================
 
 def normalize_camera_frame(frame: np.ndarray) -> np.ndarray:
@@ -931,80 +946,397 @@ def list_camera_devices(max_indices: int = 6) -> None:
     print()
 
 
-def encode_frame_to_base64(frame_bgr: np.ndarray) -> str:
-    _, buffer = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 70])
-    return base64.b64encode(buffer.tobytes()).decode("utf-8")
+def resize_keep_aspect(frame_bgr: np.ndarray, max_side: int = VISION_MAX_IMAGE_SIDE) -> np.ndarray:
+    height, width = frame_bgr.shape[:2]
+    longest = max(height, width)
+    if longest <= max_side:
+        return frame_bgr
+    scale = max_side / float(longest)
+    new_width = max(1, int(width * scale))
+    new_height = max(1, int(height * scale))
+    return cv2.resize(frame_bgr, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
 
-def analyze_frame_emotion_scores_vlm(
-    frame_bgr: np.ndarray,
-    client: Client,
-    vlm_model: str = VLM_MODEL_NAME,
-) -> Optional[dict[str, float]]:
-    """
-    Replace DeepFace with a VLM via Ollama.
-    Returns a scores dict compatible with FaceEmotionCapture (pseudo-percentages).
-    """
+def image_quality_metrics(frame_bgr: np.ndarray) -> dict[str, float]:
+    """Return simple no-reference image quality metrics for debugging and reliability."""
     try:
-        image_b64 = encode_frame_to_base64(frame_bgr)
-        emotions_list = ", ".join(PLUTCHIK_EMOTIONS.keys())
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+        brightness = float(np.mean(gray))
+        sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        return {"brightness": brightness, "sharpness": sharpness}
+    except Exception:
+        return {"brightness": 0.0, "sharpness": 0.0}
 
-        prompt = f"""Look at the face in this image and classify the emotion.
 
-Return JSON only using this exact schema:
-{{
-  "emotion": "one of: {emotions_list}",
-  "confidence": 0.0
-}}
+def denoise_frame(frame_bgr: np.ndarray) -> np.ndarray:
+    """Reduce color/camera grain while keeping facial features reasonably intact."""
+    if not VISION_DENOISE_ENABLED:
+        return frame_bgr
+    try:
+        return cv2.fastNlMeansDenoisingColored(
+            frame_bgr,
+            None,
+            h=VISION_DENOISE_H,
+            hColor=VISION_DENOISE_H_COLOR,
+            templateWindowSize=7,
+            searchWindowSize=21,
+        )
+    except Exception as exc:
+        if VISION_DEBUG:
+            print_ts(f"Denoising skipped: {exc}")
+        return frame_bgr
 
-Rules:
-- emotion must be exactly one Plutchik label from the list above
-- confidence is a float between 0.0 and 1.0
-- if no face is visible or the expression is ambiguous, return {{"emotion": "trust", "confidence": 0.1}}
-- return JSON only, no other text"""
 
-        response = client.generate(
-            model=vlm_model,
-            prompt=prompt,
-            images=[image_b64],
-            format="json",
-            options={"temperature": 0.1, "num_predict": 60},
+def enhance_lighting(frame_bgr: np.ndarray) -> np.ndarray:
+    """Apply CLAHE on luminance to improve dim/uneven lighting without changing colors too much."""
+    if not VISION_LIGHTING_ENHANCE_ENABLED:
+        return frame_bgr
+    try:
+        lab = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2LAB)
+        l_channel, a_channel, b_channel = cv2.split(lab)
+        clahe = cv2.createCLAHE(
+            clipLimit=VISION_CLAHE_CLIP_LIMIT,
+            tileGridSize=(8, 8),
+        )
+        enhanced_l = clahe.apply(l_channel)
+        enhanced_lab = cv2.merge((enhanced_l, a_channel, b_channel))
+        return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+    except Exception as exc:
+        if VISION_DEBUG:
+            print_ts(f"Lighting enhancement skipped: {exc}")
+        return frame_bgr
+
+
+def sharpen_frame(frame_bgr: np.ndarray) -> np.ndarray:
+    """Add a mild unsharp mask after denoising/lighting correction."""
+    if not VISION_SHARPEN_ENABLED:
+        return frame_bgr
+    try:
+        blurred = cv2.GaussianBlur(frame_bgr, (0, 0), sigmaX=1.0)
+        return cv2.addWeighted(frame_bgr, 1.35, blurred, -0.35, 0)
+    except Exception as exc:
+        if VISION_DEBUG:
+            print_ts(f"Sharpening skipped: {exc}")
+        return frame_bgr
+
+
+def preprocess_frame_for_vlm(frame_bgr: np.ndarray) -> tuple[np.ndarray, dict[str, float]]:
+    """Crop, denoise, improve lighting, mildly sharpen, and resize before sending to Qwen."""
+    prepared = crop_largest_face_or_center(frame_bgr)
+    before = image_quality_metrics(prepared)
+
+    prepared = denoise_frame(prepared)
+    prepared = enhance_lighting(prepared)
+    prepared = sharpen_frame(prepared)
+    prepared = resize_keep_aspect(prepared, max_side=VISION_MAX_IMAGE_SIDE)
+
+    after = image_quality_metrics(prepared)
+    metrics = {
+        "brightness_before": before.get("brightness", 0.0),
+        "sharpness_before": before.get("sharpness", 0.0),
+        "brightness_after": after.get("brightness", 0.0),
+        "sharpness_after": after.get("sharpness", 0.0),
+        "width": float(prepared.shape[1]),
+        "height": float(prepared.shape[0]),
+    }
+    return prepared, metrics
+
+
+def is_vlm_image_quality_usable(metrics: dict[str, float]) -> tuple[bool, str]:
+    brightness = metrics.get("brightness_after", 0.0)
+    sharpness = metrics.get("sharpness_after", 0.0)
+    if brightness < VISION_MIN_BRIGHTNESS:
+        return False, f"image too dark: brightness={brightness:.1f}"
+    if brightness > VISION_MAX_BRIGHTNESS:
+        return False, f"image too bright: brightness={brightness:.1f}"
+    if sharpness < VISION_MIN_SHARPNESS:
+        return False, f"image too blurry/noisy: sharpness={sharpness:.1f}"
+    return True, "image quality usable"
+
+
+def crop_largest_face_or_center(frame_bgr: np.ndarray) -> np.ndarray:
+    """
+    Give the VLM a face-focused image instead of the full camera frame.
+    This matters for ZED / wide camera frames where the user's face may be small.
+    """
+    height, width = frame_bgr.shape[:2]
+
+    try:
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+        cascade_path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
+        face_cascade = cv2.CascadeClassifier(cascade_path)
+        faces = face_cascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=4,
+            minSize=(60, 60),
         )
 
-        raw = response.get("response", "")
-        data = safe_json_extract(raw)
-
-        if not data:
-            return None
-
-        emotion = str(data.get("emotion", "")).strip().lower()
-        confidence = float(data.get("confidence", 0.0))
-        confidence = max(0.0, min(1.0, confidence))
-
-        if emotion not in PLUTCHIK_EMOTIONS:
-            return None
-
-        # Reconstruct a scores dict that stays compatible with is_reliable()
-        # (which checks top_score >= 45.0 and margin >= 15.0)
-        dominant_score = confidence * 100.0
-        other_emotions = [e for e in PLUTCHIK_EMOTIONS if e != emotion]
-        remainder = max(0.0, 100.0 - dominant_score)
-        per_other = remainder / len(other_emotions) if other_emotions else 0.0
-
-        scores = {e: per_other for e in PLUTCHIK_EMOTIONS}
-        scores[emotion] = dominant_score
-
-        return scores
-
+        if len(faces) > 0:
+            x, y, w, h = max(faces, key=lambda box: box[2] * box[3])
+            pad = int(max(w, h) * 0.65)
+            x1 = max(0, x - pad)
+            y1 = max(0, y - pad)
+            x2 = min(width, x + w + pad)
+            y2 = min(height, y + h + pad)
+            crop = frame_bgr[y1:y2, x1:x2]
+            if crop.size > 0:
+                return resize_keep_aspect(crop)
     except Exception as exc:
-        print_ts(f"VLM frame emotion error: {exc}")
+        if VISION_DEBUG:
+            print_ts(f"Face crop fallback used: {exc}")
+
+    # Fallback: center crop to reduce background before sending to VLM.
+    side = min(height, width)
+    if side <= 0:
+        return resize_keep_aspect(frame_bgr)
+    x1 = max(0, (width - side) // 2)
+    y1 = max(0, (height - side) // 2)
+    crop = frame_bgr[y1:y1 + side, x1:x1 + side]
+    return resize_keep_aspect(crop if crop.size > 0 else frame_bgr)
+
+
+def save_debug_frame(frame_bgr: np.ndarray, prefix: str = "vlm_frame") -> Optional[str]:
+    if not VISION_DEBUG:
+        return None
+    try:
+        os.makedirs(VISION_DEBUG_DIR, exist_ok=True)
+        filename = f"{prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.jpg"
+        path = os.path.join(VISION_DEBUG_DIR, filename)
+        cv2.imwrite(path, frame_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), int(VISION_JPEG_QUALITY)])
+        return path
+    except Exception:
         return None
 
 
+def encode_frame_for_ollama(frame_bgr: np.ndarray) -> Optional[str]:
+    """
+    Convert one OpenCV BGR frame to base64 JPEG for Ollama vision models.
+    """
+    try:
+        prepared, quality_metrics = preprocess_frame_for_vlm(frame_bgr)
+        usable, quality_reason = is_vlm_image_quality_usable(quality_metrics)
+
+        if VISION_DEBUG:
+            print_ts(
+                "VLM image quality: "
+                f"brightness={quality_metrics['brightness_after']:.1f}, "
+                f"sharpness={quality_metrics['sharpness_after']:.1f}, "
+                f"size={int(quality_metrics['width'])}x{int(quality_metrics['height'])}, "
+                f"status={quality_reason}"
+            )
+            path = save_debug_frame(prepared, prefix="qwen_face_input_clean")
+            if path:
+                print_ts(f"Saved cleaned VLM debug frame: {path}")
+
+        # Do not waste a slow VLM call on unusable frames.
+        if not usable:
+            return None
+
+        encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), int(VISION_JPEG_QUALITY)]
+        ok, buffer = cv2.imencode(".jpg", prepared, encode_params)
+        if not ok:
+            return None
+        return base64.b64encode(buffer.tobytes()).decode("utf-8")
+    except Exception as exc:
+        print_ts(f"Could not encode frame for Qwen2.5-VL: {exc}")
+        return None
+
+
+EMOTION_ALIASES = {
+    "happy": "joy",
+    "happiness": "joy",
+    "smile": "joy",
+    "smiling": "joy",
+    "neutral": "trust",
+    "calm": "trust",
+    "friendly": "trust",
+    "relaxed": "trust",
+    "concern": "fear",
+    "concerned": "fear",
+    "anxious": "fear",
+    "anxiety": "fear",
+    "afraid": "fear",
+    "surprised": "surprise",
+    "sad": "sadness",
+    "unhappy": "sadness",
+    "angry": "anger",
+    "mad": "anger",
+    "annoyed": "anger",
+    "disgusted": "disgust",
+    "expectant": "anticipation",
+    "curious": "anticipation",
+    "thinking": "anticipation",
+}
+
+
+def canonical_emotion_name(name: str) -> Optional[str]:
+    cleaned = re.sub(r"[^a-zA-Z]+", "", str(name).strip().lower())
+    if cleaned in PLUTCHIK_EMOTIONS:
+        return cleaned
+    return EMOTION_ALIASES.get(cleaned)
+
+
+def normalize_plutchik_scores(raw_data: dict) -> Optional[dict[str, float]]:
+    """
+    Normalize model-produced scores to percentages over Plutchik's 8 emotions.
+    Accepts common VLM variants:
+    - {"scores": {"joy": 0.5, ...}}
+    - {"dominant_emotion": "neutral", "confidence": 0.7}
+    - flat emotion-score dictionaries
+    """
+    if not isinstance(raw_data, dict):
+        return None
+
+    raw_scores = raw_data.get("scores") if isinstance(raw_data.get("scores"), dict) else raw_data
+    scores: dict[str, float] = {emotion: 0.0 for emotion in PLUTCHIK_EMOTIONS}
+
+    if isinstance(raw_scores, dict):
+        for key, value in raw_scores.items():
+            emotion = canonical_emotion_name(str(key))
+            if not emotion:
+                continue
+            try:
+                scores[emotion] += max(0.0, float(value))
+            except Exception:
+                continue
+
+    total = sum(scores.values())
+
+    if total <= 0:
+        dominant = canonical_emotion_name(str(raw_data.get("dominant_emotion", raw_data.get("emotion", ""))))
+        if dominant:
+            try:
+                confidence = float(raw_data.get("confidence", 0.55))
+            except Exception:
+                confidence = 0.55
+            confidence = max(0.05, min(1.0, confidence))
+            remaining = max(0.0, 1.0 - confidence)
+            other_value = remaining / max(1, len(PLUTCHIK_EMOTIONS) - 1)
+            return {
+                emotion: (confidence if emotion == dominant else other_value) * 100.0
+                for emotion in PLUTCHIK_EMOTIONS
+            }
+        return None
+
+    # If the model returned probabilities around 0..1, convert to percentages.
+    if total <= 1.5:
+        return {emotion: score * 100.0 for emotion, score in scores.items()}
+
+    # If the model returned percentages already and roughly sum to 100, keep the distribution normalized.
+    return {emotion: (score / total) * 100.0 for emotion, score in scores.items()}
+
+
+def build_qwen_face_prompt() -> str:
+    emotions = ", ".join(PLUTCHIK_EMOTIONS.keys())
+    return f"""
+You are a conservative facial-expression classifier for a human-robot interaction system.
+
+Analyze the visible human face in the image. Use only facial expression, not age, gender, race, identity, or attractiveness.
+Map the expression to exactly one of Plutchik's 8 primary emotions:
+{emotions}
+
+Important mapping:
+- neutral, calm, relaxed, or friendly face => trust
+- smiling or visibly pleased face => joy
+- confused or thinking face => anticipation
+
+Return JSON only in this exact shape:
+{{
+  "dominant_emotion": "joy | trust | fear | surprise | sadness | disgust | anger | anticipation",
+  "scores": {{
+    "joy": 0.0,
+    "trust": 0.0,
+    "fear": 0.0,
+    "surprise": 0.0,
+    "sadness": 0.0,
+    "disgust": 0.0,
+    "anger": 0.0,
+    "anticipation": 0.0
+  }},
+  "confidence": 0.0,
+  "reason": "short explanation"
+}}
+
+Rules:
+- Scores may be probabilities from 0.0 to 1.0 or percentages from 0 to 100.
+- If no face is visible, set dominant_emotion to "trust", confidence to 0.1, and use a nearly flat score distribution.
+- Do not add markdown or any text outside JSON.
+""".strip()
+
+
+def analyze_frame_emotion_scores(
+    frame_bgr: np.ndarray,
+    vision_client: Client,
+) -> Optional[dict[str, float]]:
+    """
+    Analyze one camera frame with qwen2.5vl:7b through Ollama.
+
+    Returns:
+        dict mapping Plutchik emotion -> percentage score, or None on failure.
+    """
+    image_b64 = encode_frame_for_ollama(frame_bgr)
+    if not image_b64:
+        return None
+
+    try:
+        response = vision_client.chat(
+            model=VISION_MODEL_NAME,
+            format="json",
+            messages=[
+                {
+                    "role": "user",
+                    "content": build_qwen_face_prompt(),
+                    "images": [image_b64],
+                }
+            ],
+            options={
+                "temperature": 0.0,
+                "num_predict": 220,
+                "num_ctx": 2048,
+            },
+            stream=False,
+        )
+
+        raw = response.get("message", {}).get("content", "")
+        if VISION_DEBUG:
+            print_ts(f"Qwen2.5-VL raw emotion output: {raw[:500]}")
+
+        data = safe_json_extract(raw)
+        if not isinstance(data, dict):
+            print_ts("Qwen2.5-VL returned no parseable JSON for facial emotion.")
+            return None
+
+        normalized_scores = normalize_plutchik_scores(data)
+        if not normalized_scores:
+            print_ts(f"Qwen2.5-VL JSON did not contain usable emotion scores: {data}")
+            return None
+
+        return normalized_scores
+
+    except Exception as exc:
+        print_ts(f"Qwen2.5-VL facial analysis failed: {exc}")
+        return None
+
 class FaceEmotionSampler:
-    def __init__(self, camera_device: Optional[int], client: Client) -> None:
+    """
+    Camera sampler for facial-expression hints using ONE cleaned Qwen2.5-VL snapshot.
+
+    Design choice:
+    - During speech, keep camera preview/audio loop fast.
+    - Capture one best available frame after camera warmup.
+    - Do NOT call Qwen inside the live preview loop.
+    - When speech ends, analyze that one snapshot synchronously so the result is
+      available for the same user utterance instead of arriving too late.
+
+    This is slower after speech ends, but much more reliable for your benchmark
+    and thesis prototype because facial emotion is actually attached to the
+    correct utterance.
+    """
+
+    def __init__(self, camera_device: Optional[int], vision_client: Client) -> None:
         self.camera_device = camera_device
-        self.client = client
+        self.vision_client = vision_client
         self.cap: Optional[cv2.VideoCapture] = None
         self.window_created = False
         self.started_at = now_ts()
@@ -1015,10 +1347,8 @@ class FaceEmotionSampler:
         self.capture_start_time: Optional[float] = None
         self.last_sample_time = 0.0
         self.last_status = "warming up..."
-
-        self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
-        self._lock = threading.Lock()
+        self.snapshot_frame: Optional[np.ndarray] = None
+        self.snapshot_taken_at: Optional[str] = None
 
     def start(self) -> None:
         self.started_at = now_ts()
@@ -1038,93 +1368,102 @@ class FaceEmotionSampler:
             except Exception as exc:
                 self.error = f"Camera preview could not start: {exc}"
 
-        self._stop_event.clear()
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
+    def _draw_preview(self, frame: np.ndarray) -> None:
+        if not (CAMERA_PREVIEW_ENABLED and self.window_created):
+            return
 
-    def _run(self) -> None:
-        """Background thread: reads frames, updates preview, fires VLM samples."""
-        while not self._stop_event.is_set():
-            if self.cap is None or self.capture_start_time is None:
-                break
-
-            ok, frame = self.cap.read()
-            if not ok or frame is None:
-                time.sleep(0.01)
-                continue
-
-            frame = normalize_camera_frame(frame)
-
-            with self._lock:
-                self.frame_count += 1
-
-            now = time.time()
-            elapsed = now - self.capture_start_time
-
-            # --- preview (always, independent of VLM sampling) ---
-            if CAMERA_PREVIEW_ENABLED and self.window_created:
-                try:
-                    preview_frame = frame.copy()
-                    with self._lock:
-                        status = self.last_status
-                    cv2.putText(
-                        preview_frame,
-                        "Recording speech...",
-                        (20, 35),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8,
-                        (0, 255, 0),
-                        2,
-                        cv2.LINE_AA,
-                    )
-                    cv2.putText(
-                        preview_frame,
-                        f"Emotion: {status}",
-                        (20, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (255, 255, 255),
-                        2,
-                        cv2.LINE_AA,
-                    )
-                    preview_frame = cv2.resize(
-                        preview_frame,
-                        (CAMERA_PREVIEW_WIDTH, CAMERA_PREVIEW_HEIGHT),
-                    )
-                    cv2.imshow(CAMERA_PREVIEW_WINDOW_NAME, preview_frame)
-                    cv2.waitKey(1)
-                except Exception as exc:
-                    with self._lock:
-                        self.error = f"Camera preview failed: {exc}"
-
-            # --- VLM sampling (throttled, blocks only this thread) ---
-            should_sample = (
-                elapsed >= CAMERA_WARMUP_SECONDS
-                and now - self.last_sample_time >= CAMERA_SAMPLE_EVERY_SECONDS
+        try:
+            preview_frame = frame.copy()
+            cv2.putText(
+                preview_frame,
+                "Recording speech...",
+                (20, 35),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA,
             )
+            cv2.putText(
+                preview_frame,
+                f"Emotion: {self.last_status}",
+                (20, 70),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            preview_frame = cv2.resize(
+                preview_frame,
+                (CAMERA_PREVIEW_WIDTH, CAMERA_PREVIEW_HEIGHT),
+            )
+            cv2.imshow(CAMERA_PREVIEW_WINDOW_NAME, preview_frame)
+            cv2.waitKey(1)
+        except Exception as exc:
+            self.error = f"Camera preview failed: {exc}"
 
-            if should_sample:
-                self.last_sample_time = now
-                scores = analyze_frame_emotion_scores_vlm(frame, self.client)
-
-                with self._lock:
-                    self.sampled_frame_count += 1
-                    if scores:
-                        self.emotion_score_samples.append(scores)
-                        top_emotion, top_score = max(scores.items(), key=lambda item: item[1])
-                        self.last_status = f"{top_emotion}: {top_score:.0f}%"
-                    else:
-                        self.last_status = "no face/emotion detected"
-
-    # sample_if_due is now a no-op; the background thread handles everything.
     def sample_if_due(self) -> None:
-        pass
+        if self.cap is None or self.capture_start_time is None:
+            return
+
+        ok, frame = self.cap.read()
+        if not ok or frame is None:
+            return
+
+        frame = normalize_camera_frame(frame)
+        self.frame_count += 1
+        now = time.time()
+        elapsed = now - self.capture_start_time
+
+        self._draw_preview(frame)
+
+        # Capture exactly one snapshot after camera warmup. Qwen analysis happens
+        # later in finish(), not here, to avoid freezing preview/audio capture.
+        should_capture_snapshot = (
+            elapsed >= CAMERA_WARMUP_SECONDS
+            and self.snapshot_frame is None
+        )
+
+        if not should_capture_snapshot:
+            return
+
+        self.snapshot_frame = frame.copy()
+        self.snapshot_taken_at = now_ts()
+        self.sampled_frame_count = 1
+        self.last_sample_time = now
+        self.last_status = "snapshot captured; waiting for speech end"
+        print_ts("Captured one facial snapshot for Qwen2.5-VL analysis after speech ends.")
+
+    def _analyze_snapshot_now(self) -> None:
+        if self.snapshot_frame is None:
+            self.last_status = "no snapshot captured"
+            return
+
+        print_ts("Analyzing captured facial snapshot with Qwen2.5-VL...")
+        scores = analyze_frame_emotion_scores(self.snapshot_frame, self.vision_client)
+
+        if not scores:
+            self.last_status = "no reliable VLM facial emotion"
+            return
+
+        # Reject weak neutral/trust outputs such as trust=5% or trust=10%.
+        top_emotion, top_score = max(scores.items(), key=lambda item: item[1])
+        if top_score < FACE_MIN_TOP_SCORE:
+            print_ts(
+                f"Qwen2.5-VL facial result rejected as weak: "
+                f"{top_emotion}={top_score:.1f}% < {FACE_MIN_TOP_SCORE:.1f}%"
+            )
+            self.last_status = f"weak VLM result: {top_emotion}={top_score:.0f}%"
+            return
+
+        self.emotion_score_samples.append(scores)
+        self.last_status = f"{top_emotion}: {top_score:.0f}%"
+        print_ts(f"Qwen2.5-VL facial result accepted: {self.last_status}")
 
     def finish(self) -> FaceEmotionCapture:
-        self._stop_event.set()
-        if self._thread is not None:
-            self._thread.join(timeout=2.0)
-
+        # Stop camera first so the device is released quickly; the snapshot is
+        # already stored in memory.
         if self.cap is not None:
             self.cap.release()
             self.cap = None
@@ -1136,15 +1475,21 @@ class FaceEmotionSampler:
             except Exception:
                 pass
 
-        with self._lock:
-            return FaceEmotionCapture(
-                emotion_score_samples=list(self.emotion_score_samples),
-                frame_count=self.frame_count,
-                sampled_frame_count=self.sampled_frame_count,
-                started_at=self.started_at,
-                ended_at=now_ts(),
-                error=self.error,
-            )
+        try:
+            self._analyze_snapshot_now()
+        except Exception as exc:
+            self.error = f"Qwen2.5-VL snapshot analysis failed: {exc}"
+            print_ts(self.error)
+
+        return FaceEmotionCapture(
+            emotion_score_samples=self.emotion_score_samples,
+            frame_count=self.frame_count,
+            sampled_frame_count=self.sampled_frame_count,
+            started_at=self.started_at,
+            ended_at=now_ts(),
+            error=self.error,
+        )
+
 
 # =========================
 # Silero VAD listener
@@ -1277,7 +1622,7 @@ def listen_for_utterance_with_silero_vad(
 def listen_for_utterance_with_silero_vad_and_face_emotion(
     input_device: Optional[int],
     silero_model,
-    client: Client, 
+    vision_client: Client,
     camera_device: Optional[int] = CAMERA_DEVICE,
     prompt_label: str = "utterance",
 ) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
@@ -1333,8 +1678,8 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                 try:
                     block = audio_queue.get(timeout=0.1)
                 except queue.Empty:
-                    # if face_sampler is not None:
-                        # face_sampler.sample_if_due()
+                    if face_sampler is not None:
+                        face_sampler.sample_if_due()
                     continue
 
                 block_16k = resample_audio(block, input_sample_rate, SILERO_SAMPLE_RATE)
@@ -1374,7 +1719,7 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             print()
                             print_ts("Speech detected. Recording utterance and sampling facial expression...")
 
-                            face_sampler = FaceEmotionSampler(camera_device=camera_device, client=client)
+                            face_sampler = FaceEmotionSampler(camera_device=camera_device, vision_client=vision_client)
                             face_sampler.start()
                             face_sampler.sample_if_due()
 
@@ -1887,15 +2232,15 @@ def build_response_system_prompt(
         Text/LLM emotion JSON:
         {json.dumps(text_emotion_json, indent=2)}
 
-        Face/DeepFace emotion JSON:
+        Face/Qwen2.5-VL emotion JSON:
         {json.dumps(face_emotion_json, indent=2)}
 
         Interpretation rules:
         - Treat the Text/LLM emotion JSON as the primary emotional signal.
-        - Treat the Face/DeepFace emotion JSON as a secondary weak supporting signal.
+        - Treat the Face/Qwen2.5-VL emotion JSON as a secondary weak supporting signal.
         - If both signals agree, you may gently adapt tone more confidently.
         - If both signals conflict, trust the text emotion more.
-        - Do not mention camera, DeepFace, facial analysis, detected emotion, or private emotion context to the user.
+        - Do not mention camera, Qwen2.5-VL, facial analysis, detected emotion, or private emotion context to the user.
         - Do not say things like "you look sad", "your face shows", or "I detected".
 
         Return JSON only in this exact shape:
@@ -2033,13 +2378,15 @@ def main() -> None:
     print_ts("Starting Silero VAD + faster-whisper Plutchik chat prototype with local memory.")
     print_ts(f"Python: {sys.version.split()[0]}")
     print_ts(f"Ollama host: {OLLAMA_HOST}")
-    print_ts(f"Ollama model: {MODEL_NAME}")
+    print_ts(f"Ollama chat model: {MODEL_NAME}")
+    print_ts(f"Ollama vision model: {VISION_MODEL_NAME}")
     print()
 
     ensure_data_dirs()
 
     check_ollama_available()
     ensure_model_available(MODEL_NAME)
+    ensure_model_available(VISION_MODEL_NAME)
 
     client = Client(host=OLLAMA_HOST)
 
@@ -2089,7 +2436,7 @@ def main() -> None:
         print()
 
     print("Automatic listening mode is active.")
-    print("Speak naturally. Silero VAD will detect speech, DeepFace will sample facial emotion, faster-whisper will transcribe it, and Ameca will respond.")
+    print("Speak naturally. Silero VAD will detect speech, Qwen2.5-VL will analyze one cleaned facial snapshot after speech ends, faster-whisper will transcribe it, and Ameca will respond.")
     print("Say '/exit' or press Ctrl+C to save the transcript and quit.")
     print()
 
@@ -2110,7 +2457,7 @@ def main() -> None:
             wav_path, face_capture = listen_for_utterance_with_silero_vad_and_face_emotion(
                 input_device=INPUT_DEVICE,
                 silero_model=silero_model,
-                client=client,                  # <-- add this
+                vision_client=client,
                 camera_device=CAMERA_DEVICE,
                 prompt_label="utterance",
             )
@@ -2226,7 +2573,7 @@ def main() -> None:
                 "emotion": emotion_json,
                 "facial_emotion_hint": facial_hint,
                 "face_emotion": face_emotion_json,
-                "input_mode": "silero_vad_faster_whisper_deepface",
+                "input_mode": "silero_vad_faster_whisper_qwen25vl",
             }
 
             assistant_message = {
@@ -2268,3 +2615,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

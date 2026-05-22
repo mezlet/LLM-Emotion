@@ -1,0 +1,1167 @@
+{
+  "user": {
+    "key": "leticia",
+    "name": "Leticia"
+  },
+  "session": {
+    "started_at": "2026-05-22 15:39:14",
+    "ended_at": "2026-05-22 15:50:40",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "safe_gpu_with_cpu_fallback",
+      "model": "small",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "DeepFace",
+      "camera_device": 0,
+      "camera_frame_width": 2560,
+      "camera_frame_height": 720,
+      "preview_enabled": true,
+      "sample_every_seconds": 0.2,
+      "warmup_seconds": 1.0,
+      "detector_backend": "retinaface",
+      "actions": [
+        "emotion"
+      ],
+      "align": true,
+      "min_top_score": 70.0,
+      "min_margin": 25.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 1200,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 30.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    }
+  },
+  "messages": [
+    {
+      "role": "ameca",
+      "content": "Nice to meet you, Leticia! 🙂",
+      "timestamp": "2026-05-22 15:39:14",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too.",
+      "timestamp": "2026-05-22 15:39:27",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user is reciprocating a friendly greeting, indicating trust and positivity."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(neutral=38%, sad=30%, happy=25%); samples=12",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 5.895604006946087,
+          "disgust": 0.0033848388882375957,
+          "fear": 0.6998447515846541,
+          "happy": 25.2453825987371,
+          "sad": 29.941232707351446,
+          "surprise": 0.003618392117819743,
+          "neutral": 38.21093283096949
+        },
+        "frame_count": 89,
+        "sampled_frame_count": 12,
+        "started_at": "2026-05-22 15:39:16",
+        "ended_at": "2026-05-22 15:39:23",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "I'm happy to chat with you about anything that's on your mind. What would you like to talk about? 🙂",
+      "timestamp": "2026-05-22 15:39:27"
+    },
+    {
+      "role": "user",
+      "content": "is the weekend accepted for the weekend",
+      "timestamp": "2026-05-22 15:39:42",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's message is a factual statement about the weekend, with no clear emotional tone."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=42%, angry=26%, neutral=16%); samples=23",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 25.720760559258252,
+          "disgust": 0.013855169205121786,
+          "fear": 0.1101505041978093,
+          "happy": 41.979392392262206,
+          "sad": 15.792145407070285,
+          "surprise": 0.011058631918172246,
+          "neutral": 16.372638883698052
+        },
+        "frame_count": 159,
+        "sampled_frame_count": 23,
+        "started_at": "2026-05-22 15:39:34",
+        "ended_at": "2026-05-22 15:39:40",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "The term \"weekend\" is a common way to refer to Saturday and Sunday, so I assume it means those two days in particular. Is there something specific you'd like to know or discuss related to weekends? 🙂",
+      "timestamp": "2026-05-22 15:39:42"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, of course.",
+      "timestamp": "2026-05-22 15:39:55",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's response is a simple acknowledgement, indicating a neutral emotional state."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=52%, angry=20%, sad=15%); samples=9",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 19.796663178337944,
+          "disgust": 0.017423284240067005,
+          "fear": 0.24160103670631847,
+          "happy": 52.216171476576065,
+          "sad": 14.571083863576254,
+          "surprise": 0.023256767689923033,
+          "neutral": 13.133804771635267
+        },
+        "frame_count": 74,
+        "sampled_frame_count": 9,
+        "started_at": "2026-05-22 15:39:49",
+        "ended_at": "2026-05-22 15:39:52",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "It seems we're on the same page! What's been going through your mind lately that has weekend vibes attached to it? I'm here to listen and help if needed. 🙂",
+      "timestamp": "2026-05-22 15:39:55"
+    },
+    {
+      "role": "user",
+      "content": "It's like time to get some rest after a very long week.",
+      "timestamp": "2026-05-22 15:40:14",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user is expressing a factual statement about their week, with no strong emotional tone."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(neutral=51%, happy=39%, sad=5%); samples=18",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 1.3378479005526362,
+          "disgust": 6.85992785112321e-05,
+          "fear": 4.047330761844017,
+          "happy": 38.84251158645687,
+          "sad": 4.962302010390835,
+          "surprise": 0.04516562113781995,
+          "neutral": 50.76477342637049
+        },
+        "frame_count": 130,
+        "sampled_frame_count": 18,
+        "started_at": "2026-05-22 15:40:07",
+        "ended_at": "2026-05-22 15:40:12",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "A well-deserved break sounds just what you need! It can be challenging to power through a long week, but knowing that the weekend is ahead must give you something to look forward to. What are your plans for unwinding and recharging? 🙂",
+      "timestamp": "2026-05-22 15:40:14"
+    },
+    {
+      "role": "user",
+      "content": "basically just sleeping and resting trying to catch up",
+      "timestamp": "2026-05-22 15:40:33",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user is reporting a factual state of being tired and resting, with no strong emotional tone."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=62%, neutral=34%, angry=4%); samples=33",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 3.8496149511104734,
+          "disgust": 8.91128532389701e-05,
+          "fear": 0.8342861771357782,
+          "happy": 0.10376309401421095,
+          "sad": 61.55973426500956,
+          "surprise": 0.0017907498256241959,
+          "neutral": 33.650722638337
+        },
+        "frame_count": 226,
+        "sampled_frame_count": 33,
+        "started_at": "2026-05-22 15:40:22",
+        "ended_at": "2026-05-22 15:40:31",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Prioritizing rest and sleep sounds like an excellent plan! Catching up on much-needed Z's can work wonders for both body and mind. Do you have any favorite relaxing activities or routines that help you unwind during the weekend? 🙂",
+      "timestamp": "2026-05-22 15:40:33"
+    },
+    {
+      "role": "user",
+      "content": "Not a spectacular. Do you have any suggestions?",
+      "timestamp": "2026-05-22 15:40:52",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's text is factual and seeking suggestions, indicating a neutral emotional state."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=33%, neutral=32%, angry=19%); samples=19",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 18.906056024526293,
+          "disgust": 0.006184719373760423,
+          "fear": 1.1386675100136352,
+          "happy": 32.541450340496866,
+          "sad": 15.39322601807745,
+          "surprise": 0.03405437394533357,
+          "neutral": 31.980361224758735
+        },
+        "frame_count": 142,
+        "sampled_frame_count": 19,
+        "started_at": "2026-05-22 15:40:45",
+        "ended_at": "2026-05-22 15:40:50",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Sometimes, simplicity is key to relaxation. If not having a specific activity in mind, I can suggest some calming ideas: taking a warm bath, reading a book, listening to soothing music, or even trying some gentle stretches. What do you think might help calm your mind and body this weekend? 🙂",
+      "timestamp": "2026-05-22 15:40:52"
+    },
+    {
+      "role": "user",
+      "content": "A great music would do. Any suggestions?",
+      "timestamp": "2026-05-22 15:41:10",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user is asking for suggestions, which is a factual and neutral inquiry."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=58%, neutral=38%, angry=2%); samples=23",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 2.2406827580669653,
+          "disgust": 0.00014263258441096408,
+          "fear": 1.4297221098905024,
+          "happy": 0.04476178623767539,
+          "sad": 58.1671462473662,
+          "surprise": 0.001349088730458571,
+          "neutral": 38.11619714032049
+        },
+        "frame_count": 155,
+        "sampled_frame_count": 23,
+        "started_at": "2026-05-22 15:41:01",
+        "ended_at": "2026-05-22 15:41:07",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Music has the power to transport us! For relaxing vibes, I'd recommend exploring genres like ambient electronic, lo-fi hip-hop, or soft instrumental tracks. Some popular artists for calming playlists include Tycho, Explosions in the Sky, and Ludovico Einaudi. You can also try searching for \"relaxing music\" or \"study music\" on your favorite streaming platform – there are plenty of curated lists to help you unwind! 🙂",
+      "timestamp": "2026-05-22 15:41:10"
+    },
+    {
+      "role": "user",
+      "content": "hmm that's not interesting but that doesn't look like my jam",
+      "timestamp": "2026-05-22 15:41:34",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's words express a lack of interest and a clear statement about what they don't like, but the tone is not strongly negative or emotional."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=53%, neutral=42%, angry=3%); samples=21",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 2.9789545074814843,
+          "disgust": 0.0008587616589386538,
+          "fear": 2.158348729213079,
+          "happy": 0.016670464687224683,
+          "sad": 52.985980113347374,
+          "surprise": 0.0025547428029358884,
+          "neutral": 41.856634469259355
+        },
+        "frame_count": 148,
+        "sampled_frame_count": 21,
+        "started_at": "2026-05-22 15:41:25",
+        "ended_at": "2026-05-22 15:41:31",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Music is highly personal, and what resonates with one person might not be the same for another. I can try suggesting some popular genres or playlists that people generally find relaxing: jazz, classical, nature sounds, or even movie soundtracks! If none of those strike a chord, we could explore together to see if there's something more tailored to your tastes. 🙂",
+      "timestamp": "2026-05-22 15:41:34"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, but I'm very happy to try out your suggestions anyways.",
+      "timestamp": "2026-05-22 15:42:04",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user explicitly states they are 'very happy' and the facial-expression hint supports this emotion, although it's not a strong signal."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=33%, sad=28%, angry=26%); samples=28",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 25.981583320136583,
+          "disgust": 0.020112978491747566,
+          "fear": 1.317582540184958,
+          "happy": 32.81601125993932,
+          "sad": 28.014393119274505,
+          "surprise": 0.01681753842989662,
+          "neutral": 11.833500463881396
+        },
+        "frame_count": 199,
+        "sampled_frame_count": 28,
+        "started_at": "2026-05-22 15:41:54",
+        "ended_at": "2026-05-22 15:42:02",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "That spirit is wonderful! Even trying new things can be an adventure in itself. If you're open to exploring, let me suggest some popular genres or playlists that people generally find relaxing: jazz, classical, nature sounds, or even movie soundtracks! Who knows, we might stumble upon a hidden gem together. 😊",
+      "timestamp": "2026-05-22 15:42:04"
+    },
+    {
+      "role": "user",
+      "content": "Do you know about the fire on the mountain by Asha?",
+      "timestamp": "2026-05-22 15:42:26",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's question is factual and does not convey strong emotions."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=34%, angry=23%, happy=21%); samples=22",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 23.171154078434814,
+          "disgust": 0.004584038660031545,
+          "fear": 0.28734296102206,
+          "happy": 21.326711639343888,
+          "sad": 34.14159328050234,
+          "surprise": 0.030617797731139262,
+          "neutral": 21.037998451935973
+        },
+        "frame_count": 158,
+        "sampled_frame_count": 22,
+        "started_at": "2026-05-22 15:42:18",
+        "ended_at": "2026-05-22 15:42:24",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "I'm familiar with \"Fire On The Mountain\" from Asha Bhosle's iconic album of Indian folk songs and devotional music! It's a beautiful piece, blending traditional rhythms and melodies. What draws you to this song or artist in particular? 🙂",
+      "timestamp": "2026-05-22 15:42:26"
+    },
+    {
+      "role": "user",
+      "content": "Now that's an African Musician.",
+      "timestamp": "2026-05-22 15:42:45",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's statement is a factual description, and the facial-expression hint suggests some sadness but it does not override the neutral tone of the words."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=48%, neutral=31%, happy=14%); samples=18",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 6.514840713753882,
+          "disgust": 0.01136481796070004,
+          "fear": 0.25359686694961664,
+          "happy": 14.365233810592649,
+          "sad": 47.86676946530739,
+          "surprise": 0.014846348493898,
+          "neutral": 30.97334719159537
+        },
+        "frame_count": 138,
+        "sampled_frame_count": 18,
+        "started_at": "2026-05-22 15:42:37",
+        "ended_at": "2026-05-22 15:42:42",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "I think there might be some confusion - Asha Bhosle is actually an Indian playback singer, not an African musician! She has had a long and illustrious career spanning multiple genres, including film music, classical, and folk. But I'm happy to chat about any aspect of her work or explore other aspects of African music if you're interested! 🙂",
+      "timestamp": "2026-05-22 15:42:45"
+    },
+    {
+      "role": "user",
+      "content": "I think you're getting it all mixed up. A share on Fire on the Mountain is an African musician from Nigeria.",
+      "timestamp": "2026-05-22 15:43:28",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's words express a clear correction and clarification, indicating a neutral emotional state."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=51%, neutral=29%, happy=12%); samples=61",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 6.232881197667696,
+          "disgust": 0.003918122108821525,
+          "fear": 1.6204046725785002,
+          "happy": 11.572342774940884,
+          "sad": 51.34534812848404,
+          "surprise": 0.01778130766178773,
+          "neutral": 29.207325552819206
+        },
+        "frame_count": 400,
+        "sampled_frame_count": 61,
+        "started_at": "2026-05-22 15:43:11",
+        "ended_at": "2026-05-22 15:43:25",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "It seems I've made a mistake! Thank you for correcting me, Leticia. It appears that \"Fire On The Mountain\" by Asha (an African musician) has caught your attention - and rightly so! What do you enjoy most about this song or artist? Would love to learn more from you! 🙂",
+      "timestamp": "2026-05-22 15:43:28"
+    },
+    {
+      "role": "user",
+      "content": "I find her music quite calming.",
+      "timestamp": "2026-05-22 15:43:56",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's words express a factual opinion about music, without strong emotional connotation."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=53%, neutral=18%, happy=18%); samples=27",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 9.133697634856853,
+          "disgust": 0.0018028824508060782,
+          "fear": 1.0591874774749814,
+          "happy": 17.893431804837057,
+          "sad": 53.46519017812839,
+          "surprise": 0.009989044672215217,
+          "neutral": 18.436701590833426
+        },
+        "frame_count": 189,
+        "sampled_frame_count": 27,
+        "started_at": "2026-05-22 15:43:47",
+        "ended_at": "2026-05-22 15:43:54",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "That's wonderful, Leticia! It's great that Asha's music brings a sense of calmness to your life. Sometimes, it's the simplest and most soothing sounds that can have such a profound impact on our emotions. Do you have any favorite moments or tracks from her discography? 🙂",
+      "timestamp": "2026-05-22 15:43:56"
+    },
+    {
+      "role": "user",
+      "content": "God, it's Naby's first treat, Ted.",
+      "timestamp": "2026-05-22 15:44:07",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's words express excitement and happiness about Naby's first treat, which is a positive event."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=60%, sad=29%, angry=5%); samples=15",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 4.937590808993021,
+          "disgust": 0.0006528138269577642,
+          "fear": 2.3640955891532305,
+          "happy": 60.48364711313237,
+          "sad": 29.210169795894128,
+          "surprise": 0.0028730423444969224,
+          "neutral": 3.0009721482345397
+        },
+        "frame_count": 112,
+        "sampled_frame_count": 15,
+        "started_at": "2026-05-22 15:44:00",
+        "ended_at": "2026-05-22 15:44:05",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Congratulations are in order! It seems like there's some exciting news about Naby and their treats - I'm not sure what that means exactly, but you seem really excited! Would love to hear more about this special moment with Naby. 😊",
+      "timestamp": "2026-05-22 15:44:07"
+    },
+    {
+      "role": "user",
+      "content": "I said I'm getting it before it's treated.",
+      "timestamp": "2026-05-22 15:44:23",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.75,
+        "reason": "The message is short, corrective, factual, or emotionally mild."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(angry=59%, happy=33%, neutral=4%); samples=19",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "angry",
+        "averaged_scores": {
+          "angry": 59.45014978082556,
+          "disgust": 0.0009757703391527828,
+          "fear": 0.026603455708002786,
+          "happy": 33.48295105366331,
+          "sad": 3.395302323649,
+          "surprise": 0.0050495482946818935,
+          "neutral": 3.6389686532692345
+        },
+        "frame_count": 134,
+        "sampled_frame_count": 19,
+        "started_at": "2026-05-22 15:44:17",
+        "ended_at": "2026-05-22 15:44:22",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "You're planning ahead of time to get something for Naby as their first treat - sounds like a thoughtful gesture, Leticia! What is the occasion or milestone that makes this special? 🙂",
+      "timestamp": "2026-05-22 15:44:23"
+    },
+    {
+      "role": "user",
+      "content": "Forst treated, forst treated, nuts treated.",
+      "timestamp": "2026-05-22 15:44:36",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's words are repetitive and factual, indicating a neutral emotional state."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(neutral=40%, sad=25%, happy=21%); samples=22",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 13.122345329346983,
+          "disgust": 0.0012653281969110934,
+          "fear": 0.5153305875937804,
+          "happy": 21.130223299503665,
+          "sad": 25.213630090382967,
+          "surprise": 0.00835201769665549,
+          "neutral": 40.00885382023725
+        },
+        "frame_count": 155,
+        "sampled_frame_count": 22,
+        "started_at": "2026-05-22 15:44:27",
+        "ended_at": "2026-05-22 15:44:33",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "It seems like you might be referring to some sort of training or reward system with Naby and their treats - specifically mentioning \"first\" and \"nuts\". Could you clarify what's going on here, Leticia? What kind of training is this related to? 🙂",
+      "timestamp": "2026-05-22 15:44:36"
+    },
+    {
+      "role": "user",
+      "content": "Another word for frustration could be angry.",
+      "timestamp": "2026-05-22 15:44:58",
+      "emotion": {
+        "emotion": "anger",
+        "confidence": 0.8,
+        "reason": "The user's words explicitly mention 'angry' as an alternative to 'frustration', indicating a strong emotional tone."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(neutral=54%, sad=37%, happy=4%); samples=21",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 0.9849520636956868,
+          "disgust": 0.002572779155852035,
+          "fear": 3.943501384535396,
+          "happy": 4.004465040108438,
+          "sad": 36.83244227422845,
+          "surprise": 0.0013056599196418904,
+          "neutral": 54.23076182320004
+        },
+        "frame_count": 154,
+        "sampled_frame_count": 21,
+        "started_at": "2026-05-22 15:44:50",
+        "ended_at": "2026-05-22 15:44:55",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "You're pointing out an alternative emotion that might fit the situation: anger instead of frustration. That helps me understand your tone better! I'll keep it in mind as we continue our conversation, Leticia. What's been frustrating or causing you to feel this way? 😠",
+      "timestamp": "2026-05-22 15:44:58"
+    },
+    {
+      "role": "user",
+      "content": "I think you'll get it quite right.",
+      "timestamp": "2026-05-22 15:45:22",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user's words convey a sense of confidence and optimism, which aligns with the facial-expression hint's dominant happy signal."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=66%, neutral=21%, sad=7%); samples=23",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 5.994900530558672,
+          "disgust": 0.0009753565619700109,
+          "fear": 0.07667732107973813,
+          "happy": 65.72039546882328,
+          "sad": 6.899129329660592,
+          "surprise": 0.009663405214690543,
+          "neutral": 21.298259542850047
+        },
+        "frame_count": 165,
+        "sampled_frame_count": 23,
+        "started_at": "2026-05-22 15:45:13",
+        "ended_at": "2026-05-22 15:45:20",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Thank you for the vote of confidence, Leticia! It means a lot coming from someone who knows me so well. I'm doing my best to understand and respond thoughtfully based on our conversation. Let's keep exploring topics together - what would you like to talk about next? 🙂",
+      "timestamp": "2026-05-22 15:45:22"
+    },
+    {
+      "role": "user",
+      "content": "I don't know, probably you could give me more context.",
+      "timestamp": "2026-05-22 15:45:40",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's words express uncertainty and a request for more context, which is emotionally mild."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=39%, neutral=33%, sad=15%); samples=25",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 12.368632875398035,
+          "disgust": 0.001957292562913451,
+          "fear": 0.3745406311624311,
+          "happy": 39.44445982199162,
+          "sad": 15.139023986737602,
+          "surprise": 0.0071687994724345915,
+          "neutral": 32.66421765011692
+        },
+        "frame_count": 175,
+        "sampled_frame_count": 25,
+        "started_at": "2026-05-22 15:45:31",
+        "ended_at": "2026-05-22 15:45:37",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "No worries if we haven't established a specific topic yet! I can certainly provide some general information or ask follow-up questions to help us get started. the robot, my purpose is to assist and have conversations with users like yourself. If there's something on your mind that you'd like to discuss or explore, feel free to share it – no pressure! If not, I can suggest a few topics we could cover together: studying tips for exams, writing strategies, thesis structure ideas... Or if none of those resonate, maybe we could play 20 Questions? 🙂",
+      "timestamp": "2026-05-22 15:45:40"
+    },
+    {
+      "role": "user",
+      "content": "Okay, let's go.",
+      "timestamp": "2026-05-22 15:45:59",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user is expressing enthusiasm and willingness to start an activity."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=62%, angry=35%, neutral=2%); samples=9",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 34.63223323557112,
+          "disgust": 0.0009866045627318076,
+          "fear": 0.021387728873782583,
+          "happy": 62.11299470894866,
+          "sad": 1.1014556566046343,
+          "surprise": 0.0012671315696665994,
+          "neutral": 2.1296740200551643
+        },
+        "frame_count": 68,
+        "sampled_frame_count": 9,
+        "started_at": "2026-05-22 15:45:54",
+        "ended_at": "2026-05-22 15:45:57",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Let's start playing 20 Questions! I'll think of an object, and you try to guess what it is by asking me up to 20 yes-or-no questions. To make things more interesting, I'll give you a hint: the object is something that you might find in a typical household or office setting. 😊",
+      "timestamp": "2026-05-22 15:45:59"
+    },
+    {
+      "role": "user",
+      "content": "Okay, what did you use it for?",
+      "timestamp": "2026-05-22 15:46:30",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's text is a factual question, and the facial-expression hint is mixed, which supports a neutral classification."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=50%, neutral=22%, sad=16%); samples=25",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 11.075018566846847,
+          "disgust": 0.017101167548267567,
+          "fear": 1.2274706491662801,
+          "happy": 49.708510687198725,
+          "sad": 15.90021695315838,
+          "surprise": 0.08222914204463222,
+          "neutral": 21.989455211907625
+        },
+        "frame_count": 170,
+        "sampled_frame_count": 25,
+        "started_at": "2026-05-22 15:46:21",
+        "ended_at": "2026-05-22 15:46:27",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Good first question! The answer is: No specific purpose - this object doesn't have any particular function or utility. You've used 1 out of your remaining 19 questions! What's the next one? 🙂",
+      "timestamp": "2026-05-22 15:46:30"
+    },
+    {
+      "role": "user",
+      "content": "but every item in the office or has hood sales repurpose.",
+      "timestamp": "2026-05-22 15:47:11",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's text is factual and does not convey a strong emotional tone, despite the facial-expression hint suggesting sadness or anger."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=51%, neutral=22%, angry=16%); samples=24",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 16.11589618155267,
+          "disgust": 0.00620078407998616,
+          "fear": 2.0466868599935424,
+          "happy": 9.171388809733799,
+          "sad": 51.09305634582415,
+          "surprise": 0.005228900076299878,
+          "neutral": 21.561543735365074
+        },
+        "frame_count": 169,
+        "sampled_frame_count": 24,
+        "started_at": "2026-05-22 15:47:02",
+        "ended_at": "2026-05-22 15:47:09",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "You're right, many objects can be repurposed for different uses! The answer is: Yes, this object could potentially have multiple uses beyond its original intended purpose. You've used 2 out of your remaining 18 questions! What's next? 🙂",
+      "timestamp": "2026-05-22 15:47:11"
+    },
+    {
+      "role": "user",
+      "content": "Is it useful eating?",
+      "timestamp": "2026-05-22 15:47:57",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user is asking a factual question, and the facial expression hint suggests happiness, but it's not strong enough to override the neutral tone of the question."
+      },
+      "facial_emotion_hint": "dominant=happy; averaged_scores=(happy=89%, sad=10%); samples=11",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 1.262910024982623,
+          "disgust": 0.007795146461076415,
+          "fear": 0.0007980280985939523,
+          "happy": 88.53635926680131,
+          "sad": 9.506974263624711,
+          "surprise": 0.0029254210830810157,
+          "neutral": 0.6822382337413728
+        },
+        "frame_count": 79,
+        "sampled_frame_count": 11,
+        "started_at": "2026-05-22 15:47:51",
+        "ended_at": "2026-05-22 15:47:54",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "A creative question! The answer is: No, this object isn't typically considered edible or suitable for consumption in any way. You're using up some of those precious questions - you've got 17 left! 🙂",
+      "timestamp": "2026-05-22 15:47:57"
+    },
+    {
+      "role": "user",
+      "content": "Is it used when we help a visitor?",
+      "timestamp": "2026-05-22 15:48:18",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's text is a factual question, and the facial-expression hint is mixed, which supports a neutral emotional state."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=63%, sad=15%, neutral=13%); samples=17",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 8.736358045312741,
+          "disgust": 0.004552667039943718,
+          "fear": 0.10121713574554793,
+          "happy": 63.17139531681417,
+          "sad": 15.399820496054257,
+          "surprise": 0.040049039269908514,
+          "neutral": 12.54660979417317
+        },
+        "frame_count": 127,
+        "sampled_frame_count": 17,
+        "started_at": "2026-05-22 15:48:11",
+        "ended_at": "2026-05-22 15:48:15",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Another great question! I'm designed to assist and provide helpful information to visitors, so the answer is: Yes, this object can be useful in helping someone who's visiting our university laboratory. You've got 16 questions left - what's next? 🙂",
+      "timestamp": "2026-05-22 15:48:18"
+    },
+    {
+      "role": "user",
+      "content": "Is it a computer?",
+      "timestamp": "2026-05-22 15:48:39",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's text is a factual question, and the facial-expression hint is mixed, which suggests no strong emotional tone."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=60%, sad=18%, angry=11%); samples=12",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 11.201624164978663,
+          "disgust": 0.0032428482382821735,
+          "fear": 0.05529943623575188,
+          "happy": 60.47221774012238,
+          "sad": 17.781536380449932,
+          "surprise": 0.0033610419971713177,
+          "neutral": 10.482720678051313
+        },
+        "frame_count": 97,
+        "sampled_frame_count": 12,
+        "started_at": "2026-05-22 15:48:32",
+        "ended_at": "2026-05-22 15:48:36",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "A good guess! The answer is: No, I'm not a traditional computer. While I do process and analyze information like computers can, my primary function is to assist with conversations and provide helpful responses the humanoid robot. You've got 15 questions left - keep going! 🙂",
+      "timestamp": "2026-05-22 15:48:39"
+    },
+    {
+      "role": "user",
+      "content": "Is it a robot?",
+      "timestamp": "2026-05-22 15:49:04",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user is asking a factual question, and the facial-expression hint suggests happiness, but it's not strong enough to override the neutral tone of the question."
+      },
+      "facial_emotion_hint": "dominant=happy; averaged_scores=(happy=89%, angry=6%); samples=9",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 5.797130876117283,
+          "disgust": 0.000898033651537844,
+          "fear": 0.0017920990132754217,
+          "happy": 89.08833821614583,
+          "sad": 3.7039899428685508,
+          "surprise": 0.002060553025835866,
+          "neutral": 1.4057912206691172
+        },
+        "frame_count": 69,
+        "sampled_frame_count": 9,
+        "started_at": "2026-05-22 15:48:59",
+        "ended_at": "2026-05-22 15:49:01",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "You're getting close! The answer is: Yes, you are speaking directly to me, Ameca, which is indeed a robot designed for research and demonstrations in this university laboratory. Good job guessing! You've got 14 questions left - what's next? 🙂",
+      "timestamp": "2026-05-22 15:49:04"
+    },
+    {
+      "role": "user",
+      "content": "Can you give me another tip that could help me?",
+      "timestamp": "2026-05-22 15:49:25",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user is asking for help in a polite and non-emotional way, with a mixed facial expression that doesn't strongly suggest any particular emotion."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=33%, happy=28%, neutral=26%); samples=17",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 11.87174389379866,
+          "disgust": 0.029537903771008987,
+          "fear": 0.44157293151382715,
+          "happy": 28.46214986587053,
+          "sad": 33.44073571878321,
+          "surprise": 0.025699041571522897,
+          "neutral": 25.728560711531077
+        },
+        "frame_count": 126,
+        "sampled_frame_count": 17,
+        "started_at": "2026-05-22 15:49:17",
+        "ended_at": "2026-05-22 15:49:22",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Here's an additional hint: As I'm helping with conversations, it might be helpful to think about the topic or subject we're discussing. This can help us stay focused and ensure our conversation stays on track! You've got 13 questions left - what do you want to talk about next? 🙂",
+      "timestamp": "2026-05-22 15:49:25"
+    },
+    {
+      "role": "user",
+      "content": "but I still need some tip to know what you're talking about.",
+      "timestamp": "2026-05-22 15:50:06",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user is seeking clarification, but the tone is not strongly positive or negative."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=53%, sad=32%, neutral=10%); samples=27",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 4.774105293184726,
+          "disgust": 0.002481336588446872,
+          "fear": 0.30599891823916214,
+          "happy": 52.77018251132082,
+          "sad": 32.39002689388063,
+          "surprise": 0.030402247425930236,
+          "neutral": 9.726803175432401
+        },
+        "frame_count": 190,
+        "sampled_frame_count": 27,
+        "started_at": "2026-05-22 15:49:57",
+        "ended_at": "2026-05-22 15:50:04",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "I see where the confusion lies! Let me give it another try: Think of a topic or subject that interests you, like your favorite hobby, TV show, movie, book, or even something at work or school. This can help us get started and have more meaningful conversations! You've got 12 questions left - what's on your mind? 🙂",
+      "timestamp": "2026-05-22 15:50:06"
+    },
+    {
+      "role": "user",
+      "content": "Okay, tell me what the object is.",
+      "timestamp": "2026-05-22 15:50:25",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's text is a factual request, and the facial-expression hint is mixed with no clear dominant emotion."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=45%, angry=44%, neutral=7%); samples=15",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 44.00728646318118,
+          "disgust": 8.43069104051288e-05,
+          "fear": 0.001780533576715726,
+          "happy": 44.687011591593425,
+          "sad": 4.708852765274544,
+          "surprise": 0.0002470591196991326,
+          "neutral": 6.5947367888530914
+        },
+        "frame_count": 113,
+        "sampled_frame_count": 15,
+        "started_at": "2026-05-22 15:50:19",
+        "ended_at": "2026-05-22 15:50:23",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "I am a humanoid upper-torso robot approximately 187 cm tall and about 49 kg in weight. 🙂",
+      "timestamp": "2026-05-22 15:50:25"
+    },
+    {
+      "role": "user",
+      "content": "You're crazy",
+      "timestamp": "2026-05-22 15:50:38",
+      "emotion": {
+        "emotion": "anger",
+        "confidence": 0.9,
+        "reason": "The user's words are strongly negative and aggressive, indicating anger."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=68%, angry=21%, sad=8%); samples=12",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 21.248307475383626,
+          "disgust": 0.00028812482819827917,
+          "fear": 0.020924963387883633,
+          "happy": 67.68494221568108,
+          "sad": 7.5357771011379855,
+          "surprise": 0.0028878037843390082,
+          "neutral": 3.5068740383307877
+        },
+        "frame_count": 91,
+        "sampled_frame_count": 12,
+        "started_at": "2026-05-22 15:50:32",
+        "ended_at": "2026-05-22 15:50:36",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "ameca",
+      "content": "Ha ha! I think there might be some misunderstanding here! As your friendly assistant, my purpose is to help you with conversations, provide explanations, brainstorm ideas, write feedback, study guidance, thesis-structure support, and more. Let's focus on having a helpful conversation instead of getting too carried away! 😠",
+      "timestamp": "2026-05-22 15:50:38"
+    }
+  ]
+}

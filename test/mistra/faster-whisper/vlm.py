@@ -178,7 +178,7 @@ CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
 CAMERA_SAMPLE_EVERY_SECONDS = 1.0
 CAMERA_WARMUP_SECONDS = 0.35
 
-VISION_MODEL_NAME = "llama3.2-vision:11b"
+VISION_MODEL_NAME = "qwen2.5vl:7b"
 VISION_IMAGE_JPEG_QUALITY = 85
 
 # Prevent the live audio/VAD loop from hanging if the remote VLM host is slow.

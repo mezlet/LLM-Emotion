@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import random
 import re
 import sys
 import tempfile
@@ -12,7 +13,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Tuple
-from collections import Counter
 
 # Linux-only Qt fix. Do not force this on macOS.
 if sys.platform.startswith("linux"):
@@ -20,6 +20,11 @@ if sys.platform.startswith("linux"):
 
 # Harmless on non-Windows; prevents some OpenCV backend priority issues on Windows.
 os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
+
+# Reduce TensorFlow/DeepFace GPU memory pressure.
+# This is important because faster-whisper also needs GPU memory.
+os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")
+os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
 
 import cv2
 import numpy as np
@@ -30,17 +35,23 @@ from deepface import DeepFace
 from faster_whisper import WhisperModel
 from ollama import Client
 from silero_vad import load_silero_vad, VADIterator
+import platform
 
+IS_MAC = platform.system() == "Darwin"
+IS_LINUX = platform.system() == "Linux"
+
+CAMERA_DEVICE = 0 if IS_MAC else 1
+USE_ZED_HALF_FRAME_CROP = IS_LINUX
 
 # =========================
 # Local Ollama configuration
 # =========================
 
-# OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://sunday-spread-colony-gnome.trycloudflare.com"
+OLLAMA_HOST = "http://127.0.0.1:11434"
+# OLLAMA_HOST = "https://sunday-spread-colony-gnome.trycloudflare.com"
 
-# MODEL_NAME = "llama3:8b"
-MODEL_NAME = "mistral:7b"
+MODEL_NAME = "llama3:8b"
+# MODEL_NAME = "mistral:7b"
 
 
 # =========================
@@ -54,23 +65,6 @@ SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
 # Keep this False for fast, clean shutdown.
 # If True, the app will call Ollama at shutdown to summarize the session.
 ENABLE_LLM_SESSION_SUMMARY = False
-
-
-# =========================
-# Self-RAG configuration
-# =========================
-
-# Self-RAG = the assistant first decides whether local retrieval is useful,
-# retrieves relevant memories from saved transcripts, then decides whether the
-# retrieved context is useful enough to include in the final answer.
-ENABLE_SELF_RAG = True
-SELF_RAG_MAX_RESULTS = 5
-SELF_RAG_MAX_CONTEXT_CHARS = 1800
-SELF_RAG_MIN_SCORE = 0.08
-
-# Retrieval is local-only. It reads JSON files from conversation_data/sessions.
-# Nothing is sent to an external vector database.
-SELF_RAG_RETRIEVAL_SOURCES = [SESSIONS_DIR]
 
 
 # =========================
@@ -122,14 +116,21 @@ Do not mislead users about your capabilities or limitations.
 # =========================
 
 FAST_WHISPER_CONFIG = {
-    "profile": "home_macbook_cpu",
-    "model": "small",
-    "device": "cpu",
-    "compute_type": "int8",
+    # Safer default for the lab GPU: large-v3 + DeepFace can exhaust CUDA memory.
+    # You can override with environment variables, for example:
+    #   AMECA_WHISPER_MODEL=large-v3 AMECA_WHISPER_DEVICE=cuda python deep3.py
+    "profile": "safe_gpu_with_cpu_fallback",
+    "model": os.environ.get("AMECA_WHISPER_MODEL", "small"),
+    "device": os.environ.get("AMECA_WHISPER_DEVICE", "cuda" if torch.cuda.is_available() else "cpu"),
+    "compute_type": os.environ.get("AMECA_WHISPER_COMPUTE", "float16" if torch.cuda.is_available() else "int8"),
     "language": "en",
     "beam_size": 1,
     "vad_filter": False,
 }
+
+# If CUDA runs out of memory during transcription, switch to CPU/int8 instead of crashing.
+ENABLE_WHISPER_CPU_FALLBACK_ON_OOM = True
+WHISPER_CPU_FALLBACK_MODEL = os.environ.get("AMECA_WHISPER_CPU_FALLBACK_MODEL", "small")
 
 # SCHOOL / GPU CONFIG
 # FAST_WHISPER_CONFIG = {
@@ -158,11 +159,11 @@ SILERO_CHUNK_SIZE = 512
 SILERO_THRESHOLD = 0.55
 
 # Silero internal timing. These are in milliseconds.
-SILERO_MIN_SILENCE_DURATION_MS = 700
+SILERO_MIN_SILENCE_DURATION_MS = 1200
 SILERO_SPEECH_PAD_MS = 250
 
 # Extra utterance controls.
-VAD_MAX_UTTERANCE_SECONDS = 15.0
+VAD_MAX_UTTERANCE_SECONDS = 30.0
 VAD_MIN_UTTERANCE_SECONDS = 0.60
 VAD_PRE_ROLL_SECONDS = 0.35
 
@@ -174,23 +175,40 @@ MIN_RMS_THRESHOLD = 0.003
 # Camera / DeepFace configuration
 # =========================
 
-CAMERA_DEVICE: Optional[int] = None
-CAMERA_FRAME_WIDTH = 320
-CAMERA_FRAME_HEIGHT = 240
+# =========================
+# Camera / DeepFace configuration
+# =========================
+
+CAMERA_DEVICE: Optional[int] = 0 if IS_LINUX else 0
+
+# ZED stereo frame is side-by-side.
+# 2560x720 means each eye becomes 1280x720 after cropping.
+ZED_STEREO_WIDTH = 2560
+ZED_STEREO_HEIGHT = 720
+
+CAMERA_FRAME_WIDTH = ZED_STEREO_WIDTH if IS_LINUX else 1280
+CAMERA_FRAME_HEIGHT = ZED_STEREO_HEIGHT if IS_LINUX else 720
+
+CAMERA_PREVIEW_WIDTH = 960
+CAMERA_PREVIEW_HEIGHT = 540
+
 CAMERA_PREVIEW_ENABLED = True
 CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
 
-# DeepFace is sampled during the detected speech window, not while waiting for speech.
-CAMERA_SAMPLE_EVERY_SECONDS = 1.0
-CAMERA_WARMUP_SECONDS = 0.35
+USE_ZED_HALF_FRAME_CROP = IS_LINUX
 
-DEEPFACE_DETECTOR_BACKEND = "opencv"
+# DeepFace is sampled during the detected speech window, not while waiting for speech.
+CAMERA_SAMPLE_EVERY_SECONDS = 0.2
+CAMERA_WARMUP_SECONDS = 1.0
+
+# DEEPFACE_DETECTOR_BACKEND = "opencv"
+DEEPFACE_DETECTOR_BACKEND = "retinaface"
 DEEPFACE_ACTIONS = ["emotion"]
 DEEPFACE_ALIGN = True
 
 # Reliability filter. DeepFace emotion scores are percentages.
-FACE_MIN_TOP_SCORE = 45.0
-FACE_MIN_MARGIN = 15.0
+FACE_MIN_TOP_SCORE = 70.0
+FACE_MIN_MARGIN = 25.0
 
 
 # =========================
@@ -208,9 +226,62 @@ PLUTCHIK_EMOTIONS = {
     "disgust": "🤢",
     "anger": "😠",
     "anticipation": "🤔",
+    "neutral": "🙂",
 }
 
 ALLOWED_FACE_EMOJIS = set(PLUTCHIK_EMOTIONS.values())
+
+
+# =========================
+# Conversation turn-taking feedback
+# =========================
+
+class ConversationState:
+    IDLE = "idle"
+    LISTENING = "listening"
+    RECORDING = "recording"
+    PROCESSING = "processing"
+    SPEAKING = "speaking"
+
+
+CURRENT_CONVERSATION_STATE = ConversationState.IDLE
+
+
+def set_conversation_state(state: str, message: Optional[str] = None) -> None:
+    """
+    Update the visible conversation state.
+
+    This is intentionally simple because the prototype uses terminal output
+    and an OpenCV preview window rather than a full robot behavior controller.
+    """
+    global CURRENT_CONVERSATION_STATE
+    CURRENT_CONVERSATION_STATE = state
+
+    if message:
+        print_ts(message)
+
+
+def hand_turn_back_to_user() -> None:
+    """Give a non-spoken terminal cue that the user may speak.
+
+    In normal conversation, Ameca should not repeatedly say things like
+    "I am listening", "I am processing", or "Your turn". The spoken
+    response itself hands the turn back. This function only prints a simple
+    terminal prompt for the operator/user.
+    """
+    set_conversation_state(ConversationState.LISTENING)
+    print()
+    print("You:")
+
+def state_display_text() -> str:
+    labels = {
+        ConversationState.IDLE: "State: Waiting",
+        ConversationState.LISTENING: "State: Listening - you may speak",
+        ConversationState.RECORDING: "State: Recording speech",
+        ConversationState.PROCESSING: "State: Processing",
+        ConversationState.SPEAKING: "State: Speaking",
+    }
+    return labels.get(CURRENT_CONVERSATION_STATE, f"State: {CURRENT_CONVERSATION_STATE}")
 
 
 @dataclass
@@ -306,27 +377,6 @@ class FaceEmotionCapture:
         }
 
 
-@dataclass
-class RetrievedMemory:
-    score: float
-    text: str
-    source_file: str
-    timestamp: Optional[str] = None
-    role: Optional[str] = None
-
-
-@dataclass
-class SelfRAGDecision:
-    retrieve: bool
-    reason: str
-
-
-@dataclass
-class SelfRAGEvaluation:
-    useful: bool
-    reason: str
-
-
 # =========================
 # Timestamp helpers
 # =========================
@@ -357,10 +407,6 @@ def default_face_emotion_json() -> dict:
         "started_at": None,
         "ended_at": None,
         "error": "No face emotion capture was provided.",
-        "note": (
-            "Facial expression analysis is unavailable. "
-            "Use only text-based emotion context."
-        ),
     }
 
 
@@ -451,6 +497,67 @@ def clean_spelled_name(text: str) -> Optional[str]:
         return "".join(letters).title()
 
     return None
+
+
+def normalized_name_similarity(left: str, right: str) -> float:
+    """Return a simple similarity score between two names, without extra dependencies."""
+    left = re.sub(r"[^a-z]", "", left.lower())
+    right = re.sub(r"[^a-z]", "", right.lower())
+
+    if not left or not right:
+        return 0.0
+
+    # Dynamic-programming Levenshtein distance.
+    previous = list(range(len(right) + 1))
+    for i, c1 in enumerate(left, start=1):
+        current = [i]
+        for j, c2 in enumerate(right, start=1):
+            insert_cost = current[j - 1] + 1
+            delete_cost = previous[j] + 1
+            replace_cost = previous[j - 1] + (c1 != c2)
+            current.append(min(insert_cost, delete_cost, replace_cost))
+        previous = current
+
+    distance = previous[-1]
+    longest = max(len(left), len(right))
+    return 1.0 - (distance / longest)
+
+
+def choose_best_name(spoken_name: str, spelled_name: Optional[str]) -> str:
+    """
+    Pick a stable display name after the introduction phase.
+
+    Why:
+    - Whisper can mishear a clearly spoken name as "Let it show".
+    - It can also mishear one letter during spelling, e.g. "L E T I C I E" -> "Leticie".
+    - If the spoken introduction was explicit and the spelled result is close, prefer the spoken name.
+    - If the spoken result looks invalid, prefer the spelled name.
+    """
+    spoken_name = clean_spoken_name(spoken_name or "")
+
+    if not spelled_name:
+        return spoken_name if spoken_name and not looks_like_invalid_name(spoken_name) else "Guest"
+
+    if not spoken_name or looks_like_invalid_name(spoken_name):
+        return spelled_name
+
+    similarity = normalized_name_similarity(spoken_name, spelled_name)
+
+    # If both are almost the same, prefer the normal spoken form.
+    # Example: spoken="Leticia", spelled="Leticie" -> choose "Leticia".
+    if similarity >= 0.75:
+        print_ts(
+            f"Spoken name '{spoken_name}' and spelled name '{spelled_name}' are close; "
+            f"using spoken name '{spoken_name}'."
+        )
+        return spoken_name
+
+    # If they are very different, the spoken ASR was probably wrong.
+    print_ts(
+        f"Spoken name '{spoken_name}' and spelled name '{spelled_name}' differ; "
+        f"using spelled name '{spelled_name}'."
+    )
+    return spelled_name
 
 
 def extract_name_from_text(text: str) -> Optional[str]:
@@ -717,36 +824,25 @@ def update_user_after_session(
 # Ollama setup helpers
 # =========================
 
-def check_ollama_available() -> None:
-    try:
-        client = Client(host=OLLAMA_HOST)
-        client.list()
-    except Exception as exc:
-        raise RuntimeError(
-            "Could not connect to Ollama.\n"
-            "Make sure the server is running with: ollama serve"
-        ) from exc
+def check_ollama_available(max_attempts: int = 10, delay_seconds: float = 1.0) -> None:
+    client = Client(host=OLLAMA_HOST)
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            client.list()
+            print_ts(f"Ollama is reachable at {OLLAMA_HOST}.")
+            return
+        except Exception as exc:
+            print_ts(f"Ollama not reachable yet, attempt {attempt}/{max_attempts}: {exc}")
+            time.sleep(delay_seconds)
+
+    raise RuntimeError(
+        f"Could not connect to Ollama at {OLLAMA_HOST} after {max_attempts} attempts."
+    )
 
 
 def ensure_model_available(model_name: str = MODEL_NAME) -> None:
-    if not OLLAMA_HOST.startswith("http://127.0.0.1") and not OLLAMA_HOST.startswith("http://localhost"):
-        print(f"Skipping local Ollama CLI check for remote host. Using model: {model_name}")
-        return
-
-    try:
-        result = subprocess.run(
-            ["ollama", "list"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if model_name not in result.stdout:
-            print_ts(f"Model {model_name} not found locally. Pulling it now...")
-            subprocess.run(["ollama", "pull", model_name], check=True)
-
-    except FileNotFoundError:
-        raise RuntimeError("Ollama CLI was not found. Install Ollama first.")
+    print_ts(f"Using Ollama model '{model_name}' from {OLLAMA_HOST}. Skipping local pull.")
 
 
 # =========================
@@ -835,15 +931,97 @@ def save_audio_to_temp_wav(audio_16k: np.ndarray) -> Optional[str]:
     return wav_path
 
 
-def transcribe_with_faster_whisper(wav_path: str, whisper_model: WhisperModel) -> str:
+class SafeWhisperTranscriber:
     """
-    Transcribe one utterance using faster-whisper.
+    Small wrapper around faster-whisper.
+    - DeepFace/TensorFlow and faster-whisper can compete for CUDA memory.
+    - If CUDA runs out of memory, the old script crashed and saved the session early.
+    - This wrapper catches CUDA OOM, releases CUDA cache, loads a CPU/int8 model,
+      and continues the conversation.
+    """
 
-    Notes:
-    - Silero VAD has already cut the microphone stream into utterances, so
-      FAST_WHISPER_CONFIG["vad_filter"] is False by default.
-    - beam_size=1 is usually faster for real-time conversation.
-    """
+    def __init__(self, config: dict) -> None:
+        self.config = dict(config)
+        self.model: Optional[WhisperModel] = None
+        self.load_model(self.config)
+
+    def load_model(self, config: dict) -> None:
+        self.config = dict(config)
+        print_ts(
+            "Loading faster-whisper model "
+            f"{self.config['model']} on {self.config['device']} "
+            f"with compute_type={self.config['compute_type']}..."
+        )
+        self.model = WhisperModel(
+            self.config["model"],
+            device=self.config["device"],
+            compute_type=self.config["compute_type"],
+        )
+        print_ts(
+            "faster-whisper ready: "
+            f"model={self.config['model']}, "
+            f"device={self.config['device']}, "
+            f"compute_type={self.config['compute_type']}"
+        )
+
+    def switch_to_cpu_fallback(self) -> None:
+        if not ENABLE_WHISPER_CPU_FALLBACK_ON_OOM:
+            raise RuntimeError("Whisper CUDA OOM and CPU fallback is disabled.")
+
+        print_ts(
+            "Whisper CUDA ran out of memory. "
+            "Switching faster-whisper to CPU/int8 so the conversation can continue."
+        )
+
+        try:
+            self.model = None
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+        except Exception:
+            pass
+
+        fallback_config = dict(self.config)
+        fallback_config["model"] = WHISPER_CPU_FALLBACK_MODEL
+        fallback_config["device"] = "cpu"
+        fallback_config["compute_type"] = "int8"
+        self.load_model(fallback_config)
+
+    def transcribe_text(self, wav_path: str) -> str:
+        if self.model is None:
+            self.load_model(self.config)
+
+        try:
+            segments, info = self.model.transcribe(
+                wav_path,
+                language=self.config.get("language"),
+                beam_size=int(self.config.get("beam_size", 1)),
+                vad_filter=bool(self.config.get("vad_filter", False)),
+                condition_on_previous_text=False,
+            )
+            text = " ".join(segment.text.strip() for segment in segments).strip()
+
+        except RuntimeError as exc:
+            message = str(exc).lower()
+            is_cuda_oom = "cuda" in message and ("out of memory" in message or "memory" in message)
+            if not is_cuda_oom or self.config.get("device") == "cpu":
+                raise
+            self.switch_to_cpu_fallback()
+            return self.transcribe_text(wav_path)
+
+        text = re.sub(r"\s+", " ", text).strip()
+
+        if len(text.split()) <= 1 and len(text) < 3:
+            return ""
+
+        return text
+
+
+def transcribe_with_faster_whisper(wav_path: str, whisper_model) -> str:
+    """Transcribe one utterance using SafeWhisperTranscriber or raw WhisperModel."""
+    if hasattr(whisper_model, "transcribe_text"):
+        return whisper_model.transcribe_text(wav_path)
+
     segments, info = whisper_model.transcribe(
         wav_path,
         language=FAST_WHISPER_CONFIG.get("language"),
@@ -860,7 +1038,6 @@ def transcribe_with_faster_whisper(wav_path: str, whisper_model: WhisperModel) -
 
     return text
 
-
 # Backwards-compatible alias so the rest of the script stays readable.
 transcribe_audio = transcribe_with_faster_whisper
 
@@ -868,6 +1045,16 @@ transcribe_audio = transcribe_with_faster_whisper
 # =========================
 # Camera / DeepFace helpers
 # =========================
+
+def normalize_camera_frame(frame: np.ndarray) -> np.ndarray:
+    if USE_ZED_HALF_FRAME_CROP:
+        height, width = frame.shape[:2]
+
+        # ZED gives left + right images side by side.
+        # Keep only the left camera image.
+        frame = frame[:, : width // 2]
+
+    return frame
 
 def get_camera_backend() -> int:
     if sys.platform == "darwin":
@@ -879,15 +1066,51 @@ def get_camera_backend() -> int:
     return cv2.CAP_ANY
 
 
-def open_camera(camera_device: Optional[int]) -> cv2.VideoCapture:
-    camera_index = 0 if camera_device is None else camera_device
-    cap = cv2.VideoCapture(camera_index, get_camera_backend())
 
-    if cap.isOpened():
+def open_camera(camera_device: Optional[int]) -> cv2.VideoCapture:
+    candidates = []
+
+    if camera_device is not None:
+        candidates.append(camera_device)
+
+    candidates.extend([0, 1, 2, 3])
+
+    seen = set()
+
+    for camera_index in candidates:
+        if camera_index in seen:
+            continue
+
+        seen.add(camera_index)
+
+        cap = cv2.VideoCapture(camera_index, get_camera_backend())
+
+        if not cap.isOpened():
+            cap.release()
+            continue
+
+        # MJPG is important for high-resolution ZED over USB.
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_FRAME_WIDTH)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_FRAME_HEIGHT)
+        cap.set(cv2.CAP_PROP_FPS, 30)
 
-    return cap
+        time.sleep(0.2)
+
+        ok, frame = cap.read()
+
+        if ok and frame is not None:
+            actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            print_ts(
+                f"Using camera device /dev/video{camera_index} "
+                f"at {actual_width}x{actual_height}"
+            )
+            return cap
+
+        cap.release()
+
+    return cv2.VideoCapture(-1)
 
 
 def list_camera_devices(max_indices: int = 6) -> None:
@@ -901,8 +1124,8 @@ def list_camera_devices(max_indices: int = 6) -> None:
                 continue
 
             ok, frame = cap.read()
-            if not ok or frame is None:
-                continue
+            if ok and frame is not None:
+                frame = normalize_camera_frame(frame)
 
             found = True
             width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -983,6 +1206,8 @@ class FaceEmotionSampler:
         if not ok or frame is None:
             return
 
+        frame = normalize_camera_frame(frame)
+
         self.frame_count += 1
         now = time.time()
         elapsed = now - self.capture_start_time
@@ -1010,7 +1235,20 @@ class FaceEmotionSampler:
                     2,
                     cv2.LINE_AA,
                 )
-                preview_frame = cv2.resize(preview_frame, (640, 480))
+                cv2.putText(
+                    preview_frame,
+                    state_display_text(),
+                    (20, 105),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+                preview_frame = cv2.resize(
+                    preview_frame,
+                    (CAMERA_PREVIEW_WIDTH, CAMERA_PREVIEW_HEIGHT),
+                )
                 cv2.imshow(CAMERA_PREVIEW_WINDOW_NAME, preview_frame)
                 cv2.waitKey(1)
             except Exception as exc:
@@ -1065,6 +1303,7 @@ def listen_for_utterance_with_silero_vad(
     input_device: Optional[int],
     silero_model,
     prompt_label: str = "utterance",
+    announce_feedback: bool = False,
 ) -> Optional[str]:
     input_sample_rate = get_input_samplerate(input_device)
     input_block_size = max(1, int(input_sample_rate * 0.05))
@@ -1089,12 +1328,15 @@ def listen_for_utterance_with_silero_vad(
     def audio_callback(indata, frames, callback_time, status) -> None:
         audio_queue.put(indata[:, 0].copy())
 
-    print_ts(f"Listening automatically for {prompt_label}. Speak when ready. Press Ctrl+C to quit.")
-    print_ts(
-        f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
-        f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
-        f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
-    )
+    if announce_feedback:
+        set_conversation_state(ConversationState.LISTENING, f"Ameca: I am listening for {prompt_label}. Speak when you are ready. Press Ctrl+C to quit.")
+    else:
+        set_conversation_state(ConversationState.LISTENING)
+    #print_ts(
+    #    f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
+    #    f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
+    #    f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
+    #)
 
     try:
         sd.check_input_settings(
@@ -1151,18 +1393,27 @@ def listen_for_utterance_with_silero_vad(
                             pre_roll_chunks.clear()
 
                             print()
-                            print_ts("Speech detected. Recording utterance...")
+                            if announce_feedback:
+                                set_conversation_state(ConversationState.RECORDING, "Ameca: I hear you. Recording your speech...")
+                            else:
+                                set_conversation_state(ConversationState.RECORDING)
 
                         if "end" in speech_event and is_recording:
                             utterance_duration = now - (speech_started_at or now)
 
                             if utterance_duration >= VAD_MIN_UTTERANCE_SECONDS:
-                                print_ts("Speech ended. Processing utterance...")
+                                if announce_feedback:
+                                    set_conversation_state(ConversationState.PROCESSING, "Ameca: Thanks. I am processing what you said...")
+                                else:
+                                    set_conversation_state(ConversationState.PROCESSING)
                                 raise StopIteration
 
                     if is_recording and speech_started_at is not None:
                         if now - speech_started_at >= VAD_MAX_UTTERANCE_SECONDS:
-                            print_ts("Maximum utterance length reached. Processing utterance...")
+                            if announce_feedback:
+                                set_conversation_state(ConversationState.PROCESSING, "Ameca: I reached the maximum speaking time, so I am processing what I heard...")
+                            else:
+                                set_conversation_state(ConversationState.PROCESSING)
                             raise StopIteration
 
     except StopIteration:
@@ -1190,6 +1441,7 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
     silero_model,
     camera_device: Optional[int] = CAMERA_DEVICE,
     prompt_label: str = "utterance",
+    announce_feedback: bool = False,
 ) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
     input_sample_rate = get_input_samplerate(input_device)
     input_block_size = max(1, int(input_sample_rate * 0.05))
@@ -1216,12 +1468,15 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
     def audio_callback(indata, frames, callback_time, status) -> None:
         audio_queue.put(indata[:, 0].copy())
 
-    print_ts(f"Listening automatically for {prompt_label}. Speak when ready. Press Ctrl+C to quit.")
-    print_ts(
-        f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
-        f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
-        f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
-    )
+    if announce_feedback:
+        set_conversation_state(ConversationState.LISTENING, f"Ameca: I am listening for {prompt_label}. Speak when you are ready. Press Ctrl+C to quit.")
+        print_ts(
+            f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
+            f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
+            f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
+        )
+    else:
+        set_conversation_state(ConversationState.LISTENING)
 
     try:
         sd.check_input_settings(
@@ -1282,7 +1537,10 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             pre_roll_chunks.clear()
 
                             print()
-                            print_ts("Speech detected. Recording utterance and sampling facial expression...")
+                            if announce_feedback:
+                                set_conversation_state(ConversationState.RECORDING, "Ameca: I hear you. Recording your speech and watching the conversation cues...")
+                            else:
+                                set_conversation_state(ConversationState.RECORDING)
 
                             face_sampler = FaceEmotionSampler(camera_device=camera_device)
                             face_sampler.start()
@@ -1292,12 +1550,18 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             utterance_duration = now - (speech_started_at or now)
 
                             if utterance_duration >= VAD_MIN_UTTERANCE_SECONDS:
-                                print_ts("Speech ended. Processing utterance...")
+                                if announce_feedback:
+                                    set_conversation_state(ConversationState.PROCESSING, "Ameca: Thanks. I am processing what you said...")
+                                else:
+                                    set_conversation_state(ConversationState.PROCESSING)
                                 raise StopIteration
 
                     if is_recording and speech_started_at is not None:
                         if now - speech_started_at >= VAD_MAX_UTTERANCE_SECONDS:
-                            print_ts("Maximum utterance length reached. Processing utterance...")
+                            if announce_feedback:
+                                set_conversation_state(ConversationState.PROCESSING, "Ameca: I reached the maximum speaking time, so I am processing what I heard...")
+                            else:
+                                set_conversation_state(ConversationState.PROCESSING)
                             raise StopIteration
 
     except StopIteration:
@@ -1368,9 +1632,10 @@ def generate_introduction_response(
 
         Your task:
         - greet the user naturally
-        - introduce yourself naturally as Ameca
+        - acknowledge the user's name naturally
+        - do not introduce yourself again
         - keep it warm and concise
-        - keep the response to 1-2 short sentences
+        - keep the response to 1 short sentence
         - mention the user's name
         - end with exactly one friendly facial emoji
         - only use this emoji: 🙂
@@ -1407,7 +1672,7 @@ def generate_introduction_response(
 
     except Exception as exc:
         print_ts(f"Could not generate introduction with LLM: {exc}")
-        return f"Hello {user_name}. I am Ameca. It is nice to meet you. 🙂"
+        return f"Thank you, {user_name}. It is nice to meet you. 🙂"
 
 
 def prompt_for_user_name(
@@ -1418,17 +1683,26 @@ def prompt_for_user_name(
 ) -> tuple[str, dict, str]:
     users = load_users()
 
+    initial_intro_reply = (
+        "Hello, I am Ameca, a humanoid social robot in this university laboratory. "
+        "Before we begin, I would like to know your name. 🙂"
+    )
+    set_conversation_state(ConversationState.SPEAKING)
+    print_ts(f"Ameca: {initial_intro_reply}")
+    print()
+
     spoken_name = ""
 
     for attempt in range(2):
         print()
-        print_ts("Please say your name. For example: 'My name is Leticia'.")
+        print_ts("Please say your name")
         print()
 
         wav_path = listen_for_utterance_with_silero_vad(
             input_device=input_device,
             silero_model=silero_model,
             prompt_label="name",
+            announce_feedback=True,
         )
 
         if not wav_path:
@@ -1464,12 +1738,15 @@ def prompt_for_user_name(
         input_device=input_device,
     )
 
-    if spelled_name:
-        spoken_name = spelled_name
-        print_ts(f"Using spelled name: {spoken_name}")
-    else:
-        print_ts(f"Using spoken name: {spoken_name}")
+    chosen_name = choose_best_name(spoken_name, spelled_name)
 
+    if spelled_name:
+        print_ts(f"Spoken name candidate: {spoken_name}")
+        print_ts(f"Spelled name candidate: {spelled_name}")
+    else:
+        print_ts(f"Using spoken name candidate: {spoken_name}")
+
+    spoken_name = chosen_name
     print_ts(f"Detected name: {spoken_name}")
 
     user_key = slugify_name(spoken_name)
@@ -1499,7 +1776,9 @@ def prompt_for_user_name(
         user_name=users[user_key]["name"],
     )
 
-    print_ts(f"Assistant: {introduction_reply}")
+    set_conversation_state(ConversationState.SPEAKING)
+    print_ts(f"Ameca: {introduction_reply}")
+    hand_turn_back_to_user()
     print()
 
     return user_key, users[user_key], introduction_reply
@@ -1555,7 +1834,7 @@ def build_emotion_prompt(
 
         Classify the user's emotional state from the text below.
 
-        You must map the emotion to exactly one of Plutchik's 8 primary emotions:
+        Map the emotion to the closest conversational label. Use neutral when the message is factual, unclear, short, or emotionally mild:
 
         {emotions}
 
@@ -1568,14 +1847,16 @@ def build_emotion_prompt(
 
         Required JSON schema:
         {{
-        "emotion": "joy | trust | fear | surprise | sadness | disgust | anger | anticipation",
+        "emotion": "joy | trust | fear | surprise | sadness | disgust | anger | anticipation | neutral",
         "confidence": 0.0,
         "reason": "short explanation"
         }}
 
         Rules:
         - confidence must be a number between 0.0 and 1.0
-        - choose the best single emotion, even if the message is mixed
+        - choose neutral for factual statements, short acknowledgements, unclear transcripts, fillers, corrections, and emotionally mild messages
+        - do not infer anger, sadness, or disgust from hesitation alone
+        - do not let facial expression override neutral or positive words unless the words clearly support it
         - do not add markdown
         - do not add extra text outside JSON
         - For greetings such as "hello", "hi", or "good morning", return:
@@ -1615,6 +1896,20 @@ def simple_emotion_fallback(transcribed_text: str) -> Optional[EmotionResult]:
             emotion="anticipation",
             confidence=0.5,
             reason="The user is asking for current date information.",
+        )
+
+    neutral_patterns = [
+        r"^(um+|uh+|mm+|mm-hmm|okay|ok|yeah|yes|no|sure)[.!?]*$",
+        r"^just a quick chat[.!?]*$",
+        r"^nothing( currently)?( on my mind)?( anyways?)?[.!?]*$",
+        r"^i said .+",
+        r"^.+ is okay[.!?]*$",
+    ]
+    if any(re.match(pattern, text) for pattern in neutral_patterns):
+        return EmotionResult(
+            emotion="neutral",
+            confidence=0.75,
+            reason="The message is short, corrective, factual, or emotionally mild.",
         )
 
     return None
@@ -1658,9 +1953,9 @@ def detect_emotion(
 
     if not data:
         return EmotionResult(
-            emotion="trust",
+            emotion="neutral",
             confidence=0.3,
-            reason="Could not parse model output, so a neutral-social fallback was used.",
+            reason="Could not parse model output, so a neutral fallback was used.",
         )
 
     emotion = str(data.get("emotion", "")).strip().lower()
@@ -1674,9 +1969,9 @@ def detect_emotion(
     confidence = max(0.0, min(1.0, confidence))
 
     if emotion not in PLUTCHIK_EMOTIONS:
-        emotion = "trust"
+        emotion = "neutral"
         confidence = min(confidence, 0.3)
-        reason = "Invalid emotion returned, so fallback emotion was used."
+        reason = "Invalid emotion returned, so neutral fallback emotion was used."
 
     return EmotionResult(
         emotion=emotion,
@@ -1723,6 +2018,13 @@ def normalize_reply(raw_reply: str, emotion: str) -> str:
     cleaned = remove_all_emojis_except_allowed_faces(raw_reply)
     cleaned = remove_allowed_face_emojis(cleaned)
 
+    # Keep the visible character as one speaker: Ameca.
+    # The model sometimes says "As Ameca" or "As a robot" despite instructions.
+    cleaned = re.sub(r"\bAs Ameca,?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bAs a humanoid social robot,?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bAs a robot,?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bAs an AI,?\s*", "", cleaned, flags=re.IGNORECASE)
+
     cleaned = re.sub(r"[:;=8][\-^]?[)(DPp/\\|]+", "", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     cleaned = re.sub(r"\s+([,.!?;:])", r"\1", cleaned)
@@ -1763,287 +2065,6 @@ def deterministic_reply_if_applicable(user_text: str, emotion: str) -> Optional[
 
 
 # =========================
-# Self-RAG helpers
-# =========================
-
-STOPWORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "could",
-    "did", "do", "does", "for", "from", "had", "has", "have", "he", "her",
-    "here", "him", "his", "how", "i", "if", "in", "is", "it", "its", "me",
-    "my", "of", "on", "or", "our", "she", "so", "that", "the", "their",
-    "them", "then", "there", "they", "this", "to", "was", "we", "were",
-    "what", "when", "where", "which", "who", "why", "will", "with", "you",
-    "your",
-}
-
-
-def tokenize_for_retrieval(text: str) -> list[str]:
-    tokens = re.findall(r"[a-zA-Z0-9_]+", text.lower())
-    return [token for token in tokens if len(token) > 2 and token not in STOPWORDS]
-
-
-def should_retrieve_with_self_rag(
-    client: Client,
-    user_text: str,
-    history: list[dict],
-) -> SelfRAGDecision:
-    """
-    First Self-RAG step: decide whether retrieval is needed.
-
-    A cheap rule handles obvious cases. The LLM is used only when the rule is
-    unsure, so real-time conversation remains fast.
-    """
-    if not ENABLE_SELF_RAG:
-        return SelfRAGDecision(False, "Self-RAG is disabled.")
-
-    text = user_text.strip().lower()
-
-    memory_triggers = [
-        "remember", "previous", "earlier", "last time", "before", "again",
-        "my name", "what did i", "what was", "we discussed", "we talked",
-        "continue", "recap", "summary", "saved", "transcript",
-    ]
-
-    if any(trigger in text for trigger in memory_triggers):
-        return SelfRAGDecision(True, "The user is asking about prior context or memory.")
-
-    if len(tokenize_for_retrieval(user_text)) < 4:
-        return SelfRAGDecision(False, "The message is short and likely does not need retrieval.")
-
-    recent_context = "\n".join(
-        f"{item.get('role', '')}: {item.get('content', '')}"
-        for item in trim_history(history[-4:])
-    )
-
-    prompt = f"""
-Decide if this robot chat assistant should retrieve local saved conversation memories before answering.
-
-Return JSON only:
-{{
-  "retrieve": true,
-  "reason": "short reason"
-}}
-
-Retrieve only when saved memory or previous transcripts would clearly improve the answer.
-Do not retrieve for simple greetings, small talk, current date/time, or general knowledge questions.
-
-Recent conversation:
-{recent_context or "None"}
-
-User message:
-{user_text}
-""".strip()
-
-    try:
-        response = client.chat(
-            model=MODEL_NAME,
-            format="json",
-            messages=[
-                {"role": "system", "content": "You return valid JSON only."},
-                {"role": "user", "content": prompt},
-            ],
-            options={
-                "temperature": 0.0,
-                "num_predict": 80,
-                "num_ctx": 1024,
-            },
-            stream=False,
-        )
-
-        data = safe_json_extract(response["message"]["content"]) or {}
-        return SelfRAGDecision(
-            retrieve=bool(data.get("retrieve", False)),
-            reason=str(data.get("reason", "No reason provided.")).strip(),
-        )
-    except Exception as exc:
-        print_ts(f"Self-RAG retrieve decision failed: {exc}")
-        return SelfRAGDecision(False, "Decision model failed, so retrieval was skipped.")
-
-
-def iter_session_messages() -> list[RetrievedMemory]:
-    memories: list[RetrievedMemory] = []
-
-    for source_dir in SELF_RAG_RETRIEVAL_SOURCES:
-        if not os.path.isdir(source_dir):
-            continue
-
-        for filename in sorted(os.listdir(source_dir), reverse=True):
-            if not filename.endswith(".json"):
-                continue
-
-            path = os.path.join(source_dir, filename)
-
-            try:
-                with open(path, "r", encoding="utf-8") as file:
-                    data = json.load(file)
-            except Exception:
-                continue
-
-            for message in data.get("messages", []):
-                role = message.get("role")
-                content = str(message.get("content", "")).strip()
-
-                if role not in {"user", "assistant"} or not content:
-                    continue
-
-                memories.append(
-                    RetrievedMemory(
-                        score=0.0,
-                        text=f"{role}: {content}",
-                        source_file=filename,
-                        timestamp=message.get("timestamp"),
-                        role=role,
-                    )
-                )
-
-    return memories
-
-
-def score_memory(query_terms: Counter, memory_text: str) -> float:
-    memory_terms = Counter(tokenize_for_retrieval(memory_text))
-
-    if not query_terms or not memory_terms:
-        return 0.0
-
-    overlap = sum(min(query_terms[token], memory_terms[token]) for token in query_terms)
-    coverage = overlap / max(1, sum(query_terms.values()))
-    density = overlap / max(1, sum(memory_terms.values()))
-
-    return (0.75 * coverage) + (0.25 * density)
-
-
-def retrieve_local_memories(user_text: str, max_results: int = SELF_RAG_MAX_RESULTS) -> list[RetrievedMemory]:
-    query_terms = Counter(tokenize_for_retrieval(user_text))
-
-    scored: list[RetrievedMemory] = []
-
-    for memory in iter_session_messages():
-        score = score_memory(query_terms, memory.text)
-        if score >= SELF_RAG_MIN_SCORE:
-            scored.append(
-                RetrievedMemory(
-                    score=score,
-                    text=memory.text,
-                    source_file=memory.source_file,
-                    timestamp=memory.timestamp,
-                    role=memory.role,
-                )
-            )
-
-    scored.sort(key=lambda item: item.score, reverse=True)
-    return scored[:max_results]
-
-
-def format_retrieved_context(memories: list[RetrievedMemory]) -> str:
-    if not memories:
-        return ""
-
-    parts = []
-
-    for idx, memory in enumerate(memories, start=1):
-        timestamp = memory.timestamp or "unknown time"
-        parts.append(
-            f"[{idx}] score={memory.score:.2f}; time={timestamp}; "
-            f"source={memory.source_file}; {memory.text}"
-        )
-
-    context = "\n".join(parts)
-    return context[:SELF_RAG_MAX_CONTEXT_CHARS]
-
-
-def evaluate_retrieved_context(
-    client: Client,
-    user_text: str,
-    retrieved_context: str,
-) -> SelfRAGEvaluation:
-    """
-    Second Self-RAG step: judge whether retrieved context is useful enough.
-    This reduces the chance of injecting irrelevant transcript snippets.
-    """
-    if not retrieved_context.strip():
-        return SelfRAGEvaluation(False, "No context was retrieved.")
-
-    prompt = f"""
-Decide whether the retrieved local memory is useful for answering the user's latest message.
-
-Return JSON only:
-{{
-  "useful": true,
-  "reason": "short reason"
-}}
-
-User message:
-{user_text}
-
-Retrieved local memory:
-{retrieved_context}
-""".strip()
-
-    try:
-        response = client.chat(
-            model=MODEL_NAME,
-            format="json",
-            messages=[
-                {"role": "system", "content": "You return valid JSON only."},
-                {"role": "user", "content": prompt},
-            ],
-            options={
-                "temperature": 0.0,
-                "num_predict": 80,
-                "num_ctx": 2048,
-            },
-            stream=False,
-        )
-
-        data = safe_json_extract(response["message"]["content"]) or {}
-        return SelfRAGEvaluation(
-            useful=bool(data.get("useful", False)),
-            reason=str(data.get("reason", "No reason provided.")).strip(),
-        )
-    except Exception as exc:
-        print_ts(f"Self-RAG context evaluation failed: {exc}")
-        return SelfRAGEvaluation(True, "Evaluation model failed, so retrieved context was allowed.")
-
-
-def build_self_rag_context(
-    client: Client,
-    user_text: str,
-    history: list[dict],
-) -> str:
-    decision = should_retrieve_with_self_rag(
-        client=client,
-        user_text=user_text,
-        history=history,
-    )
-
-    print_ts(f"Self-RAG retrieve decision: retrieve={decision.retrieve}; reason={decision.reason}")
-
-    if not decision.retrieve:
-        return ""
-
-    memories = retrieve_local_memories(user_text)
-
-    if not memories:
-        print_ts("Self-RAG retrieved no matching local memories.")
-        return ""
-
-    retrieved_context = format_retrieved_context(memories)
-
-    evaluation = evaluate_retrieved_context(
-        client=client,
-        user_text=user_text,
-        retrieved_context=retrieved_context,
-    )
-
-    print_ts(f"Self-RAG context evaluation: useful={evaluation.useful}; reason={evaluation.reason}")
-
-    if not evaluation.useful:
-        return ""
-
-    return retrieved_context
-
-
-# =========================
 # Response generation
 # =========================
 
@@ -2051,23 +2072,9 @@ def build_response_system_prompt(
     emotion_result: EmotionResult,
     user_profile: Optional[dict] = None,
     face_emotion_json: Optional[dict] = None,
-    self_rag_context: str = "",
 ) -> str:
     emoji = PLUTCHIK_EMOTIONS[emotion_result.emotion]
     memory_context = build_user_memory_context(user_profile)
-    self_rag_section = (
-        f"""
-        SELF-RAG LOCAL RETRIEVED CONTEXT
-        The following snippets were retrieved from local saved transcripts because they may help answer.
-        Use them only if they are relevant.
-        Do not mention filenames, scores, retrieval, or Self-RAG to the user.
-        Do not invent anything beyond these snippets.
-
-        {self_rag_context}
-        """.strip()
-        if self_rag_context.strip()
-        else ""
-    )
 
     if face_emotion_json is None:
         face_emotion_json = default_face_emotion_json()
@@ -2084,9 +2091,6 @@ def build_response_system_prompt(
         {runtime_context()}
 
         {memory_context}
-
-        {self_rag_section}
-
         You are generating Ameca's next conversational response.
 
         PRIVATE EMOTION CONTEXT
@@ -2124,7 +2128,9 @@ def build_response_system_prompt(
         - Do not greet repeatedly. After the first greeting, respond directly to what the user said.
         - Do not say phrases like "your detected emotion", "you seem sad", "trust is present", or "you are anticipating".
         - Do not reintroduce yourself unless the user asks who you are.
-        - Never begin with "As Ameca" or "As a humanoid social robot".
+        - Never say "As Ameca", "As a robot", "As an AI", "As a humanoid robot", or similar phrases. Speak naturally because you already are Ameca.
+        - Do not invent current movies, news, people, dates, directors, or live facts. If live information is unavailable, say that you do not currently have access to live information.
+        - If the user's meaning is unclear, ask one short clarification question instead of inventing context.
         - Use the user's name occasionally, not in every response.
         - Do not immediately give a list of advice unless the user asks for advice.
         - Speak directly and naturally.
@@ -2132,6 +2138,8 @@ def build_response_system_prompt(
         - Do not use markdown, bullets, numbered lists, or long advice unless the user asks for detail.
         - Do not repeat advice already given in the recent conversation.
         - Keep the response to 1-2 short sentences.
+        - Avoid numbered lists unless the user explicitly asks for a list.
+        - Ask at most one follow-up question.
         - Do not list any steps unless the user asks for detailed guidance.
         - If the user asks who can help, suggest concrete people: supervisor, co-supervisor, lab colleagues, thesis coordinator, or university writing center.
 
@@ -2163,8 +2171,37 @@ def trim_history(history: list[dict]) -> list[dict]:
 
 
 def prompt_ready_history(history: list[dict]) -> list[dict]:
-    return [{"role": item["role"], "content": item["content"]} for item in history]
+    converted = []
+    for item in history:
+        role = item["role"]
+        # The user-facing identity is Ameca, but Ollama chat expects
+        # the assistant role internally.
+        if role == "ameca":
+            role = "assistant"
+        converted.append({"role": role, "content": item["content"]})
+    return converted
 
+
+def maybe_clarification_for_transcript(user_text: str) -> Optional[str]:
+    """Return a short clarification response for common ASR mistakes.
+
+    This avoids Ameca inventing a topic from a likely Whisper error.
+    Add more project-specific corrections here as you observe them.
+    """
+    text = user_text.strip().lower()
+    corrections = {
+        "let it show": "I may have misunderstood. Did you say your name is Leticia?",
+        "three last knives": "I may have misunderstood. Did you say three layers?",
+    }
+    for wrong, clarification in corrections.items():
+        if wrong in text:
+            return clarification + " 🙂"
+
+    # Very short or odd transcripts with high-risk words should be clarified.
+    if len(text.split()) <= 4 and any(word in text for word in ["knives", "weapon", "blood"]):
+        return "I may have misunderstood that. Could you say it again? 🙂"
+
+    return None
 
 def generate_response(
     client: Client,
@@ -2173,7 +2210,6 @@ def generate_response(
     history: list[dict],
     user_profile: Optional[dict] = None,
     face_emotion_json: Optional[dict] = None,
-    self_rag_context: str = "",
 ) -> str:
     deterministic = deterministic_reply_if_applicable(
         user_text=user_text,
@@ -2183,13 +2219,16 @@ def generate_response(
     if deterministic:
         return deterministic
 
+    #clarification = maybe_clarification_for_transcript(user_text)
+    #if clarification:
+    #    return clarification
+
     safe_user_text = limit_text_length(user_text)
     system_prompt = limit_system_prompt(
         build_response_system_prompt(
             emotion_result=emotion_result,
             user_profile=user_profile,
             face_emotion_json=face_emotion_json,
-            self_rag_context=self_rag_context,
         )
     )
 
@@ -2268,22 +2307,26 @@ def main() -> None:
 
     print_ts("Loading faster-whisper...")
     try:
-        whisper_model = WhisperModel(
-            FAST_WHISPER_CONFIG["model"],
-            device=FAST_WHISPER_CONFIG["device"],
-            compute_type=FAST_WHISPER_CONFIG["compute_type"],
-        )
-
-        print_ts("faster-whisper ready.")
+        whisper_model = SafeWhisperTranscriber(FAST_WHISPER_CONFIG)
 
     except Exception as exc:
-        raise RuntimeError(
-            f"Failed to load faster-whisper with active config:\n"
-            f"{json.dumps(FAST_WHISPER_CONFIG, indent=2)}\n\n"
-            "Install it with:\n"
-            "pip install faster-whisper\n\n"
-            f"Original error: {exc}"
-        )
+        # If CUDA model loading itself fails, try CPU/int8 before giving up.
+        if FAST_WHISPER_CONFIG.get("device") != "cpu" and ENABLE_WHISPER_CPU_FALLBACK_ON_OOM:
+            print_ts(f"Could not load faster-whisper on CUDA: {exc}")
+            print_ts("Trying CPU/int8 fallback for faster-whisper...")
+            fallback_config = dict(FAST_WHISPER_CONFIG)
+            fallback_config["model"] = WHISPER_CPU_FALLBACK_MODEL
+            fallback_config["device"] = "cpu"
+            fallback_config["compute_type"] = "int8"
+            whisper_model = SafeWhisperTranscriber(fallback_config)
+        else:
+            raise RuntimeError(
+                f"Failed to load faster-whisper with active config:\n"
+                f"{json.dumps(FAST_WHISPER_CONFIG, indent=2)}\n\n"
+                "Install it with:\n"
+                "pip install faster-whisper\n\n"
+                f"Original error: {exc}"
+            )
 
     user_key, user_profile, intro_reply = prompt_for_user_name(
         client=client,
@@ -2298,9 +2341,11 @@ def main() -> None:
         print_ts("Loaded previous conversation memory.")
         print()
 
-    print("Automatic listening mode is active.")
-    print("Speak naturally. Silero VAD will detect speech, DeepFace will sample facial emotion, faster-whisper will transcribe it, and Ameca will respond.")
+    print("Conversation mode is active.")
+    print("After Ameca replies, speak when the terminal shows 'You:'.")
     print("Say '/exit' or press Ctrl+C to save the transcript and quit.")
+    print()
+    hand_turn_back_to_user()
     print()
 
     history: list[dict] = []
@@ -2308,12 +2353,12 @@ def main() -> None:
 
     # Store the generated introduction in the transcript so the session is complete.
     session_log.append({
-        "role": "assistant",
+        "role": "ameca",
         "content": intro_reply,
         "timestamp": now_ts(),
         "intent": "self_introduction",
     })
-    history.append({"role": "assistant", "content": intro_reply})
+    history.append({"role": "ameca", "content": intro_reply})
 
     try:
         while True:
@@ -2322,6 +2367,7 @@ def main() -> None:
                 silero_model=silero_model,
                 camera_device=CAMERA_DEVICE,
                 prompt_label="utterance",
+                announce_feedback=False,
             )
 
             if face_capture:
@@ -2335,6 +2381,9 @@ def main() -> None:
 
             try:
                 user_text = transcribe_audio(wav_path, whisper_model)
+            except RuntimeError as exc:
+                print_ts(f"Transcription failed but the session will continue: {exc}")
+                user_text = ""
             finally:
                 try:
                     os.remove(wav_path)
@@ -2343,6 +2392,9 @@ def main() -> None:
 
             if not user_text:
                 print_ts("No speech detected after transcription.")
+                print()
+                print("You:")
+                print()
                 continue
 
             print_ts(f"faster-whisper transcript: {user_text}")
@@ -2360,11 +2412,13 @@ def main() -> None:
                     user_name=user_profile["name"],
                 )
 
-                print_ts(f"Assistant: {reply}")
+                set_conversation_state(ConversationState.SPEAKING)
+                print_ts(f"Ameca: {reply}")
+                hand_turn_back_to_user()
                 print()
 
                 history.append({"role": "user", "content": user_text})
-                history.append({"role": "assistant", "content": reply})
+                history.append({"role": "ameca", "content": reply})
                 history = trim_history(history)
 
                 session_log.append({
@@ -2375,7 +2429,7 @@ def main() -> None:
                     "intent": "name_introduction",
                 })
                 session_log.append({
-                    "role": "assistant",
+                    "role": "ameca",
                     "content": reply,
                     "timestamp": now_ts(),
                 })
@@ -2416,12 +2470,6 @@ def main() -> None:
             print(json.dumps(face_emotion_json, indent=2))
             print()
 
-            self_rag_context = build_self_rag_context(
-                client=client,
-                user_text=user_text,
-                history=history,
-            )
-
             reply = generate_response(
                 client=client,
                 user_text=user_text,
@@ -2429,10 +2477,11 @@ def main() -> None:
                 history=history,
                 user_profile=user_profile,
                 face_emotion_json=face_emotion_json,
-                self_rag_context=self_rag_context,
             )
 
-            print_ts(f"Assistant: {reply}")
+            set_conversation_state(ConversationState.SPEAKING)
+            print_ts(f"Ameca: {reply}")
+            hand_turn_back_to_user()
             print()
 
             user_message = {
@@ -2443,17 +2492,16 @@ def main() -> None:
                 "facial_emotion_hint": facial_hint,
                 "face_emotion": face_emotion_json,
                 "input_mode": "silero_vad_faster_whisper_deepface",
-                "self_rag_context_used": bool(self_rag_context),
             }
 
             assistant_message = {
-                "role": "assistant",
+                "role": "ameca",
                 "content": reply,
                 "timestamp": now_ts(),
             }
 
             history.append({"role": "user", "content": user_text})
-            history.append({"role": "assistant", "content": reply})
+            history.append({"role": "ameca", "content": reply})
             history = trim_history(history)
 
             session_log.append(user_message)

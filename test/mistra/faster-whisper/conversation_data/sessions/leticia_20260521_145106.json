@@ -1,0 +1,141 @@
+{
+  "user": {
+    "key": "leticia",
+    "name": "Leticia"
+  },
+  "session": {
+    "started_at": "2026-05-21 14:50:12",
+    "ended_at": "2026-05-21 14:51:06",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "large-v3",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "qwen2.5vl:7b via Ollama",
+      "camera_device": 0,
+      "camera_frame_width": 2560,
+      "camera_frame_height": 720,
+      "preview_enabled": true,
+      "sample_every_seconds": 3.0,
+      "warmup_seconds": 0.35,
+      "vision_model": "qwen2.5vl:7b",
+      "jpeg_quality": 80,
+      "min_top_score": 35.0,
+      "min_margin": 8.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 700,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 15.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Leticia! I'm Ameca, a humanoid social robot here in the lab. 🙂",
+      "timestamp": "2026-05-21 14:50:12",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too.",
+      "timestamp": "2026-05-21 14:50:22",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's words convey a positive and friendly tone, indicating joy."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 65,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 14:50:16",
+        "ended_at": "2026-05-21 14:50:19",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "It's great that we're meeting for the first time. How can I assist or support your work today? 😊",
+      "timestamp": "2026-05-21 14:50:22"
+    },
+    {
+      "role": "user",
+      "content": "I just wanted to talk about something very random",
+      "timestamp": "2026-05-21 14:50:43",
+      "emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's statement is unexpected and unusual, indicating surprise."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 102,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 14:50:36",
+        "ended_at": "2026-05-21 14:50:40",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "That sounds like a refreshing break! Random topics are always welcome here. What's been on your mind lately, Leticia? 😮",
+      "timestamp": "2026-05-21 14:50:43"
+    },
+    {
+      "role": "user",
+      "content": "What topic do you have in mind you think you can talk about?",
+      "timestamp": "2026-05-21 14:51:03",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is showing curiosity and interest in the conversation, anticipating a discussion on a specific topic."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 126,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 14:50:55",
+        "ended_at": "2026-05-21 14:50:59",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm happy to explore various subjects with you! As Ameca, I've had training and experience discussing topics like study guidance, thesis structure support, writing feedback, and conversational help. If none of those resonate with your random idea, feel free to share it, and we can see where the conversation takes us! 🤔",
+      "timestamp": "2026-05-21 14:51:03"
+    }
+  ]
+}

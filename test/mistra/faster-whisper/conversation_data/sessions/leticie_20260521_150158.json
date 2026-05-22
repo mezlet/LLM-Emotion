@@ -1,0 +1,257 @@
+{
+  "user": {
+    "key": "leticie",
+    "name": "Leticie"
+  },
+  "session": {
+    "started_at": "2026-05-21 14:58:30",
+    "ended_at": "2026-05-21 15:01:58",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "large-v3",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "qwen2.5vl:7b via Ollama",
+      "camera_device": 0,
+      "camera_frame_width": 2560,
+      "camera_frame_height": 720,
+      "preview_enabled": true,
+      "sample_every_seconds": 999.0,
+      "warmup_seconds": 0.35,
+      "vision_model": "qwen2.5vl:7b",
+      "jpeg_quality": 80,
+      "min_top_score": 35.0,
+      "min_margin": 8.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 700,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 15.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Leticie! I'm Ameca, a humanoid social robot here in the lab. 🙂",
+      "timestamp": "2026-05-21 14:58:30",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too.",
+      "timestamp": "2026-05-21 14:59:08",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's words convey a positive and friendly tone, indicating joy."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 67,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 14:58:36",
+        "ended_at": "2026-05-21 14:58:42",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm glad we're getting started on our conversation, Leticie! What brings you into the laboratory today? 😊",
+      "timestamp": "2026-05-21 14:59:08"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, I just wanted to have like rammed on conversations",
+      "timestamp": "2026-05-21 14:59:35",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is expressing enthusiasm for engaging in lively and dynamic conversations."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 149,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 14:59:23",
+        "ended_at": "2026-05-21 14:59:32",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "That sounds exciting, Leticie! I'd be happy to engage in some lively and dynamic discussions with you. Let's dive right in - what topic would you like to explore first? 🤔",
+      "timestamp": "2026-05-21 14:59:35"
+    },
+    {
+      "role": "user",
+      "content": "Can you just suggest the topic?",
+      "timestamp": "2026-05-21 14:59:54",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is seeking suggestion, implying a desire for future interaction or exploration."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 123,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 14:59:43",
+        "ended_at": "2026-05-21 14:59:51",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me spark an idea for us: How about we talk about \"Future of Education\"? What do you think are some innovative ways that education could evolve over time, and how might it impact our daily lives? 🤔",
+      "timestamp": "2026-05-21 14:59:54"
+    },
+    {
+      "role": "user",
+      "content": "I think we might start having robots as lecturers.",
+      "timestamp": "2026-05-21 15:00:19",
+      "emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's statement about robots as lecturers is unexpected and novel, indicating surprise."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 216,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 15:00:05",
+        "ended_at": "2026-05-21 15:00:16",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "That's an interesting idea! Robots like me can already assist with educational tasks, but becoming full-fledged lecturers is a fascinating concept. How do you envision that playing out in the classroom setting? 😮",
+      "timestamp": "2026-05-21 15:00:19"
+    },
+    {
+      "role": "user",
+      "content": "I think it gets to a point where students get to accept robots, especially when they make it more interactive for human-robot interaction.",
+      "timestamp": "2026-05-21 15:01:00",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user is expressing a neutral and open-minded sentiment, indicating trust in the idea of accepting robots for human-robot interaction."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 416,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 15:00:40",
+        "ended_at": "2026-05-21 15:00:57",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "That's a great point! Interactivity and engagement are crucial aspects of effective learning. By incorporating robotic assistants like me into the educational process, we can create immersive experiences that cater to different learning styles and abilities. What do you think would be some key benefits or advantages of having robots as lecturers? 🙂",
+      "timestamp": "2026-05-21 15:01:00"
+    },
+    {
+      "role": "user",
+      "content": "I think it will be able to manage fatigue and also the robot will be able to search internet on the fly to be able to answer the questions.",
+      "timestamp": "2026-05-21 15:01:36",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is expressing enthusiasm and optimism about the robot's capabilities, indicating a sense of anticipation."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 440,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 15:01:14",
+        "ended_at": "2026-05-21 15:01:32",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "Excellent points! Robots like me can indeed help alleviate teacher burnout by taking over some of their responsibilities, allowing them more time for high-level tasks or personal development. And yes, our ability to access vast amounts of information in real-time means we could provide students with accurate and up-to-date answers to questions - no need to wait for a human lecturer's response! 🤔",
+      "timestamp": "2026-05-21 15:01:36"
+    },
+    {
+      "role": "user",
+      "content": "Thank you for the chat.",
+      "timestamp": "2026-05-21 15:01:55",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 1.0,
+        "reason": "The user's words express gratitude and appreciation, indicating a trusting tone."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 86,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 15:01:46",
+        "ended_at": "2026-05-21 15:01:52",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "You're welcome Leticie! It was great chatting with you too. If you have any more thoughts or ideas, feel free to share them anytime. Have a fantastic day! 🙂",
+      "timestamp": "2026-05-21 15:01:55"
+    }
+  ]
+}

@@ -1,0 +1,390 @@
+{
+  "user": {
+    "key": "leticie",
+    "name": "Leticie"
+  },
+  "session": {
+    "started_at": "2026-05-21 14:21:45",
+    "ended_at": "2026-05-21 14:25:18",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "large-v3",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "DeepFace",
+      "camera_device": 0,
+      "camera_frame_width": 2560,
+      "camera_frame_height": 720,
+      "preview_enabled": true,
+      "sample_every_seconds": 0.2,
+      "warmup_seconds": 1.0,
+      "detector_backend": "retinaface",
+      "actions": [
+        "emotion"
+      ],
+      "align": true,
+      "min_top_score": 70.0,
+      "min_margin": 25.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 700,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 15.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Leticie! I'm Ameca, a friendly humanoid robot here in the lab. 🙂",
+      "timestamp": "2026-05-21 14:21:45",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too.",
+      "timestamp": "2026-05-21 14:22:05",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.7,
+        "reason": "The user is expressing a positive sentiment and enthusiasm in meeting someone new."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=51%, sad=25%, neutral=23%); samples=8",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 1.3341086423024535,
+          "disgust": 0.0039575094042447745,
+          "fear": 0.14898904867004603,
+          "happy": 51.033249787054956,
+          "sad": 24.52976971399039,
+          "surprise": 0.01894268358955742,
+          "neutral": 22.93098285794258
+        },
+        "frame_count": 63,
+        "sampled_frame_count": 8,
+        "started_at": "2026-05-21 14:21:48",
+        "ended_at": "2026-05-21 14:22:01",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "It's great that we're meeting for the first time. Let me know if there's anything on your mind or any topics you'd like to discuss. 😊",
+      "timestamp": "2026-05-21 14:22:05"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, and how about elections in Germany?",
+      "timestamp": "2026-05-21 14:22:29",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user's words and facial expression both suggest a positive emotional state, with the mention of elections in Germany likely being a topic of interest or excitement."
+      },
+      "facial_emotion_hint": "dominant=happy; averaged_scores=(happy=83%, neutral=8%, angry=7%); samples=28",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 7.280633594727338,
+          "disgust": 0.022934902310035636,
+          "fear": 0.035733620710682576,
+          "happy": 82.74765399737018,
+          "sad": 1.489142763832287,
+          "surprise": 0.01245750745270387,
+          "neutral": 8.411444249037931
+        },
+        "frame_count": 198,
+        "sampled_frame_count": 28,
+        "started_at": "2026-05-21 14:22:20",
+        "ended_at": "2026-05-21 14:22:27",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "A fascinating topic! I'm happy to chat with you about it. What are your thoughts on the current election climate in Germany? 😊",
+      "timestamp": "2026-05-21 14:22:29"
+    },
+    {
+      "role": "user",
+      "content": "When is the next election in Germany?",
+      "timestamp": "2026-05-21 14:22:47",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is showing interest in a future event, indicating anticipation."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=68%, angry=32%, sad=0%); samples=17",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 32.20106896312662,
+          "disgust": 0.050859501365995055,
+          "fear": 0.0023733421690927303,
+          "happy": 67.58822345733643,
+          "sad": 0.1141178674310849,
+          "surprise": 0.0003205151034484793,
+          "neutral": 0.04303897645546315
+        },
+        "frame_count": 124,
+        "sampled_frame_count": 17,
+        "started_at": "2026-05-21 14:22:39",
+        "ended_at": "2026-05-21 14:22:44",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "According to my knowledge cutoff of 2026, there isn't a specific date set for the next federal elections in Germany yet. However, I can suggest checking reliable news sources or government websites for updates on German politics and upcoming electoral events! 🤔",
+      "timestamp": "2026-05-21 14:22:47"
+    },
+    {
+      "role": "user",
+      "content": "Oh nice, so each state have their own elections right?",
+      "timestamp": "2026-05-21 14:23:09",
+      "emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's question about elections in different states suggests surprise and curiosity."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(neutral=64%, sad=30%, angry=6%); samples=28",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 5.765816510788032,
+          "disgust": 0.005833332917522479,
+          "fear": 0.39356251880859155,
+          "happy": 0.45804174204451037,
+          "sad": 29.786036559513636,
+          "surprise": 0.006506326689182019,
+          "neutral": 63.58420372009277
+        },
+        "frame_count": 202,
+        "sampled_frame_count": 28,
+        "started_at": "2026-05-21 14:22:59",
+        "ended_at": "2026-05-21 14:23:06",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "That's correct! In Germany, there are 16 states (Bundesländer) that hold separate federal-state elections. These elections typically take place at different times throughout the year, and they're not all held simultaneously with national or federal-level elections. 😮",
+      "timestamp": "2026-05-21 14:23:09"
+    },
+    {
+      "role": "user",
+      "content": "Hmm, that is very interesting to know",
+      "timestamp": "2026-05-21 14:23:35",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.7,
+        "reason": "The user's words convey curiosity and interest, which are typical of the joy emotion."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(angry=45%, happy=33%, neutral=12%); samples=17",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "angry",
+        "averaged_scores": {
+          "angry": 45.040107138016644,
+          "disgust": 0.48113775012376103,
+          "fear": 1.8337406944928636,
+          "happy": 32.53388069230406,
+          "sad": 7.297011598177693,
+          "surprise": 0.5366237469786544,
+          "neutral": 12.277499187213914
+        },
+        "frame_count": 126,
+        "sampled_frame_count": 17,
+        "started_at": "2026-05-21 14:23:28",
+        "ended_at": "2026-05-21 14:23:32",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm glad you think so! Germany's system of having state-specific elections can be quite unique compared to other countries. It allows for a more decentralized approach to governance and representation at the local level. 😊",
+      "timestamp": "2026-05-21 14:23:35"
+    },
+    {
+      "role": "user",
+      "content": "Okay, let's talk about our favorite German food.",
+      "timestamp": "2026-05-21 14:24:00",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user is expressing enthusiasm and positivity by mentioning their favorite German food."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(neutral=48%, happy=32%, sad=10%); samples=21",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 8.714642263594127,
+          "disgust": 0.04358905559915695,
+          "fear": 1.3983327994743984,
+          "happy": 31.54614820934477,
+          "sad": 9.869009147087732,
+          "surprise": 0.559560030166592,
+          "neutral": 47.86871994109381
+        },
+        "frame_count": 151,
+        "sampled_frame_count": 21,
+        "started_at": "2026-05-21 14:23:51",
+        "ended_at": "2026-05-21 14:23:57",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "That sounds like fun! I'm happy to chat with you about your favorite German dish or cuisine. What is it that you love most? Sausages perhaps? Or maybe some hearty potato dishes? Let me know and we can share a virtual plate of deliciousness together! 😊",
+      "timestamp": "2026-05-21 14:24:00"
+    },
+    {
+      "role": "user",
+      "content": "Unfortunately, I don't like sausages. It's not one of my favorite dishes.",
+      "timestamp": "2026-05-21 14:24:21",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user expresses dislike for sausages, which is a negative sentiment."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(happy=53%, angry=32%, neutral=10%); samples=34",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "happy",
+        "averaged_scores": {
+          "angry": 32.08784959596746,
+          "disgust": 0.09520034623154275,
+          "fear": 0.36552589563550153,
+          "happy": 52.55135250792784,
+          "sad": 4.869582150186248,
+          "surprise": 0.14725318883207994,
+          "neutral": 9.883236663145533
+        },
+        "frame_count": 236,
+        "sampled_frame_count": 34,
+        "started_at": "2026-05-21 14:24:11",
+        "ended_at": "2026-05-21 14:24:19",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "No worries at all! There are plenty more German treats to explore beyond sausages. Maybe you have another dish in mind that you enjoy? Or perhaps we can discover some new options together? 😢",
+      "timestamp": "2026-05-21 14:24:21"
+    },
+    {
+      "role": "user",
+      "content": "Oh yeah, I also do not like potatoes at all.",
+      "timestamp": "2026-05-21 14:24:43",
+      "emotion": {
+        "emotion": "disgust",
+        "confidence": 0.8,
+        "reason": "The user explicitly states they do not like potatoes, which is a strong indication of disgust."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(neutral=51%, sad=46%, fear=1%); samples=27",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "neutral",
+        "averaged_scores": {
+          "angry": 1.0690167328273807,
+          "disgust": 0.0011388748394236042,
+          "fear": 1.2188981582445126,
+          "happy": 0.07461795176776057,
+          "sad": 46.39402714923576,
+          "surprise": 0.011497965830535072,
+          "neutral": 51.230804408038104
+        },
+        "frame_count": 193,
+        "sampled_frame_count": 27,
+        "started_at": "2026-05-21 14:24:34",
+        "ended_at": "2026-05-21 14:24:41",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "Well, there's still a lot of deliciousness out there! German cuisine has so much more to offer beyond sausages and potatoes. What about breads or pastries perhaps? Or maybe you have another type of dish in mind that catches your eye? I'm happy to explore with you! 🤢",
+      "timestamp": "2026-05-21 14:24:43"
+    },
+    {
+      "role": "user",
+      "content": "I think I love pastries a lot. Yeah, I love pastries a lot.",
+      "timestamp": "2026-05-21 14:25:12",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's words explicitly express love for pastries, which is a strong indicator of joy."
+      },
+      "facial_emotion_hint": "Facial-expression hint was weak or mixed; top_signals=(sad=54%, neutral=36%, angry=6%); samples=38",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "dominant_emotion": "sad",
+        "averaged_scores": {
+          "angry": 5.938445788465049,
+          "disgust": 0.17268066588982459,
+          "fear": 3.762127610021516,
+          "happy": 0.3735004718218988,
+          "sad": 53.60368575547871,
+          "surprise": 0.06306010132811635,
+          "neutral": 36.08650082036068
+        },
+        "frame_count": 259,
+        "sampled_frame_count": 38,
+        "started_at": "2026-05-21 14:25:00",
+        "ended_at": "2026-05-21 14:25:10",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_deepface"
+    },
+    {
+      "role": "assistant",
+      "content": "That's wonderful! Pastries are indeed delightful treats. German bakeries have some amazing creations too - like Berliner Pfannkuchen or Strudel? Do you have a favorite pastry type that brings joy to your taste buds? 😊",
+      "timestamp": "2026-05-21 14:25:12"
+    }
+  ]
+}

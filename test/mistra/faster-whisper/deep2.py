@@ -185,16 +185,17 @@ CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
 USE_ZED_HALF_FRAME_CROP = IS_LINUX
 
 # DeepFace is sampled during the detected speech window, not while waiting for speech.
-CAMERA_SAMPLE_EVERY_SECONDS = 1.0
-CAMERA_WARMUP_SECONDS = 0.35
+CAMERA_SAMPLE_EVERY_SECONDS = 0.2
+CAMERA_WARMUP_SECONDS = 1.0
 
-DEEPFACE_DETECTOR_BACKEND = "opencv"
+# DEEPFACE_DETECTOR_BACKEND = "opencv"
+DEEPFACE_DETECTOR_BACKEND = "retinaface"
 DEEPFACE_ACTIONS = ["emotion"]
 DEEPFACE_ALIGN = True
 
 # Reliability filter. DeepFace emotion scores are percentages.
-FACE_MIN_TOP_SCORE = 45.0
-FACE_MIN_MARGIN = 15.0
+FACE_MIN_TOP_SCORE = 70.0
+FACE_MIN_MARGIN = 25.0
 
 
 # =========================

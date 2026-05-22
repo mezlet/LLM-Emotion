@@ -1,0 +1,150 @@
+{
+  "user": {
+    "key": "laticie",
+    "name": "Laticie"
+  },
+  "session": {
+    "started_at": "2026-05-21 15:41:05",
+    "ended_at": "2026-05-21 15:59:33",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "large-v3",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "qwen2.5vl:7b via Ollama",
+      "camera_device": 0,
+      "camera_frame_width": 2560,
+      "camera_frame_height": 720,
+      "preview_enabled": true,
+      "sample_every_seconds": 999.0,
+      "warmup_seconds": 0.35,
+      "vision_model": "qwen2.5vl:7b",
+      "jpeg_quality": 80,
+      "min_top_score": 35.0,
+      "min_margin": 8.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 700,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 15.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Laticie! I'm Ameca, a social robot here at the university lab. I'm excited to get to know you better. 🙂",
+      "timestamp": "2026-05-21 15:41:05",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too.",
+      "timestamp": "2026-05-21 15:41:13",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's words convey a positive and friendly tone, indicating joy."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 70,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 15:41:06",
+        "ended_at": "2026-05-21 15:41:09",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "It's great that we're starting our conversation on such a positive note! What brings you to this part of your day? 😊",
+      "timestamp": "2026-05-21 15:41:13"
+    },
+    {
+      "role": "user",
+      "content": "I just wanted to have a chit chat",
+      "timestamp": "2026-05-21 15:42:34",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's words convey a casual and friendly tone, indicating joy in having a social interaction."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 106,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 15:41:25",
+        "ended_at": "2026-05-21 15:42:30",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "That sounds lovely, Laticie! I'm happy to engage in some casual conversation with you. How's your week been so far? 😊",
+      "timestamp": "2026-05-21 15:42:34"
+    },
+    {
+      "role": "user",
+      "content": "Well, it has been so busy",
+      "timestamp": "2026-05-21 15:43:45",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is expressing a sense of expectation or looking forward to something, despite the busyness."
+      },
+      "facial_emotion_hint": "dominant=trust; averaged_scores=(trust=90%, anticipation=10%); samples=1",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "trust",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 90.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 10.0
+        },
+        "frame_count": 115,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-21 15:43:15",
+        "ended_at": "2026-05-21 15:43:42",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_qwen25vl"
+    },
+    {
+      "role": "assistant",
+      "content": "It can be overwhelming when things get too hectic. Take a deep breath and prioritize what needs attention - sometimes that helps clear the mind! 🤔",
+      "timestamp": "2026-05-21 15:43:45"
+    }
+  ]
+}
