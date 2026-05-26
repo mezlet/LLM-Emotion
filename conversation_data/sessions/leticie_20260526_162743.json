@@ -1,0 +1,415 @@
+{
+  "user": {
+    "key": "leticie",
+    "name": "Leticie"
+  },
+  "session": {
+    "started_at": "2026-05-26 16:20:50",
+    "ended_at": "2026-05-26 16:27:43",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "safe_gpu_with_cpu_fallback",
+      "model": "small",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "ollama_vlm",
+      "model": "qwen2.5vl:7b",
+      "camera_device": 0,
+      "camera_frame_width": 2560,
+      "camera_frame_height": 720,
+      "preview_enabled": true,
+      "sample_every_seconds": 0.8,
+      "warmup_seconds": 0.4,
+      "image_max_width": 640,
+      "jpeg_quality": 75,
+      "min_confidence": 0.65
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 1200,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 30.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    }
+  },
+  "messages": [
+    {
+      "role": "ameca",
+      "content": "Nice to meet you, Leticie! 🙂",
+      "timestamp": "2026-05-26 16:20:50",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too.",
+      "timestamp": "2026-05-26 16:21:08",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The message is a friendly acknowledgement, indicating a neutral emotional state."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "backend": "ollama_vlm",
+        "model": "qwen2.5vl:7b",
+        "dominant_emotion": null,
+        "confidence": 0.0,
+        "reason": null,
+        "raw_result": {},
+        "frame_count": 83,
+        "submitted_frame_count": 4,
+        "started_at": "2026-05-26 16:20:51",
+        "ended_at": "2026-05-26 16:20:55",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_ollama_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "I'm happy to help you with any questions or topics you'd like to discuss. What's been on your mind lately? 🙂",
+      "timestamp": "2026-05-26 16:21:08"
+    },
+    {
+      "role": "user",
+      "content": "Alright, yeah, do you have anything you would want us to talk about today?",
+      "timestamp": "2026-05-26 16:21:33",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's words are open-ended and inviting, but the facial-expression hint suggests a neutral or slightly positive tone."
+      },
+      "facial_emotion_hint": "Facial-expression hint from VLM was weak or uncertain; top_signal=neutral; confidence=0.50; reason=The visible portion of the face shows a slight smile, which could be interpreted as a neutral or slightly positive expression. However, the overall expression is not strong enough to confidently categorize it as any specific emotion.; samples=10",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "ollama_vlm",
+        "model": "qwen2.5vl:7b",
+        "dominant_emotion": "neutral",
+        "confidence": 0.5,
+        "reason": "The visible portion of the face shows a slight smile, which could be interpreted as a neutral or slightly positive expression. However, the overall expression is not strong enough to confidently categorize it as any specific emotion.",
+        "raw_result": {
+          "emotion": "neutral",
+          "confidence": 0.5,
+          "reason": "The visible portion of the face shows a slight smile, which could be interpreted as a neutral or slightly positive expression. However, the overall expression is not strong enough to confidently categorize it as any specific emotion.",
+          "started_at": "2026-05-26 16:21:19",
+          "ended_at": "2026-05-26 16:21:26",
+          "backend": "ollama_vlm",
+          "model": "qwen2.5vl:7b"
+        },
+        "frame_count": 236,
+        "submitted_frame_count": 10,
+        "started_at": "2026-05-26 16:21:18",
+        "ended_at": "2026-05-26 16:21:27",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_ollama_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "Not specifically, but I can certainly follow the conversation wherever it takes us! assistant, my goal is to provide helpful and informative responses. If we reach an impasse or need some inspiration, feel free to ask me for suggestions on topics or ideas related to your interests. How about that? 🙂",
+      "timestamp": "2026-05-26 16:21:33"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, that makes sense. But first of all, what is today's pitch?",
+      "timestamp": "2026-05-26 16:22:18",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's words are factual and inquiring, indicating a neutral emotional state."
+      },
+      "facial_emotion_hint": "dominant=joy; confidence=0.70; reason=The person appears to be smiling, which is a common indicator of joy.; samples=9",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "ollama_vlm",
+        "model": "qwen2.5vl:7b",
+        "dominant_emotion": "joy",
+        "confidence": 0.7,
+        "reason": "The person appears to be smiling, which is a common indicator of joy.",
+        "raw_result": {
+          "emotion": "joy",
+          "confidence": 0.7,
+          "reason": "The person appears to be smiling, which is a common indicator of joy.",
+          "started_at": "2026-05-26 16:22:05",
+          "ended_at": "2026-05-26 16:22:11",
+          "backend": "ollama_vlm",
+          "model": "qwen2.5vl:7b"
+        },
+        "frame_count": 217,
+        "submitted_frame_count": 9,
+        "started_at": "2026-05-26 16:22:04",
+        "ended_at": "2026-05-26 16:22:12",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_ollama_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "According to my internal calendar, the current date and time are May 26th, 2026, at 4:22 PM. Would you like me to elaborate on any specific events or happenings for this day? 🙂",
+      "timestamp": "2026-05-26 16:22:18"
+    },
+    {
+      "role": "user",
+      "content": "You are actually correct. That's a nice test done. But then, did you know yesterday was a public holiday in Germany?",
+      "timestamp": "2026-05-26 16:23:03",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's words are factual and acknowledging, without any strong emotional tone."
+      },
+      "facial_emotion_hint": "Facial-expression hint from VLM was weak or uncertain; top_signal=neutral; confidence=0.50; reason=The facial expression appears calm and neutral, with no strong indicators of emotion.; samples=15",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "ollama_vlm",
+        "model": "qwen2.5vl:7b",
+        "dominant_emotion": "neutral",
+        "confidence": 0.5,
+        "reason": "The facial expression appears calm and neutral, with no strong indicators of emotion.",
+        "raw_result": {
+          "emotion": "neutral",
+          "confidence": 0.5,
+          "reason": "The facial expression appears calm and neutral, with no strong indicators of emotion.",
+          "started_at": "2026-05-26 16:22:45",
+          "ended_at": "2026-05-26 16:22:48",
+          "backend": "ollama_vlm",
+          "model": "qwen2.5vl:7b"
+        },
+        "frame_count": 347,
+        "submitted_frame_count": 15,
+        "started_at": "2026-05-26 16:22:37",
+        "ended_at": "2026-05-26 16:22:49",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_ollama_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "I'm glad I got the date right! However, since my knowledge cutoff is limited to explicit inputs and no internet access unless explicitly stated, I wouldn't be aware of current events or holidays without being told about them directly by users. Thank you for sharing this tidbit with me though - it's always interesting to learn something new! 🙂",
+      "timestamp": "2026-05-26 16:23:03"
+    },
+    {
+      "role": "user",
+      "content": "night also interesting to know how to sleep in lots yesterday and relaxed",
+      "timestamp": "2026-05-26 16:23:38",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user's text describes their daily routine and emotional state in a factual manner, without expressing strong emotions."
+      },
+      "facial_emotion_hint": "Facial-expression hint from VLM was weak or uncertain; top_signal=neutral; confidence=0.50; reason=The visible portion of the face does not show a strong or clear expression. The mouth is slightly open, which could be interpreted as a neutral or slightly surprised expression, but the overall facial features do not provide a definitive emotion.; samples=13",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "ollama_vlm",
+        "model": "qwen2.5vl:7b",
+        "dominant_emotion": "neutral",
+        "confidence": 0.5,
+        "reason": "The visible portion of the face does not show a strong or clear expression. The mouth is slightly open, which could be interpreted as a neutral or slightly surprised expression, but the overall facial features do not provide a definitive emotion.",
+        "raw_result": {
+          "emotion": "neutral",
+          "confidence": 0.5,
+          "reason": "The visible portion of the face does not show a strong or clear expression. The mouth is slightly open, which could be interpreted as a neutral or slightly surprised expression, but the overall facial features do not provide a definitive emotion.",
+          "started_at": "2026-05-26 16:23:15",
+          "ended_at": "2026-05-26 16:23:23",
+          "backend": "ollama_vlm",
+          "model": "qwen2.5vl:7b"
+        },
+        "frame_count": 314,
+        "submitted_frame_count": 13,
+        "started_at": "2026-05-26 16:23:14",
+        "ended_at": "2026-05-26 16:23:25",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_ollama_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "It sounds like Leticie had a great day of relaxation, didn't they? It's wonderful when we can take some time off from our daily routines and recharge. Did you find that doing so helped with your overall well-being or mood today? 🙂",
+      "timestamp": "2026-05-26 16:23:38"
+    },
+    {
+      "role": "user",
+      "content": "hmmm, but I'm so sorry now, exhausted",
+      "timestamp": "2026-05-26 16:24:35",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user's words convey regret and exhaustion, indicating sadness."
+      },
+      "facial_emotion_hint": "Facial-expression hint from VLM was weak or uncertain; top_signal=neutral; confidence=0.50; reason=The face is partially obscured and the expression appears mild, making it difficult to determine a clear emotion.; samples=9",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "ollama_vlm",
+        "model": "qwen2.5vl:7b",
+        "dominant_emotion": "neutral",
+        "confidence": 0.5,
+        "reason": "The face is partially obscured and the expression appears mild, making it difficult to determine a clear emotion.",
+        "raw_result": {
+          "emotion": "neutral",
+          "confidence": 0.5,
+          "reason": "The face is partially obscured and the expression appears mild, making it difficult to determine a clear emotion.",
+          "started_at": "2026-05-26 16:23:55",
+          "ended_at": "2026-05-26 16:24:02",
+          "backend": "ollama_vlm",
+          "model": "qwen2.5vl:7b"
+        },
+        "frame_count": 202,
+        "submitted_frame_count": 9,
+        "started_at": "2026-05-26 16:23:55",
+        "ended_at": "2026-05-26 16:24:02",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_ollama_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "It sounds like Leticie is feeling a bit drained after yesterday's relaxation day! It can be tough to adjust back into our usual routines when we've had some extra downtime. Would you like me to help brainstorm ways to boost your energy levels or tackle that exhaustion? 😢",
+      "timestamp": "2026-05-26 16:24:35"
+    },
+    {
+      "role": "user",
+      "content": "Ahhh...",
+      "timestamp": "2026-05-26 16:25:01",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.5,
+        "reason": "Unclear facial-expression hint and user's words are emotional but unclear"
+      },
+      "facial_emotion_hint": "Facial-expression hint from VLM was weak or uncertain; top_signal=neutral; confidence=0.50; reason=The face is partially obscured and the expression is not clearly visible, making it difficult to determine a specific emotion.; samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "ollama_vlm",
+        "model": "qwen2.5vl:7b",
+        "dominant_emotion": "neutral",
+        "confidence": 0.5,
+        "reason": "The face is partially obscured and the expression is not clearly visible, making it difficult to determine a specific emotion.",
+        "raw_result": {
+          "emotion": "neutral",
+          "confidence": 0.5,
+          "reason": "The face is partially obscured and the expression is not clearly visible, making it difficult to determine a specific emotion.",
+          "started_at": "2026-05-26 16:24:02",
+          "ended_at": "2026-05-26 16:24:05",
+          "backend": "ollama_vlm",
+          "model": "qwen2.5vl:7b"
+        },
+        "frame_count": 54,
+        "submitted_frame_count": 3,
+        "started_at": "2026-05-26 16:24:39",
+        "ended_at": "2026-05-26 16:24:41",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_ollama_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "It seems Leticie is feeling a bit overwhelmed right now! I'm here to listen and offer support, not judgment. Sometimes just talking about what's on our minds can be helpful in clarifying things. Would you like me to help facilitate that conversation? 🙂",
+      "timestamp": "2026-05-26 16:25:01"
+    },
+    {
+      "role": "user",
+      "content": "Yes, actually what I'm trying my best to be hard-working.",
+      "timestamp": "2026-05-26 16:26:23",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user's words express a sense of determination and effort, which aligns with the facial-expression hint's neutral tone."
+      },
+      "facial_emotion_hint": "Facial-expression hint from VLM was weak or uncertain; top_signal=neutral; confidence=0.50; reason=The visible portion of the face shows a slight smile, which could be interpreted as a neutral or slightly positive expression. However, the overall expression is not strong enough to confidently categorize it as any specific emotion.; samples=12",
+      "face_emotion": {
+        "available": true,
+        "reliable": false,
+        "backend": "ollama_vlm",
+        "model": "qwen2.5vl:7b",
+        "dominant_emotion": "neutral",
+        "confidence": 0.5,
+        "reason": "The visible portion of the face shows a slight smile, which could be interpreted as a neutral or slightly positive expression. However, the overall expression is not strong enough to confidently categorize it as any specific emotion.",
+        "raw_result": {
+          "emotion": "neutral",
+          "confidence": 0.5,
+          "reason": "The visible portion of the face shows a slight smile, which could be interpreted as a neutral or slightly positive expression. However, the overall expression is not strong enough to confidently categorize it as any specific emotion.",
+          "started_at": "2026-05-26 16:25:10",
+          "ended_at": "2026-05-26 16:25:14",
+          "backend": "ollama_vlm",
+          "model": "qwen2.5vl:7b"
+        },
+        "frame_count": 283,
+        "submitted_frame_count": 12,
+        "started_at": "2026-05-26 16:25:06",
+        "ended_at": "2026-05-26 16:25:16",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_ollama_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "It sounds like Leticie is striving for diligence and perseverance! That's a wonderful quality to cultivate, especially when faced with challenges or tasks we'd rather not tackle. What specific goals or areas are you focusing on being more diligent about? Maybe together we can brainstorm ways to stay motivated and make progress towards those objectives. 🙂",
+      "timestamp": "2026-05-26 16:26:23"
+    },
+    {
+      "role": "user",
+      "content": "Yes, actually I am",
+      "timestamp": "2026-05-26 16:26:46",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.5,
+        "reason": "The user's words are factual and do not convey strong emotions, despite the facial-expression hint suggesting joy."
+      },
+      "facial_emotion_hint": "dominant=joy; confidence=0.70; reason=The person is smiling, which is a common indicator of joy.; samples=6",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "backend": "ollama_vlm",
+        "model": "qwen2.5vl:7b",
+        "dominant_emotion": "joy",
+        "confidence": 0.7,
+        "reason": "The person is smiling, which is a common indicator of joy.",
+        "raw_result": {
+          "emotion": "joy",
+          "confidence": 0.7,
+          "reason": "The person is smiling, which is a common indicator of joy.",
+          "started_at": "2026-05-26 16:26:33",
+          "ended_at": "2026-05-26 16:26:36",
+          "backend": "ollama_vlm",
+          "model": "qwen2.5vl:7b"
+        },
+        "frame_count": 127,
+        "submitted_frame_count": 6,
+        "started_at": "2026-05-26 16:26:33",
+        "ended_at": "2026-05-26 16:26:38",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_ollama_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "It seems like Leticie is already taking steps in the right direction! Recognizing our efforts and acknowledging small wins can be a great motivator. What's been working well for you so far? Are there any specific strategies or habits that have helped you stay on track with your goals? 🙂",
+      "timestamp": "2026-05-26 16:26:46"
+    }
+  ]
+}

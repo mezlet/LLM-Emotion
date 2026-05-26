@@ -1,0 +1,173 @@
+{
+  "user": {
+    "key": "leticia",
+    "name": "Leticia"
+  },
+  "session": {
+    "started_at": "2026-05-26 15:21:55",
+    "ended_at": "2026-05-26 15:24:04",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "safe_gpu_with_cpu_fallback",
+      "model": "small",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "VLM via Ollama (qwen2.5vl:7b)",
+      "camera_device": 0,
+      "camera_frame_width": 2560,
+      "camera_frame_height": 720,
+      "preview_enabled": true,
+      "sample_every_seconds": "after_utterance_only",
+      "warmup_seconds": 1.0,
+      "detector_backend": "none",
+      "actions": [
+        "emotion"
+      ],
+      "align": false,
+      "min_top_score": 70.0,
+      "min_margin": 25.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.45,
+      "min_silence_duration_ms": 2200,
+      "speech_pad_ms": 500,
+      "max_utterance_seconds": 45.0,
+      "min_utterance_seconds": 1.0,
+      "pre_roll_seconds": 0.7
+    }
+  },
+  "messages": [
+    {
+      "role": "ameca",
+      "content": "Nice to meet you, Leticia! 🙂",
+      "timestamp": "2026-05-26 15:21:55",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too.",
+      "timestamp": "2026-05-26 15:22:13",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The message is a friendly acknowledgement, indicating a neutral emotional state."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 1,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-26 15:21:58",
+        "ended_at": "2026-05-26 15:22:09",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "I'm happy to be chatting with you. What brings you here today? 🙂",
+      "timestamp": "2026-05-26 15:22:13"
+    },
+    {
+      "role": "user",
+      "content": "Well, it's a new week trying to get ahead of the week.",
+      "timestamp": "2026-05-26 15:22:40",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user is making a factual statement about their goal for the week, without expressing any strong emotions."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 1,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-26 15:22:18",
+        "ended_at": "2026-05-26 15:22:36",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "It can feel overwhelming when there are many tasks on your plate! Let me help you brainstorm some strategies for tackling them effectively. Would you like some suggestions or tips to get started? 🙂",
+      "timestamp": "2026-05-26 15:22:40"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, sure. Shooots.",
+      "timestamp": "2026-05-26 15:23:14",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The message is a short acknowledgement with no emotional tone."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 1,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-26 15:22:58",
+        "ended_at": "2026-05-26 15:23:11",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "Let's break it down into smaller chunks and prioritize the most important tasks first. Sometimes just making a list can make things feel more manageable! Do you have any specific goals in mind for this week that we could work towards together? 🙂",
+      "timestamp": "2026-05-26 15:23:14"
+    },
+    {
+      "role": "user",
+      "content": "Yeah, okay, any interesting thing we could talk about today.",
+      "timestamp": "2026-05-26 15:23:46",
+      "emotion": {
+        "emotion": "neutral",
+        "confidence": 0.8,
+        "reason": "The user is making a factual statement and asking for suggestions, indicating a neutral emotional state."
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 1,
+        "sampled_frame_count": 1,
+        "started_at": "2026-05-26 15:23:26",
+        "ended_at": "2026-05-26 15:23:42",
+        "error": null,
+        "note": "Facial expression analysis is a weak supporting signal only. Text-based emotion should remain the primary signal."
+      },
+      "input_mode": "silero_vad_faster_whisper_vlm"
+    },
+    {
+      "role": "ameca",
+      "content": "I'm happy to chat with you about anything that interests you! Have you come across a fascinating article or topic recently that's got your curiosity piqued? I'd love to learn more and discuss it with you! 🙂",
+      "timestamp": "2026-05-26 15:23:46"
+    }
+  ]
+}
