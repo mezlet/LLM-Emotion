@@ -1,0 +1,18 @@
+# datasets
+*.tar.gz
+*.zip
+*.pt
+*.pth
+*.ckpt
+*.bin
+
+# python cache
+__pycache__/
+*.pyc
+
+# results
+results/
+benchmark/**/results/
+
+# datasets
+benchmark/asr/data/
