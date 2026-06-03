@@ -1,0 +1,648 @@
+{
+  "user": {
+    "key": "leticra",
+    "name": "Leticra"
+  },
+  "session": {
+    "started_at": "2026-06-03 14:08:33",
+    "ended_at": "2026-06-03 14:16:00",
+    "model": "llama3:8b",
+    "fusion": {
+      "algorithm": "adaptive_reliability_aware_late_fusion",
+      "gate_threshold": 0.3,
+      "modalities": [
+        "linguistic",
+        "acoustic",
+        "visual"
+      ]
+    },
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "large-v3",
+      "device": "cuda",
+      "compute_type": "float16",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "qwen2.5vl via Ollama",
+      "camera_device": 0,
+      "vision_model": "llama3.2-vision:11b"
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "threshold": 0.55
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Leticra! I'm Ameca, and I'm thrilled to have you join our little community. 🙂",
+      "timestamp": "2026-06-03 14:08:33",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "Nice to meet you too",
+      "timestamp": "2026-06-03 14:09:29",
+      "input_mode": "silero_vad_faster_whisper_qwen25vl",
+      "fusion": {
+        "algorithm": "adaptive_reliability_aware_late_fusion",
+        "fused_emotion": "joy",
+        "fused_confidence": 0.4508,
+        "fused_probs": {
+          "joy": 0.4508,
+          "trust": 0.1194,
+          "fear": 0.1074,
+          "surprise": 0.0269,
+          "sadness": 0.0269,
+          "disgust": 0.0269,
+          "anger": 0.2149,
+          "anticipation": 0.0269
+        },
+        "effective_weights": {
+          "linguistic": 0.4628,
+          "acoustic": 0.5372,
+          "visual": 0.0
+        },
+        "raw_reliability_scores": {
+          "linguistic": 0.8613,
+          "acoustic": 1.0,
+          "visual": 0.0
+        },
+        "reason": "Adaptive fusion from [linguistic, acoustic]. Effective weights: linguistic=0.46, acoustic=0.54, visual=0.00. Dominant: joy (0.45)",
+        "modalities": {
+          "linguistic": {
+            "reliability": 0.8613,
+            "dominant": "joy",
+            "probs": {
+              "joy": 0.8,
+              "trust": 0.2,
+              "fear": 0.0,
+              "surprise": 0.0,
+              "sadness": 0.0,
+              "disgust": 0.0,
+              "anger": 0.0,
+              "anticipation": 0.0
+            }
+          },
+          "acoustic": {
+            "reliability": 1.0,
+            "dominant": "anger",
+            "probs": {
+              "joy": 0.15,
+              "trust": 0.05,
+              "fear": 0.2,
+              "surprise": 0.05,
+              "sadness": 0.05,
+              "disgust": 0.05,
+              "anger": 0.4,
+              "anticipation": 0.05
+            }
+          },
+          "visual": {
+            "reliability": 0.0,
+            "dominant": "joy",
+            "probs": {
+              "joy": 0.125,
+              "trust": 0.125,
+              "fear": 0.125,
+              "surprise": 0.125,
+              "sadness": 0.125,
+              "disgust": 0.125,
+              "anger": 0.125,
+              "anticipation": 0.125
+            }
+          }
+        }
+      },
+      "facial_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 66,
+        "sampled_frame_count": 1,
+        "started_at": "2026-06-03 14:08:41",
+        "ended_at": "2026-06-03 14:08:45",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal. Fusion weights are computed dynamically from reliability scores."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "I'd be happy to help with any questions or topics you'd like to discuss. What's on your mind today? 😊",
+      "timestamp": "2026-06-03 14:09:29"
+    },
+    {
+      "role": "user",
+      "content": "Well, not too much and you have any topic we can chat about?",
+      "timestamp": "2026-06-03 14:11:11",
+      "input_mode": "silero_vad_faster_whisper_qwen25vl",
+      "fusion": {
+        "algorithm": "adaptive_reliability_aware_late_fusion",
+        "fused_emotion": "joy",
+        "fused_confidence": 0.4983,
+        "fused_probs": {
+          "joy": 0.4983,
+          "trust": 0.1403,
+          "fear": 0.0761,
+          "surprise": 0.0212,
+          "sadness": 0.0183,
+          "disgust": 0.0183,
+          "anger": 0.1463,
+          "anticipation": 0.0811
+        },
+        "effective_weights": {
+          "linguistic": 0.302,
+          "acoustic": 0.3657,
+          "visual": 0.3323
+        },
+        "raw_reliability_scores": {
+          "linguistic": 0.7997,
+          "acoustic": 0.9685,
+          "visual": 0.88
+        },
+        "reason": "Adaptive fusion from [linguistic, acoustic, visual]. Effective weights: linguistic=0.30, acoustic=0.37, visual=0.33. Dominant: joy (0.50)",
+        "modalities": {
+          "linguistic": {
+            "reliability": 0.7997,
+            "dominant": "joy",
+            "probs": {
+              "joy": 0.5882,
+              "trust": 0.2941,
+              "fear": 0.0098,
+              "surprise": 0.0098,
+              "sadness": 0.0,
+              "disgust": 0.0,
+              "anger": 0.0,
+              "anticipation": 0.098
+            }
+          },
+          "acoustic": {
+            "reliability": 0.9685,
+            "dominant": "anger",
+            "probs": {
+              "joy": 0.15,
+              "trust": 0.05,
+              "fear": 0.2,
+              "surprise": 0.05,
+              "sadness": 0.05,
+              "disgust": 0.05,
+              "anger": 0.4,
+              "anticipation": 0.05
+            }
+          },
+          "visual": {
+            "reliability": 0.88,
+            "dominant": "joy",
+            "probs": {
+              "joy": 0.8,
+              "trust": 0.1,
+              "fear": 0.0,
+              "surprise": 0.0,
+              "sadness": 0.0,
+              "disgust": 0.0,
+              "anger": 0.0,
+              "anticipation": 0.1
+            }
+          }
+        }
+      },
+      "facial_hint": "dominant=joy; averaged_scores=(joy=80%, trust=10%, anticipation=10%); samples=1",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 80.0,
+          "trust": 10.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 10.0
+        },
+        "frame_count": 166,
+        "sampled_frame_count": 1,
+        "started_at": "2026-06-03 14:09:59",
+        "ended_at": "2026-06-03 14:11:06",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal. Fusion weights are computed dynamically from reliability scores."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Sounds good! I'm always up for a casual conversation. How about we talk about something interesting that happened recently in the world of science or technology? There are some fascinating breakthroughs happening all around us! 😊",
+      "timestamp": "2026-06-03 14:11:11"
+    },
+    {
+      "role": "user",
+      "content": "Okay, that makes sense. What questions in particular should we talk about?",
+      "timestamp": "2026-06-03 14:12:16",
+      "input_mode": "silero_vad_faster_whisper_qwen25vl",
+      "fusion": {
+        "algorithm": "adaptive_reliability_aware_late_fusion",
+        "fused_emotion": "joy",
+        "fused_confidence": 0.629,
+        "fused_probs": {
+          "joy": 0.629,
+          "trust": 0.066,
+          "fear": 0.0731,
+          "surprise": 0.0237,
+          "sadness": 0.0206,
+          "disgust": 0.0191,
+          "anger": 0.1416,
+          "anticipation": 0.0268
+        },
+        "effective_weights": {
+          "linguistic": 0.3207,
+          "acoustic": 0.3502,
+          "visual": 0.3292
+        },
+        "raw_reliability_scores": {
+          "linguistic": 0.9158,
+          "acoustic": 1.0,
+          "visual": 0.94
+        },
+        "reason": "Adaptive fusion from [linguistic, acoustic, visual]. Effective weights: linguistic=0.32, acoustic=0.35, visual=0.33. Dominant: joy (0.63)",
+        "modalities": {
+          "linguistic": {
+            "reliability": 0.9158,
+            "dominant": "joy",
+            "probs": {
+              "joy": 0.8738,
+              "trust": 0.0485,
+              "fear": 0.0097,
+              "surprise": 0.0194,
+              "sadness": 0.0097,
+              "disgust": 0.0049,
+              "anger": 0.0049,
+              "anticipation": 0.0291
+            }
+          },
+          "acoustic": {
+            "reliability": 1.0,
+            "dominant": "anger",
+            "probs": {
+              "joy": 0.15,
+              "trust": 0.05,
+              "fear": 0.2,
+              "surprise": 0.05,
+              "sadness": 0.05,
+              "disgust": 0.05,
+              "anger": 0.4,
+              "anticipation": 0.05
+            }
+          },
+          "visual": {
+            "reliability": 0.94,
+            "dominant": "joy",
+            "probs": {
+              "joy": 0.9,
+              "trust": 0.1,
+              "fear": 0.0,
+              "surprise": 0.0,
+              "sadness": 0.0,
+              "disgust": 0.0,
+              "anger": 0.0,
+              "anticipation": 0.0
+            }
+          }
+        }
+      },
+      "facial_hint": "dominant=joy; averaged_scores=(joy=90%, trust=10%); samples=1",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 90.0,
+          "trust": 10.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0
+        },
+        "frame_count": 276,
+        "sampled_frame_count": 1,
+        "started_at": "2026-06-03 14:11:45",
+        "ended_at": "2026-06-03 14:12:11",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal. Fusion weights are computed dynamically from reliability scores."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Let's explore some recent advancements together! For instance, have you heard anything about the latest discoveries in quantum computing or artificial intelligence research? Or perhaps you're curious about new developments in fields like medicine, space exploration, or environmental science? Feel free to pick any area that sparks your interest, and we can dive into a conversation. 😊",
+      "timestamp": "2026-06-03 14:12:16"
+    },
+    {
+      "role": "user",
+      "content": "Well, unfortunately, I have not heard anything on quantum computing. I don't mind to share any knowledge with me regarding that.",
+      "timestamp": "2026-06-03 14:13:29",
+      "input_mode": "silero_vad_faster_whisper_qwen25vl",
+      "fusion": {
+        "algorithm": "adaptive_reliability_aware_late_fusion",
+        "fused_emotion": "joy",
+        "fused_confidence": 0.447,
+        "fused_probs": {
+          "joy": 0.447,
+          "trust": 0.105,
+          "fear": 0.0859,
+          "surprise": 0.0614,
+          "sadness": 0.0905,
+          "disgust": 0.0207,
+          "anger": 0.1717,
+          "anticipation": 0.0178
+        },
+        "effective_weights": {
+          "linguistic": 0.3079,
+          "acoustic": 0.3568,
+          "visual": 0.3353
+        },
+        "raw_reliability_scores": {
+          "linguistic": 0.8631,
+          "acoustic": 1.0,
+          "visual": 0.94
+        },
+        "reason": "Adaptive fusion from [linguistic, acoustic, visual]. Effective weights: linguistic=0.31, acoustic=0.36, visual=0.34. Dominant: joy (0.45)",
+        "modalities": {
+          "linguistic": {
+            "reliability": 0.8631,
+            "dominant": "trust",
+            "probs": {
+              "joy": 0.1887,
+              "trust": 0.283,
+              "fear": 0.0472,
+              "surprise": 0.1415,
+              "sadness": 0.2358,
+              "disgust": 0.0094,
+              "anger": 0.0943,
+              "anticipation": 0.0
+            }
+          },
+          "acoustic": {
+            "reliability": 1.0,
+            "dominant": "anger",
+            "probs": {
+              "joy": 0.15,
+              "trust": 0.05,
+              "fear": 0.2,
+              "surprise": 0.05,
+              "sadness": 0.05,
+              "disgust": 0.05,
+              "anger": 0.4,
+              "anticipation": 0.05
+            }
+          },
+          "visual": {
+            "reliability": 0.94,
+            "dominant": "joy",
+            "probs": {
+              "joy": 1.0,
+              "trust": 0.0,
+              "fear": 0.0,
+              "surprise": 0.0,
+              "sadness": 0.0,
+              "disgust": 0.0,
+              "anger": 0.0,
+              "anticipation": 0.0
+            }
+          }
+        }
+      },
+      "facial_hint": "dominant=joy; averaged_scores=(joy=90%); samples=1",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 90.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0
+        },
+        "frame_count": 377,
+        "sampled_frame_count": 1,
+        "started_at": "2026-06-03 14:12:54",
+        "ended_at": "2026-06-03 14:13:23",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal. Fusion weights are computed dynamically from reliability scores."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Quantum computing is an exciting field! Let's start with the basics: Quantum computers use qubits (quantum bits) instead of classical computer bits. Qubits can exist in multiple states simultaneously, allowing for much faster processing and calculations compared to traditional computers. Recently, there have been significant advancements in quantum error correction techniques, which are crucial for large-scale practical applications. For instance, a team at the University of California, Santa Barbara, developed an innovative method that reduces errors by up to 99%. This breakthrough could lead to more reliable and efficient quantum computing systems! 😊",
+      "timestamp": "2026-06-03 14:13:29"
+    },
+    {
+      "role": "user",
+      "content": "That sounds interesting. But can we talk about artificial intelligence instead?",
+      "timestamp": "2026-06-03 14:15:02",
+      "input_mode": "silero_vad_faster_whisper_qwen25vl",
+      "fusion": {
+        "algorithm": "adaptive_reliability_aware_late_fusion",
+        "fused_emotion": "joy",
+        "fused_confidence": 0.5306,
+        "fused_probs": {
+          "joy": 0.5306,
+          "trust": 0.1127,
+          "fear": 0.0733,
+          "surprise": 0.0183,
+          "sadness": 0.0183,
+          "disgust": 0.0183,
+          "anger": 0.1467,
+          "anticipation": 0.0817
+        },
+        "effective_weights": {
+          "linguistic": 0.3107,
+          "acoustic": 0.3666,
+          "visual": 0.3226
+        },
+        "raw_reliability_scores": {
+          "linguistic": 0.8475,
+          "acoustic": 1.0,
+          "visual": 0.88
+        },
+        "reason": "Adaptive fusion from [linguistic, acoustic, visual]. Effective weights: linguistic=0.31, acoustic=0.37, visual=0.32. Dominant: joy (0.53)",
+        "modalities": {
+          "linguistic": {
+            "reliability": 0.8475,
+            "dominant": "joy",
+            "probs": {
+              "joy": 0.7,
+              "trust": 0.2,
+              "fear": 0.0,
+              "surprise": 0.0,
+              "sadness": 0.0,
+              "disgust": 0.0,
+              "anger": 0.0,
+              "anticipation": 0.1
+            }
+          },
+          "acoustic": {
+            "reliability": 1.0,
+            "dominant": "anger",
+            "probs": {
+              "joy": 0.15,
+              "trust": 0.05,
+              "fear": 0.2,
+              "surprise": 0.05,
+              "sadness": 0.05,
+              "disgust": 0.05,
+              "anger": 0.4,
+              "anticipation": 0.05
+            }
+          },
+          "visual": {
+            "reliability": 0.88,
+            "dominant": "joy",
+            "probs": {
+              "joy": 0.8,
+              "trust": 0.1,
+              "fear": 0.0,
+              "surprise": 0.0,
+              "sadness": 0.0,
+              "disgust": 0.0,
+              "anger": 0.0,
+              "anticipation": 0.1
+            }
+          }
+        }
+      },
+      "facial_hint": "dominant=joy; averaged_scores=(joy=80%, trust=10%, anticipation=10%); samples=1",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 80.0,
+          "trust": 10.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 10.0
+        },
+        "frame_count": 267,
+        "sampled_frame_count": 1,
+        "started_at": "2026-06-03 14:14:30",
+        "ended_at": "2026-06-03 14:14:55",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal. Fusion weights are computed dynamically from reliability scores."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Artificial Intelligence (AI) is a fascinating field with numerous applications across industries. What aspect of AI would you like to explore? We could discuss recent advancements in areas such as: * Natural Language Processing (NLP): Improvements in language understanding, generation, and translation. * Computer Vision: Advancements in image recognition, object detection, and facial analysis. Or perhaps you're interested in the applications of AI in specific domains, such as healthcare, finance, or education? Let me know your curiosity level, and we can dive into a conversation! 😊",
+      "timestamp": "2026-06-03 14:15:02"
+    },
+    {
+      "role": "user",
+      "content": "Hmm, I feel very exhausted at the moment.",
+      "timestamp": "2026-06-03 14:15:50",
+      "input_mode": "silero_vad_faster_whisper_qwen25vl",
+      "fusion": {
+        "algorithm": "adaptive_reliability_aware_late_fusion",
+        "fused_emotion": "sadness",
+        "fused_confidence": 0.3869,
+        "fused_probs": {
+          "joy": 0.0826,
+          "trust": 0.0275,
+          "fear": 0.1102,
+          "surprise": 0.0275,
+          "sadness": 0.3869,
+          "disgust": 0.0275,
+          "anger": 0.3102,
+          "anticipation": 0.0275
+        },
+        "effective_weights": {
+          "linguistic": 0.4492,
+          "acoustic": 0.5508,
+          "visual": 0.0
+        },
+        "raw_reliability_scores": {
+          "linguistic": 0.8157,
+          "acoustic": 1.0,
+          "visual": 0.0
+        },
+        "reason": "Adaptive fusion from [linguistic, acoustic]. Effective weights: linguistic=0.45, acoustic=0.55, visual=0.00. Dominant: sadness (0.39)",
+        "modalities": {
+          "linguistic": {
+            "reliability": 0.8157,
+            "dominant": "sadness",
+            "probs": {
+              "joy": 0.0,
+              "trust": 0.0,
+              "fear": 0.0,
+              "surprise": 0.0,
+              "sadness": 0.8,
+              "disgust": 0.0,
+              "anger": 0.2,
+              "anticipation": 0.0
+            }
+          },
+          "acoustic": {
+            "reliability": 1.0,
+            "dominant": "anger",
+            "probs": {
+              "joy": 0.15,
+              "trust": 0.05,
+              "fear": 0.2,
+              "surprise": 0.05,
+              "sadness": 0.05,
+              "disgust": 0.05,
+              "anger": 0.4,
+              "anticipation": 0.05
+            }
+          },
+          "visual": {
+            "reliability": 0.0,
+            "dominant": "joy",
+            "probs": {
+              "joy": 0.125,
+              "trust": 0.125,
+              "fear": 0.125,
+              "surprise": 0.125,
+              "sadness": 0.125,
+              "disgust": 0.125,
+              "anger": 0.125,
+              "anticipation": 0.125
+            }
+          }
+        }
+      },
+      "facial_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 181,
+        "sampled_frame_count": 1,
+        "started_at": "2026-06-03 14:15:24",
+        "ended_at": "2026-06-03 14:15:44",
+        "error": null,
+        "note": "Qwen2.5-VL facial expression analysis is a weak supporting signal. Fusion weights are computed dynamically from reliability scores."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "I'm here to help ease that fatigue, Leticra! Sometimes all it takes is a gentle nudge in the right direction or an engaging topic to spark some energy. If you're not feeling up for discussing AI or any other specific subject just yet, we can simply chat about your day, share some calming thoughts, and see if things pick up from there. 😢",
+      "timestamp": "2026-06-03 14:15:50"
+    }
+  ]
+}
