@@ -1,0 +1,9 @@
+torch>=2.0.0
+torchaudio>=2.0.0
+whisperx>=3.1.1
+faster-whisper>=1.0.0
+jiwer>=3.0.3
+numpy>=1.24.0
+matplotlib>=3.7.0
+soundfile>=0.12.1
+datacollective          # Mozilla Data Collective — for Common Voice download
