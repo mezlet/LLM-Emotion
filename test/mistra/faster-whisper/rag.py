@@ -2,6 +2,7 @@
 """
 vlm2.py  —  Ameca HRI dialogue prototype
 Extended with Adaptive Reliability-Aware Late Fusion (ARALF)
+           + Offline Self-RAG (ChromaDB / RRLab knowledge base)
 
 Fusion pipeline per conversational turn:
   Linguistic  →  LLM emotion probs  +  r_L  (ASR word confidence × length × speech prob)
@@ -9,6 +10,12 @@ Fusion pipeline per conversational turn:
   Visual      →  Qwen2.5-VL probs    +  r_V  (face detect conf × FER conf × face area)
   ─────────────────────────────────────────────────────────────────────────────────────
   P_fused(e) = Σ_m  w_m · P_m(e)  /  Σ_m w_m   where  w_m = r_m  (gated at θ=0.30)
+
+Self-RAG pipeline per conversational turn:
+  1. needs_retrieval()   — LLM classifier: should we retrieve? (~60ms on mistral:7b)
+  2. retrieve_passages() — ChromaDB cosine nearest-neighbour (top-k=3)
+  3. is_relevant()       — distance pre-filter + optional LLM [ISREL] check
+  4. inject rag_context  — passages prepended to response generation system prompt
 """
 from __future__ import annotations
 
@@ -48,6 +55,16 @@ except ImportError:
     print("[WARN] librosa not installed. Acoustic modality will be disabled.")
     print("       Install with: pip install librosa")
 
+# ── Optional Self-RAG / ChromaDB import ────────────────────────────────────
+try:
+    import chromadb
+    from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
+    print("[WARN] chromadb / sentence-transformers not installed. Self-RAG disabled.")
+    print("       Install with: pip install chromadb sentence-transformers")
+
 IS_MAC   = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
 
@@ -60,25 +77,30 @@ USE_ZED_HALF_FRAME_CROP = IS_LINUX
 
 OLLAMA_HOST        = "https://inches-productivity-wanting-stereo.trycloudflare.com"
 MODEL_NAME         = "llama3:8b"     # response generation
-EMOTION_MODEL_NAME = "mistral:7b"    # emotion classification
+EMOTION_MODEL_NAME = "mistral:7b"    # emotion classification + RAG retrieval judge
 VISION_MODEL_NAME  = "qwen2.5vl:7b"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Adaptive Reliability-Aware Late Fusion configuration
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Modalities whose reliability score falls below this threshold are gated out.
 FUSION_GATE_THRESHOLD = 0.30
-
-# Fixed fallback weights used ONLY for logging / comparison experiments.
-# The live system always uses dynamic reliability weights.
 FUSION_FALLBACK_WEIGHTS = {"linguistic": 0.50, "acoustic": 0.25, "visual": 0.25}
-
-# Acoustic reliability: reference RMS level for comfortable conversational speech.
 ACOUSTIC_REF_RMS = 0.08
-
-# Linguistic reliability: minimum number of words for full length credit.
 LINGUISTIC_MIN_WORDS_FOR_FULL_CREDIT = 5
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Self-RAG / ChromaDB configuration
+# ══════════════════════════════════════════════════════════════════════════════
+
+SELF_RAG_ENABLED          = True   # set False to disable at runtime
+CHROMA_PERSIST_DIR        = "chroma_db"
+CHROMA_COLLECTION         = "emah_knowledge"
+RAG_EMBEDDING_MODEL       = "all-MiniLM-L6-v2"
+RAG_TOP_K                 = 3
+RAG_DISTANCE_HARD_REJECT  = 0.55   # cosine distance: passages further than this are always dropped
+RAG_DISTANCE_SKIP_LLM     = 0.18   # passages closer than this skip the LLM relevance check
+RAG_MAX_CONTEXT_CHARS     = 1200   # total character budget for injected RAG context
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Persistent memory / transcript configuration
@@ -215,7 +237,6 @@ ALLOWED_FACE_EMOJIS = set(PLUTCHIK_EMOTIONS.values())
 
 @dataclass
 class EmotionResult:
-    """Backward-compatible single-label emotion result for response generation."""
     emotion:    str
     confidence: float
     reason:     str
@@ -223,48 +244,37 @@ class EmotionResult:
 
 @dataclass
 class TranscriptionResult:
-    """ASR output with quality signals for linguistic reliability scoring."""
     text:             str
-    word_confidences: list[float]   # per-word probability from faster-whisper
-    no_speech_prob:   float         # mean segment-level no-speech probability
-    avg_logprob:      float = -1.0  # mean segment-level log-probability
+    word_confidences: list[float]
+    no_speech_prob:   float
+    avg_logprob:      float = -1.0
 
 
 @dataclass
 class ProsodyFeatures:
-    """Acoustic feature vector extracted by librosa."""
-    f0_mean:          float   # mean voiced fundamental frequency (Hz)
-    f0_std:           float   # F0 variability (indicates emotional arousal)
-    rms_energy:       float   # mean RMS energy (speech loudness)
-    speaking_rate:    float   # onset events per second (syllable proxy)
-    zcr_mean:         float   # zero-crossing rate
-    voiced_ratio:     float   # proportion of voiced frames in the utterance
+    f0_mean:          float
+    f0_std:           float
+    rms_energy:       float
+    speaking_rate:    float
+    zcr_mean:         float
+    voiced_ratio:     float
     duration_seconds: float
 
 
 @dataclass
 class ModalityEmotionResult:
-    """
-    Per-modality output for the fusion module.
-    probs: probability distribution over Plutchik's 8 emotions (sums to 1.0).
-    reliability: scalar in [0, 1] computed from observable quality signals.
-    """
     probs:       dict[str, float]
     reliability: float
-    modality:    str   # "linguistic" | "acoustic" | "visual"
+    modality:    str
 
 
 @dataclass
 class FusedEmotionResult:
-    """
-    Output of the adaptive reliability-aware late fusion module.
-    Wraps both the final label and the full internal state for logging.
-    """
     emotion:     str
     confidence:  float
     probs:       dict[str, float]
-    weights:     dict[str, float]   # effective normalised weights: L, A, V
-    raw_weights: dict[str, float]   # raw reliability scores before normalisation
+    weights:     dict[str, float]
+    raw_weights: dict[str, float]
     reason:      str
     linguistic:  Optional[ModalityEmotionResult]
     acoustic:    Optional[ModalityEmotionResult]
@@ -377,7 +387,7 @@ def default_face_emotion_json() -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Persistent memory helpers  (unchanged from original)
+# Persistent memory helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
 def ensure_data_dirs() -> None:
@@ -495,6 +505,12 @@ def save_session_transcript(user_key, user_profile, session_log) -> str:
                 "algorithm": "adaptive_reliability_aware_late_fusion",
                 "gate_threshold": FUSION_GATE_THRESHOLD,
                 "modalities": ["linguistic", "acoustic", "visual"],
+            },
+            "self_rag": {
+                "enabled":    SELF_RAG_ENABLED and CHROMADB_AVAILABLE,
+                "collection": CHROMA_COLLECTION,
+                "top_k":      RAG_TOP_K,
+                "embedding":  RAG_EMBEDDING_MODEL,
             },
             "asr":  {"backend": "faster-whisper", **FAST_WHISPER_CONFIG},
             "face_emotion": {
@@ -638,22 +654,13 @@ def transcribe_with_confidence(
     wav_path: str,
     whisper_model: WhisperModel,
 ) -> TranscriptionResult:
-    """
-    Transcribe with faster-whisper and return a TranscriptionResult containing:
-    - text
-    - word_confidences: per-word probability (0..1) when word_timestamps=True
-    - no_speech_prob: mean segment-level no-speech probability
-    - avg_logprob: mean segment-level log-probability (fallback confidence proxy)
-
-    These signals feed directly into compute_linguistic_reliability().
-    """
     segments, info = whisper_model.transcribe(
         wav_path,
         language=FAST_WHISPER_CONFIG.get("language"),
         beam_size=int(FAST_WHISPER_CONFIG.get("beam_size", 1)),
         vad_filter=bool(FAST_WHISPER_CONFIG.get("vad_filter", False)),
         condition_on_previous_text=False,
-        word_timestamps=True,   # ← enables per-word probability
+        word_timestamps=True,
     )
 
     all_segments     = list(segments)
@@ -684,7 +691,6 @@ def transcribe_with_confidence(
     )
 
 
-# Backward-compatible alias for any callers that still use the old signature.
 def transcribe_with_faster_whisper(wav_path: str, whisper_model: WhisperModel) -> str:
     return transcribe_with_confidence(wav_path, whisper_model).text
 
@@ -696,279 +702,145 @@ transcribe_audio = transcribe_with_faster_whisper
 # ══════════════════════════════════════════════════════════════════════════════
 
 def compute_linguistic_reliability(transcription: TranscriptionResult) -> float:
-    """
-    r_L = mean_word_confidence × length_factor × (1 − no_speech_prob)
-
-    - mean_word_confidence: average per-word ASR probability.
-      Falls back to an approximation from avg_logprob if word timestamps
-      were unavailable.
-    - length_factor: min(1, n_words / 5)  — penalises very short utterances.
-    - (1 − no_speech_prob): complement of the segment-level silence score.
-    """
     if not transcription.text.strip():
         return 0.0
-
-    # ── mean word-level confidence ──────────────────────────────────────────
     if transcription.word_confidences:
         mean_conf = float(np.mean(transcription.word_confidences))
     else:
-        # Approximate from log-prob: e^logprob clips to [0, 1]
         lp = transcription.avg_logprob
         mean_conf = float(np.clip(np.exp(lp), 0.0, 1.0)) if lp > -10.0 else 0.40
-
-    # ── length factor ────────────────────────────────────────────────────────
     n_words = len(transcription.text.split())
     length_factor = min(1.0, n_words / LINGUISTIC_MIN_WORDS_FOR_FULL_CREDIT)
-
-    # ── speech activity ──────────────────────────────────────────────────────
     speech_factor = max(0.0, 1.0 - transcription.no_speech_prob)
-
     r_L = mean_conf * length_factor * speech_factor
     return float(np.clip(r_L, 0.0, 1.0))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Acoustic modality: prosody extraction + Plutchik mapping
+# Acoustic modality
 # ══════════════════════════════════════════════════════════════════════════════
 
 def extract_prosody_features(wav_path: str) -> Optional[ProsodyFeatures]:
-    """
-    Extract a prosodic feature vector from a WAV file using librosa.
-    Returns None if librosa is not installed or extraction fails.
-
-    Features:
-    - F0 mean and std via librosa.yin (faster than pYIN for real-time)
-    - RMS energy (speech loudness proxy)
-    - Speaking rate (onset events per second — syllable proxy)
-    - Zero-crossing rate (voice quality correlate)
-    - Voiced ratio (proportion of voiced frames)
-    """
     if not LIBROSA_AVAILABLE:
         return None
-
     try:
         y, sr = librosa.load(wav_path, sr=None, mono=True)
         if sr != 16000:
             y = librosa.resample(y, orig_sr=sr, target_sr=16000)
         sr = 16000
-
         duration = len(y) / sr
         if duration < 0.1:
             return None
-
-        # F0 via YIN
         f0 = librosa.yin(y, fmin=60, fmax=400, sr=sr)
         voiced_f0 = f0[f0 > 0]
         f0_mean  = float(np.mean(voiced_f0))    if len(voiced_f0) > 0 else 0.0
         f0_std   = float(np.std(voiced_f0))     if len(voiced_f0) > 0 else 0.0
         voiced_ratio = float(len(voiced_f0) / max(1, len(f0)))
-
-        # RMS energy
         rms_mean = float(np.mean(librosa.feature.rms(y=y)[0]))
-
-        # Zero-crossing rate
         zcr_mean = float(np.mean(librosa.feature.zero_crossing_rate(y)[0]))
-
-        # Speaking rate (onset events as syllable proxy)
         onset_env    = librosa.onset.onset_strength(y=y, sr=sr)
         onset_frames = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr)
         speaking_rate = float(len(onset_frames) / max(0.1, duration))
-
         return ProsodyFeatures(
             f0_mean=f0_mean, f0_std=f0_std,
             rms_energy=rms_mean, speaking_rate=speaking_rate,
             zcr_mean=zcr_mean, voiced_ratio=voiced_ratio,
             duration_seconds=duration,
         )
-
     except Exception as exc:
         print_ts(f"Prosody extraction failed: {exc}")
         return None
 
 
 def prosody_to_plutchik_probs(features: ProsodyFeatures) -> dict[str, float]:
-    """
-    Rule-based mapping from prosodic features to a Plutchik probability distribution.
-    Grounded in Scherer (1986) vocal affect expression research.
-
-    Threshold calibration for NORMAL CONVERSATIONAL SPEECH:
-    ─────────────────────────────────────────────────────────
-    Female speakers typically have F0 in the range 160–220 Hz in conversation.
-    Normal conversational RMS energy is approximately 0.04–0.15.
-    Normal speaking rate is 4–6 syllable-like onsets per second.
-    F0 variability in neutral speech is roughly 20–45 Hz std.
-
-    The thresholds below are set to fire ONLY for clearly elevated values
-    that exceed the normal conversational baseline, so neutral speech
-    defaults to trust/anticipation rather than anger.
-
-    Emotional speech thresholds (must CLEARLY exceed baseline):
-    - high_energy:  rms  > 0.15  (very loud; normal conv is 0.04–0.12)
-    - low_energy:   rms  < 0.008 (near-silent)
-    - high_pitch:   f0   > 260   (clearly elevated; female normal is 160–220)
-    - low_pitch:    f0   < 110   (clearly lowered; indicates flat/sad delivery)
-    - high_var:     f0var > 70   (highly variable; normal is 20–45)
-    - fast_rate:    rate > 7.5   (rushed; normal conv is 4–6/s)
-    - slow_rate:    rate < 1.5   (very slow/drawn out)
-    """
     probs = {e: 0.05 for e in PLUTCHIK_EMOTIONS}
-
     rms   = features.rms_energy
     f0    = features.f0_mean
     f0var = features.f0_std
     rate  = features.speaking_rate
-
-    # Recalibrated thresholds — see docstring above
-    high_energy = rms   > 0.18   # loud speech; normal conv peaks ~0.12–0.15
+    high_energy = rms   > 0.18
     low_energy  = rms   < 0.008
-    high_pitch  = f0    > 260    # clearly elevated; female normal = 160–220 Hz
+    high_pitch  = f0    > 260
     low_pitch   = 0 < f0 < 110
-    high_var    = f0var > 70     # highly variable; normal conv = 20–45 Hz std
-    fast_rate   = rate  > 7.5    # rushed speech; normal conv = 4–6/s
+    high_var    = f0var > 70
+    fast_rate   = rate  > 7.5
     slow_rate   = rate  < 1.5
-
-    # ── Emotional speech patterns ─────────────────────────────────────────
     if high_energy and high_pitch and fast_rate and high_var:
-        # Shouting with high pitch variability → anger dominant
         probs["anger"]        += 0.35
         probs["fear"]         += 0.15
         probs["joy"]          += 0.10
-
     elif high_energy and high_pitch and fast_rate:
-        # Loud, high-pitched, fast → excited joy or agitated anger
         probs["joy"]          += 0.30
         probs["anger"]        += 0.15
-
     elif low_energy and low_pitch and slow_rate:
-        # Quiet, low-pitched, slow → sadness or fear
         probs["sadness"]      += 0.40
         probs["fear"]         += 0.15
-
     elif high_pitch and high_var and fast_rate:
-        # High pitch variability + fast → fear or surprise
         probs["fear"]         += 0.30
         probs["surprise"]     += 0.20
-
     elif high_energy and not high_pitch:
-        # Loud but not high-pitched → anger or disgust
         probs["anger"]        += 0.20
         probs["disgust"]      += 0.10
-
     elif fast_rate and not high_energy:
-        # Fast but not loud → anticipation or mild anxiety
         probs["anticipation"] += 0.20
         probs["fear"]         += 0.10
-
     elif slow_rate and not low_energy:
-        # Slow and audible → thoughtful trust or mild sadness
         probs["trust"]        += 0.20
         probs["sadness"]      += 0.10
-
     else:
-        # ── DEFAULT: normal conversational speech ─────────────────────────
-        # This branch now fires for the vast majority of ordinary conversation,
-        # replacing the previous behaviour where normal female speech
-        # (f0≈180–210 Hz, rms≈0.09, rate≈5–7/s) incorrectly triggered anger.
         probs["trust"]        += 0.45
         probs["anticipation"] += 0.15
-
     total = sum(probs.values())
     return {e: v / total for e, v in probs.items()}
 
 
 def compute_acoustic_reliability(features: ProsodyFeatures) -> float:
-    """
-    r_A = normalised_RMS × voiced_ratio
-
-    - normalised_RMS: RMS / reference_RMS, clipped to [0, 1].
-      Near-silent audio → reliability ≈ 0.
-    - voiced_ratio: proportion of the utterance that is voiced.
-      Unvoiced or noise-only frames → lower reliability.
-    - Very short utterances (< 0.3 s) → excluded entirely.
-    """
     if features.duration_seconds < 0.3:
         return 0.0
-
     rms_score    = float(np.clip(features.rms_energy / ACOUSTIC_REF_RMS, 0.0, 1.0))
     voiced_score = float(np.clip(features.voiced_ratio, 0.0, 1.0))
-
     return float(np.clip(rms_score * voiced_score, 0.0, 1.0))
 
 
 def build_acoustic_modal(wav_path: str) -> Optional[ModalityEmotionResult]:
-    """
-    Full acoustic modality pipeline: extract features → map to probs → compute reliability.
-    Returns None if librosa is unavailable or extraction fails.
-    """
     features = extract_prosody_features(wav_path)
     if features is None:
         return None
-
     probs       = prosody_to_plutchik_probs(features)
     reliability = compute_acoustic_reliability(features)
-
     print_ts(
         f"Acoustic: f0={features.f0_mean:.1f}Hz, rms={features.rms_energy:.4f}, "
         f"rate={features.speaking_rate:.1f}/s, voiced={features.voiced_ratio:.2f}, "
         f"reliability={reliability:.3f}"
     )
-
-    return ModalityEmotionResult(
-        probs=probs, reliability=reliability, modality="acoustic"
-    )
+    return ModalityEmotionResult(probs=probs, reliability=reliability, modality="acoustic")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Visual modality: face capture → ModalityEmotionResult
+# Visual modality
 # ══════════════════════════════════════════════════════════════════════════════
 
 def compute_visual_reliability(face_capture: FaceEmotionCapture) -> float:
-    """
-    r_V = detection_confidence × FER_confidence × face_area_factor
-
-    In this implementation:
-    - detection_confidence: 1.0 if at least one frame was analysed, 0.0 on error.
-    - FER_confidence: top_score / 100, normalised from Qwen's percentage scores.
-    - face_area_factor: encoded as the margin between top-1 and top-2 scores,
-      which reflects how clearly the expression was captured.
-    """
     if face_capture.error or not face_capture.averaged_scores:
         return 0.0
-
     scores = face_capture.averaged_scores
     if not scores:
         return 0.0
-
     ordered     = sorted(scores.values(), reverse=True)
     top_score   = ordered[0]
     second_score = ordered[1] if len(ordered) > 1 else 0.0
-
-    # detection_confidence: 1.0 if we got samples, 0 otherwise
     detection_conf = 1.0 if face_capture.sampled_frame_count > 0 else 0.0
-
-    # FER confidence: top score normalised to [0, 1]
     fer_conf = float(np.clip(top_score / 100.0, 0.0, 1.0))
-
-    # Face area proxy: margin between top-1 and top-2 (clearer = higher)
     margin_norm = float(np.clip((top_score - second_score) / 50.0, 0.0, 1.0))
-
     r_V = detection_conf * fer_conf * 0.6 + margin_norm * 0.4
     return float(np.clip(r_V, 0.0, 1.0))
 
 
-def build_visual_modal(
-    face_capture: Optional[FaceEmotionCapture],
-) -> Optional[ModalityEmotionResult]:
-    """
-    Convert FaceEmotionCapture averaged scores to a ModalityEmotionResult.
-    Returns None if no capture was performed.
-    """
+def build_visual_modal(face_capture: Optional[FaceEmotionCapture]) -> Optional[ModalityEmotionResult]:
     if face_capture is None:
         return None
-
     reliability = compute_visual_reliability(face_capture)
     scores      = face_capture.averaged_scores
-
     if not scores:
         probs = _uniform_probs()
     else:
@@ -977,20 +849,16 @@ def build_visual_modal(
             probs = {e: scores.get(e, 0.0) / total for e in PLUTCHIK_EMOTIONS}
         else:
             probs = _uniform_probs()
-
     print_ts(
         f"Visual: dominant={face_capture.dominant_emotion}, "
         f"reliable={face_capture.is_reliable}, "
         f"reliability={reliability:.3f}"
     )
-
-    return ModalityEmotionResult(
-        probs=probs, reliability=reliability, modality="visual"
-    )
+    return ModalityEmotionResult(probs=probs, reliability=reliability, modality="visual")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Linguistic modality: LLM → Plutchik distribution
+# Linguistic modality
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _uniform_probs() -> dict[str, float]:
@@ -1002,17 +870,11 @@ def get_linguistic_emotion_probs(
     text: str,
     facial_hint: Optional[str] = None,
 ) -> dict[str, float]:
-    """
-    Ask the LLM for a full Plutchik probability distribution over the user's utterance.
-    Text is the primary signal; facial hint is a weak secondary signal.
-    Returns a normalised dict summing to 1.0.
-    """
     emotions      = ", ".join(PLUTCHIK_EMOTIONS.keys())
     facial_section = (
         f"Facial-expression hint (weak secondary signal): {facial_hint}\n"
         if facial_hint else "No facial-expression hint available.\n"
     )
-
     prompt = f"""
 You are an emotion analysis system for a human-robot interaction prototype.
 
@@ -1039,7 +901,6 @@ Required JSON format:
 User text: {text}
 {facial_section}
 """.strip()
-
     try:
         resp = client.chat(
             model=EMOTION_MODEL_NAME,
@@ -1053,22 +914,18 @@ User text: {text}
         )
         raw  = resp["message"]["content"]
         data = safe_json_extract(raw)
-
         if not data:
             return _uniform_probs()
-
         probs: dict[str, float] = {}
         for e in PLUTCHIK_EMOTIONS:
             try:
                 probs[e] = max(0.0, float(data.get(e, 0.0)))
             except Exception:
                 probs[e] = 0.0
-
         total = sum(probs.values())
         if total > 0:
             return {e: v / total for e, v in probs.items()}
         return _uniform_probs()
-
     except Exception as exc:
         print_ts(f"Linguistic emotion prob detection failed: {exc}")
         return _uniform_probs()
@@ -1079,23 +936,10 @@ def build_linguistic_modal(
     transcription: TranscriptionResult,
     facial_hint: Optional[str] = None,
 ) -> ModalityEmotionResult:
-    """
-    Full linguistic modality pipeline:
-    transcription → reliability score + Plutchik distribution.
-    """
     reliability = compute_linguistic_reliability(transcription)
-
     if not transcription.text.strip():
-        return ModalityEmotionResult(
-            probs=_uniform_probs(), reliability=0.0, modality="linguistic"
-        )
-
-    probs = get_linguistic_emotion_probs(
-        client=client,
-        text=transcription.text,
-        facial_hint=facial_hint,
-    )
-
+        return ModalityEmotionResult(probs=_uniform_probs(), reliability=0.0, modality="linguistic")
+    probs = get_linguistic_emotion_probs(client=client, text=transcription.text, facial_hint=facial_hint)
     print_ts(
         f"Linguistic: words={len(transcription.text.split())}, "
         f"mean_conf={np.mean(transcription.word_confidences):.3f}"
@@ -1105,10 +949,7 @@ def build_linguistic_modal(
         f"no_speech={transcription.no_speech_prob:.3f}, "
         f"reliability={reliability:.3f}"
     )
-
-    return ModalityEmotionResult(
-        probs=probs, reliability=reliability, modality="linguistic"
-    )
+    return ModalityEmotionResult(probs=probs, reliability=reliability, modality="linguistic")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1120,37 +961,20 @@ def adaptive_reliability_fusion(
     acoustic:   Optional[ModalityEmotionResult],
     visual:     Optional[ModalityEmotionResult],
 ) -> FusedEmotionResult:
-    """
-    Fuse three modality emotion distributions using dynamic reliability weights.
-
-    Formula:
-        P_fused(e) = Σ_m  w_m · P_m(e)  /  Σ_m w_m
-        where  w_m = r_m  (reliability score, already in [0, 1])
-
-    Gating: modalities with r_m < FUSION_GATE_THRESHOLD are excluded entirely.
-    Fallback: if all modalities are gated, return a neutral "trust" label.
-
-    The full weight vector and per-modality details are logged to the session
-    transcript for benchmarking and ablation analysis.
-    """
     modalities = [
         ("linguistic", linguistic),
         ("acoustic",   acoustic),
         ("visual",     visual),
     ]
-
     raw_weights = {
         name: (m.reliability if m is not None else 0.0)
         for name, m in modalities
     }
-
-    # Apply gating threshold
     active = [
         (name, m)
         for name, m in modalities
         if m is not None and m.reliability >= FUSION_GATE_THRESHOLD
     ]
-
     print_ts(
         f"Fusion gate ({FUSION_GATE_THRESHOLD}): "
         + " | ".join(
@@ -1159,8 +983,6 @@ def adaptive_reliability_fusion(
             for name, _ in modalities
         )
     )
-
-    # Fallback when all modalities are gated
     if not active:
         print_ts("All modalities gated. Using neutral fallback (trust).")
         return FusedEmotionResult(
@@ -1171,24 +993,16 @@ def adaptive_reliability_fusion(
             reason="All modalities below reliability threshold; neutral fallback used.",
             linguistic=linguistic, acoustic=acoustic, visual=visual,
         )
-
-    # Normalise weights across active modalities
     total_weight = sum(m.reliability for _, m in active)
     fused_probs  = {e: 0.0 for e in PLUTCHIK_EMOTIONS}
-
     for _, m in active:
         w = m.reliability / total_weight
         for e in PLUTCHIK_EMOTIONS:
             fused_probs[e] += w * m.probs.get(e, 0.0)
-
-    # Normalised effective weights (for logging)
     eff_weights = {name: 0.0 for name, _ in modalities}
     for name, m in active:
         eff_weights[name] = m.reliability / total_weight
-
-    # Dominant label
     dominant_emotion, dominant_prob = max(fused_probs.items(), key=lambda x: x[1])
-
     active_names = [name for name, _ in active]
     reason = (
         f"Adaptive fusion from [{', '.join(active_names)}]. "
@@ -1196,34 +1010,20 @@ def adaptive_reliability_fusion(
         + ", ".join(f"{n}={eff_weights[n]:.2f}" for n in ["linguistic", "acoustic", "visual"])
         + f". Dominant: {dominant_emotion} ({dominant_prob:.2f})"
     )
-
     print_ts(f"Fused emotion: {dominant_emotion} (conf={dominant_prob:.3f})")
     print_ts(f"  {reason}")
-
     return FusedEmotionResult(
-        emotion=dominant_emotion,
-        confidence=dominant_prob,
-        probs=fused_probs,
-        weights=eff_weights,
-        raw_weights=raw_weights,
-        reason=reason,
-        linguistic=linguistic,
-        acoustic=acoustic,
-        visual=visual,
+        emotion=dominant_emotion, confidence=dominant_prob,
+        probs=fused_probs, weights=eff_weights, raw_weights=raw_weights,
+        reason=reason, linguistic=linguistic, acoustic=acoustic, visual=visual,
     )
 
 
 def fused_to_emotion_result(fused: FusedEmotionResult) -> EmotionResult:
-    """Convert FusedEmotionResult to the EmotionResult expected by generate_response."""
-    return EmotionResult(
-        emotion=fused.emotion,
-        confidence=fused.confidence,
-        reason=fused.reason,
-    )
+    return EmotionResult(emotion=fused.emotion, confidence=fused.confidence, reason=fused.reason)
 
 
 def fused_to_session_json(fused: FusedEmotionResult) -> dict:
-    """Serialise the full fusion state for transcript logging."""
     return {
         "algorithm": "adaptive_reliability_aware_late_fusion",
         "fused_emotion": fused.emotion,
@@ -1253,7 +1053,226 @@ def fused_to_session_json(fused: FusedEmotionResult) -> dict:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Camera / Qwen2.5-VL helpers  (unchanged from original)
+# ▶▶▶  SELF-RAG MODULE  ◀◀◀
+# Offline retrieval-augmented generation using ChromaDB + RRLab knowledge base.
+# Scraped from https://rrlab.cs.rptu.de/en via scrape_rrlab_kb.py
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Module-level ChromaDB collection handle (lazy-initialised once on first use)
+_rag_collection = None
+
+
+def _get_rag_collection():
+    """
+    Lazy-load the ChromaDB collection.
+    Returns None if ChromaDB is unavailable or the collection is empty.
+    Caches the handle in _rag_collection so the embedding model is only
+    loaded once per process lifetime.
+    """
+    global _rag_collection
+    if _rag_collection is not None:
+        return _rag_collection
+    if not CHROMADB_AVAILABLE:
+        return None
+    try:
+        ef = SentenceTransformerEmbeddingFunction(model_name=RAG_EMBEDDING_MODEL)
+        client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+        col = client.get_collection(name=CHROMA_COLLECTION, embedding_function=ef)
+        count = col.count()
+        if count == 0:
+            print_ts("[Self-RAG] Collection exists but is empty. Run scrape_rrlab_kb.py first.")
+            return None
+        print_ts(f"[Self-RAG] Loaded collection '{CHROMA_COLLECTION}' ({count} passages).")
+        _rag_collection = col
+        return _rag_collection
+    except Exception as exc:
+        print_ts(f"[Self-RAG] Could not load ChromaDB collection: {exc}")
+        print_ts("[Self-RAG] Run scrape_rrlab_kb.py to build the knowledge base.")
+        return None
+
+
+# ── Retrieval necessity classifier ──────────────────────────────────────────
+
+_RETRIEVE_PROMPT = """
+You are a dialogue manager for a social humanoid robot at a university robotics lab.
+
+Decide whether the user's message requires external factual knowledge to answer.
+
+Return JSON only — no markdown:
+{{"retrieve": true|false, "reason": "one short sentence"}}
+
+retrieve = true  → factual question needing specific information
+  Examples: "What robots does the lab have?", "Who runs RRLab?",
+            "What is EMAH?", "Tell me about your research projects",
+            "What publications has the lab produced?",
+            "What is the SEmbAI project?", "Where is the lab located?"
+
+retrieve = false → conversational, social, emotional, or generic turn
+  Examples: greetings, farewells, "how are you", opinions, follow-ups,
+            general knowledge questions unrelated to this lab,
+            "tell me more", emotional sharing, simple chitchat
+
+When in doubt → false. Avoid over-retrieving on social turns.
+
+User message: {text}
+""".strip()
+
+
+def _needs_retrieval(client: Client, text: str) -> tuple[bool, str]:
+    """
+    [Retrieve] token decision.
+    Returns (should_retrieve: bool, reason: str).
+    Uses the emotion LLM (fast, small) to keep latency low.
+    """
+    prompt = _RETRIEVE_PROMPT.format(text=text[:500])
+    try:
+        resp = client.chat(
+            model=EMOTION_MODEL_NAME,
+            format="json",
+            messages=[
+                {"role": "system", "content": "Return valid JSON only."},
+                {"role": "user",   "content": prompt},
+            ],
+            options={"temperature": 0.0, "num_predict": 60, "num_ctx": 1024},
+            stream=False,
+        )
+        data = safe_json_extract(resp["message"]["content"])
+        if data and isinstance(data.get("retrieve"), bool):
+            return bool(data["retrieve"]), str(data.get("reason", ""))
+    except Exception as exc:
+        print_ts(f"[Self-RAG] Classifier error: {exc}")
+    return False, "classifier error — defaulting to no retrieval"
+
+
+# ── Passage relevance filter ─────────────────────────────────────────────────
+
+_ISREL_PROMPT = """
+Does this passage contain information relevant to answering the user's question?
+
+Return JSON only: {{"relevant": true|false}}
+
+User question: {query}
+Passage: {passage}
+""".strip()
+
+
+def _is_relevant(client: Client, query: str, passage: str, distance: float) -> bool:
+    """
+    [ISREL] token — is this retrieved passage actually relevant?
+    Uses cosine distance as the primary gate; LLM only for borderline cases.
+    """
+    if distance >= RAG_DISTANCE_HARD_REJECT:
+        return False
+    if distance <= RAG_DISTANCE_SKIP_LLM:
+        return True
+    # Borderline distance: ask the LLM
+    prompt = _ISREL_PROMPT.format(query=query[:300], passage=passage[:400])
+    try:
+        resp = client.chat(
+            model=EMOTION_MODEL_NAME,
+            format="json",
+            messages=[
+                {"role": "system", "content": "Return valid JSON only."},
+                {"role": "user",   "content": prompt},
+            ],
+            options={"temperature": 0.0, "num_predict": 20, "num_ctx": 512},
+            stream=False,
+        )
+        data = safe_json_extract(resp["message"]["content"])
+        return bool(data.get("relevant", False)) if data else False
+    except Exception:
+        return distance < 0.35   # distance-only fallback
+
+
+# ── Public Self-RAG entry point ──────────────────────────────────────────────
+
+def self_rag_retrieve(client: Client, text: str) -> Optional[str]:
+    """
+    Main Self-RAG entry point called once per conversational turn.
+
+    Returns a formatted RAG context string to inject into the response
+    generation system prompt, or None if:
+      - Self-RAG is disabled (SELF_RAG_ENABLED = False)
+      - ChromaDB is not installed
+      - The knowledge base is empty (run scrape_rrlab_kb.py)
+      - The turn is classified as not needing retrieval
+      - No relevant passages pass the distance/relevance filter
+
+    Logged to session transcript as rag_retrieved: true/false and
+    rag_passage_count: N for ablation analysis.
+    """
+    if not SELF_RAG_ENABLED or not CHROMADB_AVAILABLE:
+        return None
+
+    col = _get_rag_collection()
+    if col is None:
+        return None
+
+    # ── Step 1: [Retrieve] token ─────────────────────────────────────────
+    should_retrieve, reason = _needs_retrieval(client, text)
+    print_ts(f"[Self-RAG] retrieve={should_retrieve} | {reason}")
+
+    if not should_retrieve:
+        return None
+
+    # ── Step 2: ChromaDB nearest-neighbour lookup ────────────────────────
+    try:
+        results = col.query(
+            query_texts=[text],
+            n_results=min(RAG_TOP_K, col.count()),
+            include=["documents", "metadatas", "distances"],
+        )
+    except Exception as exc:
+        print_ts(f"[Self-RAG] Query failed: {exc}")
+        return None
+
+    docs      = results["documents"][0]
+    metas     = results["metadatas"][0]
+    distances = results["distances"][0]
+
+    if not docs:
+        return None
+
+    # ── Step 3: [ISREL] relevance filter ────────────────────────────────
+    relevant_passages = []
+    for doc, meta, dist in zip(docs, metas, distances):
+        rel = _is_relevant(client, text, doc, dist)
+        src = meta.get("source", "rrlab.cs.rptu.de/en")
+        print_ts(
+            f"[Self-RAG]   dist={dist:.3f} rel={rel} "
+            f"src={src[:60]}  →  {doc[:80]}..."
+        )
+        if rel:
+            relevant_passages.append((doc, src, dist))
+
+    if not relevant_passages:
+        print_ts("[Self-RAG] No relevant passages after filter. Skipping injection.")
+        return None
+
+    # ── Step 4: Format context block for system prompt injection ─────────
+    lines = [
+        "RETRIEVED KNOWLEDGE FROM RRLAB WEBSITE",
+        "Use this information to answer factual questions accurately.",
+        "Do not fabricate details beyond what is provided here.",
+        "",
+    ]
+    for i, (doc, src, dist) in enumerate(relevant_passages, 1):
+        lines.append(f"[Passage {i}] (source: {src})")
+        lines.append(doc)
+        lines.append("")
+
+    context = "\n".join(lines).strip()
+
+    # Enforce character budget to avoid bloating the system prompt
+    if len(context) > RAG_MAX_CONTEXT_CHARS:
+        context = context[:RAG_MAX_CONTEXT_CHARS] + "\n[...truncated]"
+
+    print_ts(f"[Self-RAG] Injecting {len(relevant_passages)} passage(s) into response context.")
+    return context
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Camera / Qwen2.5-VL helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
 def normalize_camera_frame(frame: np.ndarray) -> np.ndarray:
@@ -1616,7 +1635,7 @@ class FaceEmotionSampler:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Silero VAD listener  (unchanged from original)
+# Silero VAD listener
 # ══════════════════════════════════════════════════════════════════════════════
 
 def listen_for_utterance_with_silero_vad(input_device, silero_model, prompt_label="utterance"):
@@ -1748,7 +1767,7 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Name-handling helpers  (unchanged from original)
+# Name-handling helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
 def ask_user_to_spell_name(whisper_model, silero_model, input_device=INPUT_DEVICE):
@@ -1823,7 +1842,7 @@ def safe_json_extract(text: str) -> Optional[dict]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Legacy single-label emotion detection  (kept for fallback / compat)
+# Legacy single-label emotion detection
 # ══════════════════════════════════════════════════════════════════════════════
 
 def simple_emotion_fallback(transcribed_text: str) -> Optional[EmotionResult]:
@@ -1839,7 +1858,6 @@ def simple_emotion_fallback(transcribed_text: str) -> Optional[EmotionResult]:
     return None
 
 def detect_emotion(client, transcribed_text, facial_emotion_hint=None) -> EmotionResult:
-    """Legacy single-label fallback. Use build_linguistic_modal for fusion pipeline."""
     fallback = simple_emotion_fallback(transcribed_text)
     if fallback: return fallback
     emotions = ", ".join(PLUTCHIK_EMOTIONS.keys())
@@ -1867,7 +1885,7 @@ User text: {transcribed_text}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Emoji / reply normalisation  (unchanged)
+# Emoji / reply normalisation
 # ══════════════════════════════════════════════════════════════════════════════
 
 def remove_all_emojis_except_allowed_faces(text):
@@ -1892,7 +1910,7 @@ def normalize_reply(raw_reply, emotion) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Date / time helpers and response generation  (unchanged)
+# Date / time helpers and response generation
 # ══════════════════════════════════════════════════════════════════════════════
 
 def runtime_context() -> str:
@@ -1909,18 +1927,52 @@ def deterministic_reply_if_applicable(user_text, emotion) -> Optional[str]:
     if any(p in text for p in farewells): return "Thank you, and take care. 🙂"
     return None
 
-def build_response_system_prompt(emotion_result, user_profile=None, face_emotion_json=None, fusion_json=None) -> str:
+
+def build_response_system_prompt(
+    emotion_result,
+    user_profile=None,
+    face_emotion_json=None,
+    fusion_json=None,
+    rag_context: Optional[str] = None,          # ◀ NEW
+) -> str:
+    """
+    Build the system prompt for response generation.
+    If rag_context is provided (Self-RAG retrieved relevant passages),
+    it is injected before the emotion context so the LLM sees grounded
+    factual knowledge before composing its reply.
+    """
     memory_ctx = build_user_memory_context(user_profile)
-    if face_emotion_json is None: face_emotion_json = default_face_emotion_json()
-    text_emo = {"emotion": emotion_result.emotion, "confidence": emotion_result.confidence, "reason": emotion_result.reason}
-    fusion_section = f"\nFusion state:\n{json.dumps(fusion_json, indent=2)}\n" if fusion_json else ""
+    if face_emotion_json is None:
+        face_emotion_json = default_face_emotion_json()
+
+    text_emo = {
+        "emotion":    emotion_result.emotion,
+        "confidence": emotion_result.confidence,
+        "reason":     emotion_result.reason,
+    }
+    fusion_section = (
+        f"\nFusion state:\n{json.dumps(fusion_json, indent=2)}\n"
+        if fusion_json else ""
+    )
+
+    # ── Self-RAG context block ────────────────────────────────────────────
+    rag_section = ""
+    if rag_context:
+        rag_section = f"""
+{rag_context}
+
+INSTRUCTION: Use the retrieved knowledge above to answer the user's question accurately.
+Cite specific details from the passages. Do not fabricate information not present above.
+If the passages do not contain the answer, say so honestly.
+"""
+
     return f"""
 {AMECA_SYSTEM_PROMPT}
 
 {runtime_context()}
 
 {memory_ctx}
-
+{rag_section}
 PRIVATE EMOTION CONTEXT (use only for tone; do not mention to user)
 Text/LLM emotion:
 {json.dumps(text_emo, indent=2)}
@@ -1942,26 +1994,48 @@ Rules:
 - End with exactly one emoji from: 🙂 😊 😌 😔 😟 🤔 😮 😢 😠 🤢
 """.strip()
 
-def generate_response(client, user_text, emotion_result, history, user_profile=None, face_emotion_json=None, fusion_json=None) -> str:
+
+def generate_response(
+    client,
+    user_text,
+    emotion_result,
+    history,
+    user_profile=None,
+    face_emotion_json=None,
+    fusion_json=None,
+    rag_context: Optional[str] = None,          # ◀ NEW
+) -> str:
     det = deterministic_reply_if_applicable(user_text, emotion_result.emotion)
-    if det: return det
-    system_prompt = build_response_system_prompt(emotion_result, user_profile, face_emotion_json, fusion_json)
-    messages = [{"role":"system","content":system_prompt[:6000]},
-                *[{"role":i["role"],"content":i["content"]} for i in history[-6:]],
-                {"role":"user","content":user_text[:1500]}]
-    resp = client.chat(model=MODEL_NAME, messages=messages,
-        options={"temperature":0.4,"num_predict":120,"repeat_penalty":1.25,"num_ctx":2048},
-        stream=False)
+    if det:
+        return det
+
+    system_prompt = build_response_system_prompt(
+        emotion_result, user_profile, face_emotion_json, fusion_json,
+        rag_context=rag_context,                # ◀ NEW
+    )
+    messages = [
+        {"role": "system", "content": system_prompt[:7000]},   # slightly larger budget for RAG
+        *[{"role": i["role"], "content": i["content"]} for i in history[-6:]],
+        {"role": "user", "content": user_text[:1500]},
+    ]
+    resp = client.chat(
+        model=MODEL_NAME, messages=messages,
+        options={"temperature": 0.4, "num_predict": 120, "repeat_penalty": 1.25, "num_ctx": 2048},
+        stream=False,
+    )
     raw  = resp["message"]["content"]
     data = safe_json_extract(raw)
     if data and isinstance(data, dict):
-        reply_text = str(data.get("reply","")).strip()
-        emoji      = str(data.get("emoji","")).strip()
-        if emoji in {":)",":-)",""}: emoji = PLUTCHIK_EMOTIONS.get(emotion_result.emotion,"🙂")
+        reply_text = str(data.get("reply", "")).strip()
+        emoji      = str(data.get("emoji", "")).strip()
+        if emoji in {":)", ":-)", ""}:
+            emoji = PLUTCHIK_EMOTIONS.get(emotion_result.emotion, "🙂")
         return normalize_reply(f"{reply_text} {emoji}", emotion_result.emotion)
     return normalize_reply(raw, emotion_result.emotion)
 
-def trim_history(history): return history[-MAX_HISTORY_MESSAGES:]
+
+def trim_history(history):
+    return history[-MAX_HISTORY_MESSAGES:]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1969,10 +2043,18 @@ def trim_history(history): return history[-MAX_HISTORY_MESSAGES:]
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    print_ts("Ameca HRI prototype — Adaptive Reliability-Aware Late Fusion")
+    print_ts("Ameca HRI prototype — ARALF + Self-RAG (RRLab ChromaDB)")
     print_ts(f"Fusion: gate_threshold={FUSION_GATE_THRESHOLD}, modalities=[linguistic, acoustic, visual]")
-    print_ts(f"Acoustic modality: {'ENABLED (librosa)' if LIBROSA_AVAILABLE else 'DISABLED (install librosa)'}")
-    print_ts(f"Ollama host: {OLLAMA_HOST}  |  Response: {MODEL_NAME}  |  Emotion: {EMOTION_MODEL_NAME}  |  Vision: {VISION_MODEL_NAME}")
+    print_ts(f"Acoustic: {'ENABLED (librosa)' if LIBROSA_AVAILABLE else 'DISABLED (install librosa)'}")
+    rag_status = (
+        "ENABLED" if (SELF_RAG_ENABLED and CHROMADB_AVAILABLE)
+        else "DISABLED (install chromadb sentence-transformers)" if not CHROMADB_AVAILABLE
+        else "DISABLED (SELF_RAG_ENABLED=False)"
+    )
+    print_ts(f"Self-RAG: {rag_status}")
+    if SELF_RAG_ENABLED and CHROMADB_AVAILABLE:
+        print_ts(f"  KB: {CHROMA_PERSIST_DIR}/{CHROMA_COLLECTION}  top_k={RAG_TOP_K}  model={RAG_EMBEDDING_MODEL}")
+    print_ts(f"Ollama: {OLLAMA_HOST}  response={MODEL_NAME}  emotion={EMOTION_MODEL_NAME}  vision={VISION_MODEL_NAME}")
     print()
 
     ensure_data_dirs()
@@ -1982,6 +2064,12 @@ def main() -> None:
     ensure_model_available(VISION_MODEL_NAME)
 
     client = Client(host=OLLAMA_HOST)
+
+    # Warm up ChromaDB / embedding model at startup (not on first query)
+    if SELF_RAG_ENABLED and CHROMADB_AVAILABLE:
+        print_ts("Warming up Self-RAG embedding model...")
+        _get_rag_collection()   # loads SentenceTransformer into memory now
+
     list_input_devices()
 
     print_ts("Loading Silero VAD...")
@@ -2005,15 +2093,17 @@ def main() -> None:
         print_ts("Loaded previous conversation memory.")
 
     print()
-    print("Adaptive reliability-aware fusion active: linguistic + acoustic + visual.")
-    print("Speak naturally. Say '/exit' or press Ctrl+C to save and quit.")
+    print("ARALF + Self-RAG active.  Speak naturally.  /exit or Ctrl+C to save and quit.")
     print()
 
     history: list[dict]     = []
     session_log: list[dict] = []
 
-    session_log.append({"role":"assistant","content":intro_reply,"timestamp":now_ts(),"intent":"self_introduction"})
-    history.append({"role":"assistant","content":intro_reply})
+    session_log.append({
+        "role": "assistant", "content": intro_reply,
+        "timestamp": now_ts(), "intent": "self_introduction",
+    })
+    history.append({"role": "assistant", "content": intro_reply})
 
     try:
         while True:
@@ -2036,7 +2126,6 @@ def main() -> None:
             try:
                 transcription = transcribe_with_confidence(wav_path, whisper_model)
             finally:
-                # Extract prosody BEFORE deleting the wav file
                 acoustic_modal = build_acoustic_modal(wav_path)
                 try: os.remove(wav_path)
                 except OSError: pass
@@ -2053,40 +2142,38 @@ def main() -> None:
                 f"no_speech={transcription.no_speech_prob:.3f}"
             )
 
-            # ── 3. Name detection (early return) ──────────────────────────
+            # ── 3. Name detection ──────────────────────────────────────────
             maybe_name = extract_name_from_text(user_text)
             if maybe_name and not looks_like_invalid_name(maybe_name):
                 user_key, user_profile = rename_current_user(user_key, user_profile, maybe_name)
                 reply = generate_introduction_response(client, user_profile["name"])
                 print_ts(f"Assistant: {reply}")
-                history.append({"role":"user","content":user_text})
-                history.append({"role":"assistant","content":reply})
+                history.append({"role": "user",      "content": user_text})
+                history.append({"role": "assistant",  "content": reply})
                 history = trim_history(history)
                 session_log += [
-                    {"role":"user","content":user_text,"timestamp":now_ts(),"intent":"name_introduction"},
-                    {"role":"assistant","content":reply,"timestamp":now_ts()},
+                    {"role": "user",      "content": user_text, "timestamp": now_ts(), "intent": "name_introduction"},
+                    {"role": "assistant", "content": reply,     "timestamp": now_ts()},
                 ]
                 continue
 
-            # ── 4. Command detection ──────────────────────────────────────
+            # ── 4. Command detection ───────────────────────────────────────
             command = normalize_command(user_text)
-            if command in {"exit","quit"}:
+            if command in {"exit", "quit"}:
                 print_ts("Goodbye.")
                 break
             if command == "clear":
                 history.clear(); print_ts("History cleared."); continue
 
-            # ── 5. Build per-modality emotion results ─────────────────────
+            # ── 5. Build per-modality emotion results ──────────────────────
             facial_hint = face_capture.summary_text if face_capture else None
 
             linguistic_modal = build_linguistic_modal(
                 client=client, transcription=transcription, facial_hint=facial_hint)
 
-            # acoustic_modal was computed before wav deletion (above)
-
             visual_modal = build_visual_modal(face_capture)
 
-            # ── 6. Adaptive Reliability-Aware Late Fusion ─────────────────
+            # ── 6. Adaptive Reliability-Aware Late Fusion ──────────────────
             fused = adaptive_reliability_fusion(
                 linguistic=linguistic_modal,
                 acoustic=acoustic_modal,
@@ -2095,36 +2182,49 @@ def main() -> None:
             emotion_result = fused_to_emotion_result(fused)
             fusion_json    = fused_to_session_json(fused)
 
-            print_ts("Fusion result JSON:")
+            print_ts("Fusion result:")
             print(json.dumps(fusion_json, indent=2))
             print()
 
             face_emotion_json = face_capture.as_json if face_capture else default_face_emotion_json()
 
-            # ── 7. Generate response ──────────────────────────────────────
+            # ── 6b. Self-RAG: conditional retrieval from RRLab KB ──────────
+            rag_context      = self_rag_retrieve(client, user_text)
+            rag_retrieved    = rag_context is not None
+            rag_passage_count = (
+                rag_context.count("[Passage ")
+                if rag_context else 0
+            )
+
+            # ── 7. Generate response ───────────────────────────────────────
             reply = generate_response(
-                client=client, user_text=user_text,
-                emotion_result=emotion_result, history=history,
+                client=client,
+                user_text=user_text,
+                emotion_result=emotion_result,
+                history=history,
                 user_profile=user_profile,
                 face_emotion_json=face_emotion_json,
                 fusion_json=fusion_json,
+                rag_context=rag_context,             # ◀ NEW
             )
             print_ts(f"Assistant: {reply}")
             print()
 
-            # ── 8. Log to history and session transcript ──────────────────
-            history.append({"role":"user","content":user_text})
-            history.append({"role":"assistant","content":reply})
+            # ── 8. Log to history and session transcript ───────────────────
+            history.append({"role": "user",      "content": user_text})
+            history.append({"role": "assistant",  "content": reply})
             history = trim_history(history)
 
             session_log.append({
-                "role":           "user",
-                "content":        user_text,
-                "timestamp":      now_ts(),
-                "input_mode":     "silero_vad_faster_whisper_qwen25vl",
-                "fusion":         fusion_json,
-                "facial_hint":    facial_hint,
-                "face_emotion":   face_emotion_json,
+                "role":             "user",
+                "content":          user_text,
+                "timestamp":        now_ts(),
+                "input_mode":       "silero_vad_faster_whisper_qwen25vl",
+                "fusion":           fusion_json,
+                "facial_hint":      facial_hint,
+                "face_emotion":     face_emotion_json,
+                "rag_retrieved":    rag_retrieved,       # ◀ NEW — for ablation analysis
+                "rag_passage_count": rag_passage_count,  # ◀ NEW
             })
             session_log.append({
                 "role":      "assistant",

@@ -1,0 +1,51 @@
+{
+  "user": {
+    "key": "leticie",
+    "name": "Leticie"
+  },
+  "session": {
+    "started_at": "2026-06-04 18:53:29",
+    "ended_at": "2026-06-04 18:54:56",
+    "model": {
+      "response": "llama3:8b",
+      "emotion": "mistral:7b"
+    },
+    "fusion": {
+      "algorithm": "adaptive_reliability_aware_late_fusion",
+      "gate_threshold": 0.3,
+      "modalities": [
+        "linguistic",
+        "acoustic",
+        "visual"
+      ]
+    },
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "large-v3",
+      "device": "cpu",
+      "compute_type": "int8",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "face_emotion": {
+      "backend": "qwen2.5vl via Ollama",
+      "camera_device": 0,
+      "vision_model": "llama3.2-vision:11b"
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "threshold": 0.55
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Wonderful to meet you, Leticie! I'm Ameca, and I'm thrilled to have you here. 🙂",
+      "timestamp": "2026-06-04 18:53:29",
+      "intent": "self_introduction"
+    }
+  ]
+}
