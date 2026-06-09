@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import queue
@@ -12,7 +13,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 # Linux-only Qt fix. Do not force this on macOS.
 if sys.platform.startswith("linux"):
@@ -42,7 +43,7 @@ USE_ZED_HALF_FRAME_CROP = IS_LINUX
 # =========================
 
 # OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://elite-sink-amazing-charitable.trycloudflare.com"
+OLLAMA_HOST = "https://duty-illustration-tested-travel.trycloudflare.com"
 
 MODEL_NAME = "llama3:8b"
 # MODEL_NAME = "mistral:7b"
@@ -56,6 +57,35 @@ VISION_MODEL_NAME = "qwen2.5vl:7b"
 DATA_DIR = "conversation_data"
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
+
+
+# =========================
+# Self-RAG / local knowledge configuration
+# =========================
+
+# Self-RAG lets Ameca retrieve local knowledge, judge whether it is useful,
+# and answer with that knowledge only when it is relevant.
+SELF_RAG_ENABLED = os.environ.get("SELF_RAG_ENABLED", "1") == "1"
+SELF_RAG_KB_DIR = os.environ.get("SELF_RAG_KB_DIR", "knowledge_base")
+
+# IMPORTANT:
+# scrape.py writes the RRLab website index to CHROMA_PERSIST_DIR="chroma_db"
+# and CHROMA_COLLECTION="emah_knowledge". These defaults must match scrape.py.
+SELF_RAG_DB_DIR = os.environ.get("SELF_RAG_DB_DIR", "chroma_db")
+SELF_RAG_COLLECTION = os.environ.get("SELF_RAG_COLLECTION", "emah_knowledge")
+SELF_RAG_EMBED_MODEL = os.environ.get("SELF_RAG_EMBED_MODEL", "all-MiniLM-L6-v2")
+SELF_RAG_TOP_K = int(os.environ.get("SELF_RAG_TOP_K", "4"))
+SELF_RAG_CHUNK_SIZE = int(os.environ.get("SELF_RAG_CHUNK_SIZE", "900"))
+SELF_RAG_CHUNK_OVERLAP = int(os.environ.get("SELF_RAG_CHUNK_OVERLAP", "150"))
+SELF_RAG_MIN_CONTEXT_CHARS = int(os.environ.get("SELF_RAG_MIN_CONTEXT_CHARS", "80"))
+SELF_RAG_MAX_CONTEXT_CHARS = int(os.environ.get("SELF_RAG_MAX_CONTEXT_CHARS", "2500"))
+
+# Keep this off by default because the RRLab scraper already rebuilds the index.
+# Use /rrlab crawl or /self-rag reindex inside the app to refresh the website KB.
+SELF_RAG_REINDEX_ON_START = os.environ.get("SELF_RAG_REINDEX_ON_START", "0") == "1"
+SELF_RAG_AUTO_SCRAPE_ON_EMPTY = os.environ.get("SELF_RAG_AUTO_SCRAPE_ON_EMPTY", "0") == "1"
+SELF_RAG_SCRAPE_SCRIPT = os.environ.get("SELF_RAG_SCRAPE_SCRIPT", "scrape.py")
+SELF_RAG_SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".json", ".csv", ".py", ".html", ".htm", ".pdf"}
 
 # Keep this False for fast, clean shutdown.
 # If True, the app will call Ollama at shutdown to summarize the session.
@@ -247,6 +277,36 @@ class EmotionResult:
     emotion: str
     confidence: float
     reason: str
+
+
+@dataclass
+class SelfRAGContext:
+    available: bool
+    used: bool
+    query: str
+    context_text: str
+    sources: list[dict[str, Any]]
+    reason: str
+    error: Optional[str] = None
+
+    @property
+    def as_json(self) -> dict:
+        return {
+            "available": self.available,
+            "used": self.used,
+            "query": self.query,
+            "sources": self.sources,
+            "reason": self.reason,
+            "error": self.error,
+        }
+
+
+@dataclass
+class SelfRAGStore:
+    enabled: bool
+    collection: Any = None
+    embedder: Any = None
+    error: Optional[str] = None
 
 
 @dataclass
@@ -2157,6 +2217,404 @@ def safe_json_extract(text: str) -> Optional[dict]:
         return None
 
 
+
+# =========================
+# Self-RAG helpers
+# =========================
+
+def self_rag_disabled_context(query: str, reason: str, error: Optional[str] = None) -> SelfRAGContext:
+    return SelfRAGContext(
+        available=False,
+        used=False,
+        query=query,
+        context_text="",
+        sources=[],
+        reason=reason,
+        error=error,
+    )
+
+
+def clean_knowledge_text(text: str) -> str:
+    text = re.sub(r"\r\n?", "\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def read_knowledge_file(path: str) -> str:
+    ext = os.path.splitext(path)[1].lower()
+
+    if ext == ".pdf":
+        try:
+            from pypdf import PdfReader
+        except Exception as exc:
+            print_ts(f"Skipping PDF because pypdf is not installed: {path} ({exc})")
+            return ""
+
+        try:
+            reader = PdfReader(path)
+            pages = []
+            for page in reader.pages:
+                pages.append(page.extract_text() or "")
+            return clean_knowledge_text("\n\n".join(pages))
+        except Exception as exc:
+            print_ts(f"Could not read PDF knowledge file {path}: {exc}")
+            return ""
+
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as file:
+            return clean_knowledge_text(file.read())
+    except Exception as exc:
+        print_ts(f"Could not read knowledge file {path}: {exc}")
+        return ""
+
+
+def iter_knowledge_files(kb_dir: str) -> list[str]:
+    if not os.path.isdir(kb_dir):
+        return []
+
+    paths: list[str] = []
+    for root, _, files in os.walk(kb_dir):
+        for filename in files:
+            path = os.path.join(root, filename)
+            ext = os.path.splitext(path)[1].lower()
+            if ext in SELF_RAG_SUPPORTED_EXTENSIONS:
+                paths.append(path)
+    return sorted(paths)
+
+
+def chunk_text(text: str, chunk_size: int = SELF_RAG_CHUNK_SIZE, overlap: int = SELF_RAG_CHUNK_OVERLAP) -> list[str]:
+    text = clean_knowledge_text(text)
+    if not text:
+        return []
+
+    if len(text) <= chunk_size:
+        return [text]
+
+    chunks: list[str] = []
+    start = 0
+    step = max(1, chunk_size - overlap)
+
+    while start < len(text):
+        end = min(len(text), start + chunk_size)
+        chunk = text[start:end].strip()
+
+        # Prefer not to cut in the middle of a sentence when possible.
+        if end < len(text):
+            last_break = max(chunk.rfind(". "), chunk.rfind("\n"), chunk.rfind("; "))
+            if last_break > int(chunk_size * 0.55):
+                chunk = chunk[: last_break + 1].strip()
+                end = start + last_break + 1
+
+        if chunk:
+            chunks.append(chunk)
+
+        start = max(end - overlap, start + step)
+
+    return chunks
+
+
+def stable_chunk_id(path: str, chunk: str, index: int) -> str:
+    raw = f"{path}:{index}:{chunk}".encode("utf-8", errors="ignore")
+    return hashlib.sha256(raw).hexdigest()[:32]
+
+def resolve_scrape_script_path() -> Optional[str]:
+    """Find scrape.py so the main Ameca app can rebuild the RRLab KB on demand."""
+    candidates = [
+        SELF_RAG_SCRAPE_SCRIPT,
+        os.path.join(os.getcwd(), SELF_RAG_SCRAPE_SCRIPT),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), SELF_RAG_SCRAPE_SCRIPT),
+    ]
+
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate):
+            return os.path.abspath(candidate)
+
+    return None
+
+
+def run_rrlab_scraper() -> bool:
+    """
+    Rebuild the RRLab website ChromaDB index by executing scrape.py.
+
+    scrape.py is responsible for crawling https://rrlab.cs.rptu.de/en and writing
+    to the same ChromaDB path/collection configured above:
+      SELF_RAG_DB_DIR='chroma_db'
+      SELF_RAG_COLLECTION='emah_knowledge'
+    """
+    script_path = resolve_scrape_script_path()
+
+    if not script_path:
+        print_ts(
+            "Could not find scrape.py. Put scrape.py in the same folder as this script "
+            "or set SELF_RAG_SCRAPE_SCRIPT=/full/path/to/scrape.py."
+        )
+        return False
+
+    print_ts(f"Running RRLab scraper: {script_path}")
+
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+
+    try:
+        completed = subprocess.run(
+            [sys.executable, script_path],
+            cwd=os.path.dirname(script_path) or os.getcwd(),
+            env=env,
+            check=False,
+        )
+
+        if completed.returncode != 0:
+            print_ts(f"RRLab scraper failed with exit code {completed.returncode}.")
+            return False
+
+        print_ts("RRLab scraper finished successfully.")
+        return True
+
+    except KeyboardInterrupt:
+        raise
+    except Exception as exc:
+        print_ts(f"RRLab scraper could not run: {exc}")
+        return False
+
+
+def init_self_rag_store() -> SelfRAGStore:
+    if not SELF_RAG_ENABLED:
+        print_ts("Self-RAG disabled by SELF_RAG_ENABLED=0.")
+        return SelfRAGStore(enabled=False, error="Self-RAG disabled.")
+
+    try:
+        import chromadb
+        from sentence_transformers import SentenceTransformer
+    except Exception as exc:
+        print_ts(
+            "Self-RAG dependencies missing. Install with: "
+            "pip install chromadb sentence-transformers pypdf"
+        )
+        return SelfRAGStore(enabled=False, error=str(exc))
+
+    try:
+        os.makedirs(SELF_RAG_DB_DIR, exist_ok=True)
+        chroma_client = chromadb.PersistentClient(path=SELF_RAG_DB_DIR)
+        collection = chroma_client.get_or_create_collection(
+            name=SELF_RAG_COLLECTION,
+            metadata={"hnsw:space": "cosine"},
+        )
+        embedder = SentenceTransformer(SELF_RAG_EMBED_MODEL)
+        store = SelfRAGStore(enabled=True, collection=collection, embedder=embedder)
+
+        if SELF_RAG_REINDEX_ON_START:
+            index_self_rag_knowledge(store)
+
+        count = collection.count()
+
+        if count == 0 and SELF_RAG_AUTO_SCRAPE_ON_EMPTY:
+            print_ts("Self-RAG collection is empty. Running scrape.py to build the RRLab website index...")
+            run_rrlab_scraper()
+            count = collection.count()
+
+        if count == 0:
+            print_ts(
+                "Self-RAG collection is empty. Run 'python scrape.py' first, "
+                "or type '/rrlab crawl' while the app is running."
+            )
+
+        print_ts(f"Self-RAG ready. Collection='{SELF_RAG_COLLECTION}', chunks={count}.")
+        return store
+    except Exception as exc:
+        print_ts(f"Self-RAG initialization failed: {exc}")
+        return SelfRAGStore(enabled=False, error=str(exc))
+
+
+def index_self_rag_knowledge(store: SelfRAGStore) -> None:
+    if not store.enabled or store.collection is None or store.embedder is None:
+        return
+
+    paths = iter_knowledge_files(SELF_RAG_KB_DIR)
+    if not paths:
+        print_ts(
+            f"Self-RAG knowledge folder '{SELF_RAG_KB_DIR}' has no supported files. "
+            "Create the folder and add .txt, .md, .pdf, .json, .csv, .py, or .html files."
+        )
+        return
+
+    ids: list[str] = []
+    docs: list[str] = []
+    metas: list[dict] = []
+
+    for path in paths:
+        text = read_knowledge_file(path)
+        if len(text) < SELF_RAG_MIN_CONTEXT_CHARS:
+            continue
+
+        rel_path = os.path.relpath(path, SELF_RAG_KB_DIR)
+        for index, chunk in enumerate(chunk_text(text)):
+            if len(chunk) < SELF_RAG_MIN_CONTEXT_CHARS:
+                continue
+            ids.append(stable_chunk_id(rel_path, chunk, index))
+            docs.append(chunk)
+            metas.append({
+                "source": rel_path,
+                "chunk_index": index,
+                "source_path": path,
+                "indexed_at": now_ts(),
+            })
+
+    if not docs:
+        print_ts("Self-RAG found knowledge files, but no usable text chunks were extracted.")
+        return
+
+    embeddings = store.embedder.encode(docs, normalize_embeddings=True).tolist()
+    store.collection.upsert(ids=ids, documents=docs, metadatas=metas, embeddings=embeddings)
+    print_ts(f"Self-RAG indexed/updated {len(docs)} chunks from {len(paths)} files.")
+
+
+def retrieve_self_rag_candidates(store: SelfRAGStore, query: str, top_k: int = SELF_RAG_TOP_K) -> list[dict[str, Any]]:
+    if not store.enabled or store.collection is None or store.embedder is None:
+        return []
+
+    if not query.strip():
+        return []
+
+    try:
+        query_embedding = store.embedder.encode([query], normalize_embeddings=True).tolist()[0]
+        result = store.collection.query(
+            query_embeddings=[query_embedding],
+            n_results=max(1, top_k),
+            include=["documents", "metadatas", "distances"],
+        )
+
+        docs = result.get("documents", [[]])[0]
+        metas = result.get("metadatas", [[]])[0]
+        distances = result.get("distances", [[]])[0]
+
+        candidates: list[dict[str, Any]] = []
+        for doc, meta, distance in zip(docs, metas, distances):
+            candidates.append({
+                "text": doc,
+                "source": (meta or {}).get("source", "unknown"),
+                "title": (meta or {}).get("title"),
+                "kind": (meta or {}).get("kind"),
+                "chunk_index": (meta or {}).get("chunk_index"),
+                "distance": float(distance),
+            })
+        return candidates
+    except Exception as exc:
+        print_ts(f"Self-RAG retrieval failed: {exc}")
+        return []
+
+
+def grade_self_rag_context(client: Client, user_text: str, candidates: list[dict[str, Any]]) -> tuple[bool, str]:
+    if not candidates:
+        return False, "No retrieved knowledge chunks were available."
+
+    compact_context = "\n\n".join(
+        f"[{idx + 1}] source={item['source']}\n{limit_text_length(item['text'], 700)}"
+        for idx, item in enumerate(candidates[:SELF_RAG_TOP_K])
+    )
+
+    prompt = f"""
+You are the retrieval judge in a Self-RAG pipeline for a humanoid robot assistant.
+
+Decide whether the retrieved local knowledge is useful for answering the user's latest message.
+
+User message:
+{user_text}
+
+Retrieved local knowledge:
+{compact_context}
+
+Return JSON only:
+{{
+  "use_context": true,
+  "reason": "brief reason"
+}}
+
+Rules:
+- use_context must be true only when the retrieved knowledge directly helps answer the message.
+- use_context must be false for greetings, small talk, emotional support, or unrelated knowledge.
+- use_context must be false if the retrieved text is too weak, unrelated, or only keyword-matched.
+""".strip()
+
+    try:
+        response = client.chat(
+            model=MODEL_NAME,
+            format="json",
+            messages=[
+                {"role": "system", "content": "You return valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            options={"temperature": 0.0, "num_predict": 120, "num_ctx": 3072},
+            stream=False,
+        )
+        data = safe_json_extract(response.get("message", {}).get("content", ""))
+        if not isinstance(data, dict):
+            return False, "Retrieval judge returned unparseable output."
+        return bool(data.get("use_context", False)), str(data.get("reason", "")).strip()
+    except Exception as exc:
+        print_ts(f"Self-RAG relevance grading failed: {exc}")
+        return False, f"Retrieval judge failed: {exc}"
+
+
+def build_self_rag_context(client: Client, store: SelfRAGStore, user_text: str) -> SelfRAGContext:
+    if not store.enabled:
+        return self_rag_disabled_context(user_text, "Self-RAG store is not enabled.", store.error)
+
+    candidates = retrieve_self_rag_candidates(store, user_text)
+    if not candidates:
+        return self_rag_disabled_context(user_text, "No relevant local knowledge was retrieved.")
+
+    should_use, reason = grade_self_rag_context(client, user_text, candidates)
+    if not should_use:
+        return SelfRAGContext(
+            available=True,
+            used=False,
+            query=user_text,
+            context_text="",
+            sources=[{k: v for k, v in item.items() if k != "text"} for item in candidates],
+            reason=reason or "Retrieved context was judged not useful.",
+        )
+
+    context_parts: list[str] = []
+    sources: list[dict[str, Any]] = []
+    remaining = SELF_RAG_MAX_CONTEXT_CHARS
+
+    for idx, item in enumerate(candidates, start=1):
+        text = clean_knowledge_text(item["text"])
+        if not text:
+            continue
+        clipped = text[:remaining]
+        if not clipped:
+            break
+        context_parts.append(f"[Source {idx}: {item['source']}]\n{clipped}")
+        sources.append({k: v for k, v in item.items() if k != "text"})
+        remaining -= len(clipped)
+        if remaining <= 0:
+            break
+
+    return SelfRAGContext(
+        available=True,
+        used=bool(context_parts),
+        query=user_text,
+        context_text="\n\n".join(context_parts),
+        sources=sources,
+        reason=reason or "Retrieved context was judged useful.",
+    )
+
+
+def build_self_rag_prompt_block(self_rag_context: Optional[SelfRAGContext]) -> str:
+    if not self_rag_context or not self_rag_context.used:
+        return "SELF-RAG CONTEXT\nNo local knowledge was used for this turn."
+
+    return f"""
+SELF-RAG CONTEXT
+The following local knowledge was retrieved and judged relevant. Use it as grounding evidence.
+If the knowledge is insufficient, say what is missing instead of inventing details.
+Do not expose raw source metadata unless the user asks.
+
+{self_rag_context.context_text}
+""".strip()
+
 # =========================
 # Emotion detection
 # =========================
@@ -2392,6 +2850,7 @@ def build_response_system_prompt(
     emotion_result: EmotionResult,
     user_profile: Optional[dict] = None,
     face_emotion_json: Optional[dict] = None,
+    self_rag_context: Optional[SelfRAGContext] = None,
 ) -> str:
     emoji = PLUTCHIK_EMOTIONS[emotion_result.emotion]
     memory_context = build_user_memory_context(user_profile)
@@ -2411,6 +2870,9 @@ def build_response_system_prompt(
         {runtime_context()}
 
         {memory_context}
+
+        {build_self_rag_prompt_block(self_rag_context)}
+
         You are generating Ameca's next conversational response.
 
         PRIVATE EMOTION CONTEXT
@@ -2439,6 +2901,12 @@ def build_response_system_prompt(
 
         Speech recognition note:
         - If the user says their name, update the profile silently and greet them by the corrected name.
+
+        Self-RAG grounding rules:
+        - If SELF-RAG CONTEXT is provided, use it to answer factual or lab/domain-specific questions.
+        - Do not invent facts that are not in the retrieved context or normal general knowledge.
+        - If the retrieved context does not fully answer the question, say that clearly and answer only the part that is supported.
+        - Do not mention Self-RAG, vector databases, embeddings, ChromaDB, or retrieval unless the user explicitly asks how the system works.
 
         Conversation behavior rules:
         - Always ensure your response is context appropriate.
@@ -2478,7 +2946,7 @@ def limit_text_length(text: str, max_chars: int = 1500) -> str:
     return text[:max_chars]
 
 
-def limit_system_prompt(prompt: str, max_chars: int = 6000) -> str:
+def limit_system_prompt(prompt: str, max_chars: int = 9000) -> str:
     return prompt[:max_chars]
 
 
@@ -2497,6 +2965,7 @@ def generate_response(
     history: list[dict],
     user_profile: Optional[dict] = None,
     face_emotion_json: Optional[dict] = None,
+    self_rag_context: Optional[SelfRAGContext] = None,
 ) -> str:
     deterministic = deterministic_reply_if_applicable(
         user_text=user_text,
@@ -2512,6 +2981,7 @@ def generate_response(
             emotion_result=emotion_result,
             user_profile=user_profile,
             face_emotion_json=face_emotion_json,
+            self_rag_context=self_rag_context,
         )
     )
 
@@ -2576,6 +3046,8 @@ def main() -> None:
     ensure_model_available(VISION_MODEL_NAME)
 
     client = Client(host=OLLAMA_HOST)
+
+    self_rag_store = init_self_rag_store()
 
     list_input_devices()
 
@@ -2718,6 +3190,29 @@ def main() -> None:
                 print_ts("Conversation history cleared.")
                 continue
 
+            if command in {"rrlab crawl", "crawl rrlab", "scrape rrlab", "rrlab scrape"}:
+                ok = run_rrlab_scraper()
+                if ok:
+                    print_ts("RRLab website knowledge base rebuilt. Self-RAG will use the updated ChromaDB index.")
+                else:
+                    print_ts("RRLab website knowledge base was not rebuilt.")
+                continue
+
+            if command in {"rag reindex", "reindex rag", "selfrag reindex", "self-rag reindex"}:
+                # Prefer the RRLab website scraper when scrape.py is available.
+                # Fall back to the old local-folder indexer for custom documents.
+                if resolve_scrape_script_path():
+                    ok = run_rrlab_scraper()
+                    if ok:
+                        print_ts("Self-RAG RRLab website index rebuilt from scrape.py.")
+                    else:
+                        print_ts("scrape.py failed; falling back to local knowledge folder indexing.")
+                        index_self_rag_knowledge(self_rag_store)
+                else:
+                    index_self_rag_knowledge(self_rag_store)
+                    print_ts("Self-RAG local knowledge base reindexed.")
+                continue
+
             facial_hint = face_capture.summary_text if face_capture else None
             face_emotion_json = face_capture.as_json if face_capture else default_face_emotion_json()
 
@@ -2741,6 +3236,15 @@ def main() -> None:
             print(json.dumps(face_emotion_json, indent=2))
             print()
 
+            self_rag_context = build_self_rag_context(
+                client=client,
+                store=self_rag_store,
+                user_text=user_text,
+            )
+            print_ts("Self-RAG JSON:")
+            print(json.dumps(self_rag_context.as_json, indent=2))
+            print()
+
             reply = generate_response(
                 client=client,
                 user_text=user_text,
@@ -2748,6 +3252,7 @@ def main() -> None:
                 history=history,
                 user_profile=user_profile,
                 face_emotion_json=face_emotion_json,
+                self_rag_context=self_rag_context,
             )
 
             print_ts(f"Assistant: {reply}")
@@ -2760,7 +3265,8 @@ def main() -> None:
                 "emotion": emotion_json,
                 "facial_emotion_hint": facial_hint,
                 "face_emotion": face_emotion_json,
-                "input_mode": "silero_vad_faster_whisper_qwen25vl",
+                "self_rag": self_rag_context.as_json,
+                "input_mode": "silero_vad_faster_whisper_qwen25vl_self_rag",
             }
 
             assistant_message = {

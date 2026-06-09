@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import queue
@@ -12,7 +13,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 # Linux-only Qt fix. Do not force this on macOS.
 if sys.platform.startswith("linux"):
@@ -42,7 +43,7 @@ USE_ZED_HALF_FRAME_CROP = IS_LINUX
 # =========================
 
 # OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://elite-sink-amazing-charitable.trycloudflare.com"
+OLLAMA_HOST = "https://consideration-consultancy-blocked-awareness.trycloudflare.com"
 
 MODEL_NAME = "llama3:8b"
 # MODEL_NAME = "mistral:7b"
@@ -57,9 +58,74 @@ DATA_DIR = "conversation_data"
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
 
+
+# =========================
+# Self-RAG / local knowledge configuration
+# =========================
+
+# Self-RAG lets Ameca retrieve local knowledge, judge whether it is useful,
+# and answer with that knowledge only when it is relevant.
+SELF_RAG_ENABLED = os.environ.get("SELF_RAG_ENABLED", "1") == "1"
+SELF_RAG_KB_DIR = os.environ.get("SELF_RAG_KB_DIR", "knowledge_base")
+
+# IMPORTANT:
+# scrape.py writes the RRLab website index to CHROMA_PERSIST_DIR="chroma_db"
+# and CHROMA_COLLECTION="emah_knowledge". These defaults must match scrape.py.
+SELF_RAG_DB_DIR = os.environ.get("SELF_RAG_DB_DIR", "chroma_db")
+SELF_RAG_COLLECTION = os.environ.get("SELF_RAG_COLLECTION", "emah_knowledge")
+SELF_RAG_EMBED_MODEL = os.environ.get("SELF_RAG_EMBED_MODEL", "all-MiniLM-L6-v2")
+SELF_RAG_TOP_K = int(os.environ.get("SELF_RAG_TOP_K", "12"))
+SELF_RAG_CHUNK_SIZE = int(os.environ.get("SELF_RAG_CHUNK_SIZE", "900"))
+SELF_RAG_CHUNK_OVERLAP = int(os.environ.get("SELF_RAG_CHUNK_OVERLAP", "150"))
+SELF_RAG_MIN_CONTEXT_CHARS = int(os.environ.get("SELF_RAG_MIN_CONTEXT_CHARS", "80"))
+SELF_RAG_MAX_CONTEXT_CHARS = int(os.environ.get("SELF_RAG_MAX_CONTEXT_CHARS", "2500"))
+
+SELF_RAG_MAX_DISTANCE = float(os.environ.get("SELF_RAG_MAX_DISTANCE", "0.52"))
+SELF_RAG_FINAL_TOP_K = int(os.environ.get("SELF_RAG_FINAL_TOP_K", "5"))
+SELF_RAG_MIN_HYBRID_SCORE = float(os.environ.get("SELF_RAG_MIN_HYBRID_SCORE", "0.62"))
+SELF_RAG_PERSON_LOOKUP_STRICT = os.environ.get("SELF_RAG_PERSON_LOOKUP_STRICT", "1") == "1"
+SELF_RAG_SKIP_SOCIAL = os.environ.get("SELF_RAG_SKIP_SOCIAL", "1") == "1"
+SELF_RAG_SKIP_EMOTIONAL_SUPPORT = os.environ.get("SELF_RAG_SKIP_EMOTIONAL_SUPPORT", "1") == "1"
+
+# Entity triggers force RAG even if the message looks social.
+# This prevents failures like "Do you know Ashita?" being treated as small talk.
+KNOWN_RRLAB_ENTITIES = {
+    "ashita",
+    "ashita ashok",
+    "ameca",
+    "emah",
+    "rrlab",
+    "robotics research lab",
+    "robotersysteme",
+    "ravon",
+    "robin",
+    "carl",
+    "unimog",
+    "avos",
+    "dengel",
+    "sembai",
+    "senna",
+    "casrew",
+    "zukunftbau",
+    "znt",
+}
+
+# Keep this off by default because the RRLab scraper already rebuilds the index.
+# Use /rrlab crawl or /self-rag reindex inside the app to refresh the website KB.
+SELF_RAG_REINDEX_ON_START = os.environ.get("SELF_RAG_REINDEX_ON_START", "0") == "1"
+SELF_RAG_AUTO_SCRAPE_ON_EMPTY = os.environ.get("SELF_RAG_AUTO_SCRAPE_ON_EMPTY", "0") == "1"
+SELF_RAG_SCRAPE_SCRIPT = os.environ.get("SELF_RAG_SCRAPE_SCRIPT", "scrape.py")
+SELF_RAG_SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".json", ".csv", ".py", ".html", ".htm", ".pdf"}
+
 # Keep this False for fast, clean shutdown.
 # If True, the app will call Ollama at shutdown to summarize the session.
 ENABLE_LLM_SESSION_SUMMARY = False
+
+# System requirement: ask the user to spell their name after the spoken-name step.
+ENABLE_NAME_SPELLING = os.environ.get("ENABLE_NAME_SPELLING", "1") == "1"
+
+# Letter-by-letter spelling is unreliable with ASR, so keep it off by default.
+ASK_SPELLED_NAME_ON_START = os.environ.get("ASK_SPELLED_NAME_ON_START", "0") == "1"
 
 
 # =========================
@@ -196,7 +262,7 @@ VISION_JPEG_QUALITY = int(os.environ.get("VISION_JPEG_QUALITY", "80"))
 VISION_MODEL_TIMEOUT_SECONDS = int(os.environ.get("VISION_MODEL_TIMEOUT_SECONDS", "20"))
 VISION_DEBUG = os.environ.get("VISION_DEBUG", "1") == "1"
 VISION_DEBUG_DIR = os.environ.get("VISION_DEBUG_DIR", "vision_debug_frames")
-VISION_MAX_IMAGE_SIDE = int(os.environ.get("VISION_MAX_IMAGE_SIDE", "640"))
+VISION_MAX_IMAGE_SIDE = int(os.environ.get("VISION_MAX_IMAGE_SIDE", "224"))
 
 # Image preprocessing for Qwen2.5-VL. These reduce ZED/camera noise before VLM inference.
 VISION_DENOISE_ENABLED = os.environ.get("VISION_DENOISE_ENABLED", "1") == "1"
@@ -212,7 +278,7 @@ VISION_MAX_BRIGHTNESS = float(os.environ.get("VISION_MAX_BRIGHTNESS", "220.0"))
 # Keep this threshold soft, and do not reject on sharpness unless explicitly enabled.
 VISION_MIN_SHARPNESS = float(os.environ.get("VISION_MIN_SHARPNESS", "8.0"))
 VISION_SKIP_LOW_QUALITY = os.environ.get("VISION_SKIP_LOW_QUALITY", "0") == "1"
-FACE_ANALYSIS_STRATEGY = os.environ.get("FACE_ANALYSIS_STRATEGY", "best_of_n").strip().lower()
+FACE_ANALYSIS_STRATEGY = os.environ.get("FACE_ANALYSIS_STRATEGY", "multi_frame").strip().lower()
 FACE_MULTI_FRAME_COUNT = int(os.environ.get("FACE_MULTI_FRAME_COUNT", "3"))
 
 # Reliability filter. Qwen2.5-VL emotion scores are percentages.
@@ -241,12 +307,106 @@ PLUTCHIK_EMOTIONS = {
 
 ALLOWED_FACE_EMOJIS = set(PLUTCHIK_EMOTIONS.values())
 
+# =========================
+# Adaptive reliability-aware emotion fusion
+# =========================
+# Base weights before reliability adjustment.
+FUSION_TEXT_WEIGHT = float(os.environ.get("FUSION_TEXT_WEIGHT", "0.5"))
+FUSION_VISUAL_WEIGHT = float(os.environ.get("FUSION_VISUAL_WEIGHT", "0.4"))
+FUSION_PROSODY_WEIGHT = float(os.environ.get("FUSION_PROSODY_WEIGHT", "0.1"))
+
+# Semantic override keeps explicit emotional language from being overruled by FER.
+FUSION_ENABLE_SEMANTIC_OVERRIDE = os.environ.get("FUSION_ENABLE_SEMANTIC_OVERRIDE", "1") == "1"
+FUSION_EXPLICIT_TEXT_CONFIDENCE = float(os.environ.get("FUSION_EXPLICIT_TEXT_CONFIDENCE", "0.72"))
+
+
 
 @dataclass
 class EmotionResult:
     emotion: str
     confidence: float
     reason: str
+
+
+@dataclass
+class ProsodyEmotionResult:
+    available: bool
+    emotion: str
+    confidence: float
+    reason: str
+    features: dict[str, float]
+
+    @property
+    def as_json(self) -> dict:
+        return {
+            "available": self.available,
+            "emotion": self.emotion,
+            "confidence": self.confidence,
+            "reason": self.reason,
+            "features": self.features,
+        }
+
+
+@dataclass
+class FusedEmotionResult:
+    emotion: str
+    confidence: float
+    reason: str
+    scores: dict[str, float]
+    weights: dict[str, float]
+    text_emotion: dict[str, Any]
+    visual_emotion: dict[str, Any]
+    prosody_emotion: dict[str, Any]
+
+    @property
+    def as_json(self) -> dict:
+        return {
+            "emotion": self.emotion,
+            "confidence": self.confidence,
+            "reason": self.reason,
+            "scores": self.scores,
+            "weights": self.weights,
+            "text_emotion": self.text_emotion,
+            "visual_emotion": self.visual_emotion,
+            "prosody_emotion": self.prosody_emotion,
+        }
+
+    def to_emotion_result(self) -> EmotionResult:
+        return EmotionResult(
+            emotion=self.emotion,
+            confidence=self.confidence,
+            reason=self.reason,
+        )
+
+
+@dataclass
+class SelfRAGContext:
+    available: bool
+    used: bool
+    query: str
+    context_text: str
+    sources: list[dict[str, Any]]
+    reason: str
+    error: Optional[str] = None
+
+    @property
+    def as_json(self) -> dict:
+        return {
+            "available": self.available,
+            "used": self.used,
+            "query": self.query,
+            "sources": self.sources,
+            "reason": self.reason,
+            "error": self.error,
+        }
+
+
+@dataclass
+class SelfRAGStore:
+    enabled: bool
+    collection: Any = None
+    embedder: Any = None
+    error: Optional[str] = None
 
 
 @dataclass
@@ -329,8 +489,8 @@ class FaceEmotionCapture:
             "ended_at": self.ended_at,
             "error": self.error,
             "note": (
-                "Qwen2.5-VL facial expression analysis is a weak supporting signal only. "
-                "Text-based emotion should remain the primary signal."
+                "Qwen2.5-VL facial expression analysis is used as the visual component "
+                "in fixed weighted late fusion."
             ),
         }
 
@@ -588,6 +748,12 @@ def save_session_transcript(
                 "backend": "faster-whisper",
                 **FAST_WHISPER_CONFIG,
             },
+            "emotion_fusion": {
+                "type": "adaptive_reliability_aware_late_fusion",
+                "text_weight": FUSION_TEXT_WEIGHT,
+                "visual_weight": FUSION_VISUAL_WEIGHT,
+                "prosody_weight": FUSION_PROSODY_WEIGHT,
+            },
             "face_emotion": {
                 "backend": "qwen2.5vl:7b via Ollama",
                 "camera_device": CAMERA_DEVICE,
@@ -677,7 +843,7 @@ Do not invent facts.
             options={
                 "temperature": 0.2,
                 "num_predict": 180,
-                "num_ctx": 2048,
+                "num_ctx": 4096,
             },
             stream=False,
         )
@@ -859,6 +1025,35 @@ def transcribe_with_faster_whisper(wav_path: str, whisper_model: WhisperModel) -
 
 # Backwards-compatible alias so the rest of the script stays readable.
 transcribe_audio = transcribe_with_faster_whisper
+
+
+def load_audio_for_prosody(wav_path: str, target_sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
+    """
+    Load mono float32 audio for lightweight prosody analysis.
+
+    This is used after the utterance WAV is saved and before it is deleted.
+    """
+    try:
+        audio, sr = sf.read(wav_path, dtype="float32")
+
+        if audio is None or len(audio) == 0:
+            return np.array([], dtype=np.float32)
+
+        if getattr(audio, "ndim", 1) > 1:
+            audio = np.mean(audio, axis=1)
+
+        audio = audio.astype(np.float32, copy=False)
+
+        if int(sr) != int(target_sr):
+            audio = resample_audio(audio, int(sr), int(target_sr))
+
+        return audio.astype(np.float32, copy=False)
+
+    except Exception as exc:
+        print_ts(f"Could not load audio for prosody: {exc}")
+        return np.array([], dtype=np.float32)
+
+
 
 
 # =========================
@@ -1173,7 +1368,6 @@ EMOTION_ALIASES = {
     "happiness": "joy",
     "smile": "joy",
     "smiling": "joy",
-    "neutral": "trust",
     "calm": "trust",
     "friendly": "trust",
     "relaxed": "trust",
@@ -1197,8 +1391,15 @@ EMOTION_ALIASES = {
 
 def canonical_emotion_name(name: str) -> Optional[str]:
     cleaned = re.sub(r"[^a-zA-Z]+", "", str(name).strip().lower())
-    if cleaned in PLUTCHIK_EMOTIONS:
+
+    # Do not map neutral to trust. Neutral is not a Plutchik emotion, and
+    # forcing it into trust artificially inflates the trust score.
+    if cleaned == "neutral":
+        return None
+
+    if cleaned in PLUTCHIK_EMOTIONS and cleaned != "neutral":
         return cleaned
+
     return EMOTION_ALIASES.get(cleaned)
 
 
@@ -1253,84 +1454,20 @@ def normalize_plutchik_scores(raw_data: dict) -> Optional[dict[str, float]]:
 
 
 def build_qwen_face_prompt() -> str:
-    emotions = ", ".join(PLUTCHIK_EMOTIONS.keys())
-    return f"""
-        You are a careful visual emotion classifier for a real-time human-robot interaction system.
+    return """
+        You are a facial emotion classifier.
 
-        INPUT
-        You may receive one camera frame or multiple consecutive camera frames from the same short moment.
-        There is only one target person. Analyze only the target person's visible face.
-        If more than one person appears, classify the most central and largest visible face and ignore all others.
-        If the same person appears across multiple frames, combine the evidence across frames instead of treating each frame as a different person.
+        Analyze the main visible face only.
 
-        TASK
-        Classify the target person's facial emotion using exactly one of Plutchik's 8 primary emotions:
-        {emotions}
+        Classify the facial expression into exactly one emotion:
+        joy, trust, fear, surprise, sadness, disgust, anger, anticipation
 
-        WHAT TO LOOK AT
-        Use only visible facial-expression evidence:
-        - eyebrows: raised, lowered, drawn together, relaxed, asymmetrical
-        - eyes: widened, narrowed, squinting, downcast, relaxed, tense
-        - eyelids: heavy, open, tightened, relaxed
-        - mouth: smiling, open, compressed, downturned, parted, tense, relaxed
-        - cheeks: raised, flat, tense
-        - nose/upper lip: wrinkled nose, raised upper lip, sneer
-        - jaw/chin: clenched, dropped, slack, tense
-        - overall facial tension: soft/relaxed versus tight/strained
+        Return JSON only:
 
-        DO NOT USE
-        Do not infer emotion from identity, age, gender, ethnicity, clothing, hairstyle, background, lighting, camera angle, pose, or stereotypes.
-        Do not identify the person.
-        Do not diagnose mental state.
-        Do not claim certainty when the expression is weak, ambiguous, blurry, occluded, or neutral-looking.
-
-        MULTI-FRAME RULES
-        When multiple frames are provided:
-        - Track the same target face across frames.
-        - Prefer expression features that are consistent across frames.
-        - Give less weight to frames that are blurry, dark, overexposed, partly occluded, side-facing, or have motion blur.
-        - If the expression changes across frames, classify the emotion that is most frequent or most visually supported.
-        - If the frames are mixed or weak, lower confidence and use a more even score distribution.
-        - Do not average everything into trust. Trust is only valid when the face is genuinely relaxed, soft, socially open, and without tension indicators.
-
-        EMOTION MAPPING GUIDANCE
-        - joy: clear smile, raised cheeks, eye crinkles, bright/positive expression, open happy mouth
-        - trust: relaxed face, soft eyes, slight natural smile or neutral-friendly expression, no visible tension
-        - fear: raised brows, widened tense eyes, mouth stretched or corners pulled back, worried/afraid tension
-        - surprise: raised brows, wide eyes, open mouth, sudden alert expression without clear fear or joy
-        - sadness: downturned mouth, heavy/downcast eyelids, raised inner brows, slack cheeks, subdued expression
-        - disgust: wrinkled nose, raised upper lip, sneer, squinting, expression of aversion
-        - anger: lowered/furrowed brows, narrowed eyes, compressed lips, clenched jaw, hard stare, visible tension
-        - anticipation: alert focused look, slightly raised brows, parted lips, engaged/expectant expression, thinking or readiness
-
-        COMMON CONFUSIONS
-        - A non-smiling face is not automatically trust.
-        - A relaxed neutral face may be trust only if there are no stronger signals.
-        - Raised brows + wide eyes + open mouth is usually surprise unless the face also shows defensive fear tension.
-        - Surprise includes playful shock, amazement, impressed disbelief, energetic expression, and socially engaged "wow" reactions.
-        - Fear requires visible distress: defensive tension, worried eyebrows pulled together/upward, mouth corners stretched backward, or an alarmed/frozen look.
-        - A surprised or excited face is not automatically fear just because the eyes are wide.
-        - If the expression looks amazed, impressed, playful, socially engaged, or excited, prefer surprise over fear.
-        - Downcast eyes + raised inner brows + downturned mouth is sadness, not trust.
-        - Lowered brows + tight lips + tense jaw is anger, not trust.
-        - Slightly raised brows + focused eyes + mild mouth tension is anticipation, not surprise.
-        - Nose wrinkle or raised upper lip should strongly suggest disgust.
-
-        SCORING RULES
-        Return a probability distribution over all 8 emotions.
-        - Each score must be a number from 0.0 to 1.0.
-        - Scores should sum to approximately 1.0.
-        - The highest score must match dominant_emotion.
-        - Use high confidence only when the facial cues are clear and consistent.
-        - Use lower confidence when the face is ambiguous, occluded, low quality, neutral, or mixed across frames.
-        - If no usable face is visible, return dominant_emotion "trust", confidence 0.1, and a nearly flat distribution.
-
-        OUTPUT
-        Return JSON only. Do not include markdown, comments, explanations outside JSON, or trailing text.
-        Use this exact JSON shape:
-        {{
-        "dominant_emotion": "joy | trust | fear | surprise | sadness | disgust | anger | anticipation",
-        "scores": {{
+        {
+        "dominant_emotion": "joy",
+        "confidence": 0.0,
+        "scores": {
             "joy": 0.0,
             "trust": 0.0,
             "fear": 0.0,
@@ -1339,10 +1476,9 @@ def build_qwen_face_prompt() -> str:
             "disgust": 0.0,
             "anger": 0.0,
             "anticipation": 0.0
-        }},
-        "confidence": 0.0,
-        "reason": "Briefly mention the visible facial cues and, if multiple frames were provided, whether the cue was consistent or mixed. Do not mention identity."
-        }}
+        },
+        "reason": "1 short phrase only of facial explanation"
+        }
         """.strip()
 
 
@@ -1373,7 +1509,7 @@ def analyze_frame_emotion_scores(
             ],
             options={
                 "temperature": 0.0,
-                "num_predict": 500,
+                "num_predict": 220,
                 "num_ctx": 4096,
             },
             stream=False,
@@ -1435,7 +1571,7 @@ def analyze_multiple_frames_emotion_scores(
             ],
             options={
                 "temperature": 0.0,
-                "num_predict": 500,
+                "num_predict": 220,
                 "num_ctx": 4096,
             },
             stream=False,
@@ -1571,6 +1707,16 @@ class FaceEmotionSampler:
         self._draw_preview(frame)
 
         if elapsed < CAMERA_WARMUP_SECONDS:
+            return
+
+        # Stop collecting new candidates once the target count is reached.
+        # Preview still updates above, but we avoid repeated frame copies and
+        # sharpness calculations during long utterances.
+        if len(self.candidate_frames) >= FACE_MAX_CANDIDATE_FRAMES:
+            self.last_status = (
+                f"collected frames ({FACE_MAX_CANDIDATE_FRAMES}/"
+                f"{FACE_MAX_CANDIDATE_FRAMES})"
+            )
             return
 
         # Collect candidate frames throughout speech, spaced by
@@ -2038,6 +2184,16 @@ def prompt_for_user_name(
     silero_model,
     input_device: Optional[int] = INPUT_DEVICE,
 ) -> tuple[str, dict, str]:
+    """
+    Academic protocol:
+    1. Ask the user to say their name naturally.
+    2. Ask the user to spell the name letter by letter.
+    3. Prefer the spelled form when it is usable.
+    4. Fall back to the spoken form if spelling fails.
+
+    This preserves the system requirement while avoiding crashes when the
+    spelling ASR is noisy.
+    """
     users = load_users()
 
     spoken_name = ""
@@ -2080,13 +2236,17 @@ def prompt_for_user_name(
     if not spoken_name or looks_like_invalid_name(spoken_name):
         spoken_name = "Guest"
 
-    spelled_name = ask_user_to_spell_name(
-        whisper_model=whisper_model,
-        silero_model=silero_model,
-        input_device=input_device,
-    )
+    spelled_name = None
 
-    if spelled_name:
+    if ENABLE_NAME_SPELLING:
+        spelled_name = ask_user_to_spell_name(
+            whisper_model=whisper_model,
+            silero_model=silero_model,
+            input_device=input_device,
+        )
+
+    if spelled_name and not looks_like_invalid_name(spelled_name):
+        # Prefer spelling because it is part of the academic/system protocol.
         spoken_name = spelled_name
         print_ts(f"Using spelled name: {spoken_name}")
     else:
@@ -2095,7 +2255,6 @@ def prompt_for_user_name(
     print_ts(f"Detected name: {spoken_name}")
 
     user_key = slugify_name(spoken_name)
-
     is_new_user = user_key not in users
 
     if is_new_user:
@@ -2131,30 +2290,1092 @@ def prompt_for_user_name(
 # JSON helpers
 # =========================
 
-def safe_json_extract(text: str) -> Optional[dict]:
-    text = text.strip()
+def safe_json_extract(raw: str):
+    """
+    Robust JSON extraction for Ollama/Qwen outputs.
 
-    text = re.sub(
-        r"^```(?:json)?\s*|\s*```$",
-        "",
-        text,
-        flags=re.IGNORECASE | re.DOTALL,
-    ).strip()
+    Why this is needed:
+    - Vision models sometimes return valid JSON.
+    - Sometimes they return JSON inside markdown fences.
+    - Sometimes generation stops inside the final reason string.
+
+    This function first tries strict parsing, then repairs the most common
+    truncated JSON shape used by the facial-emotion classifier.
+    """
+    if not raw:
+        return None
+
+    raw = raw.strip()
+    raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.IGNORECASE | re.DOTALL).strip()
 
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
+        return json.loads(raw)
+    except Exception:
         pass
 
-    match = re.search(r"\{.*?\}", text, flags=re.DOTALL)
-
-    if not match:
+    # Extract from the first opening brace to the last visible closing brace,
+    # or to the end if the model was truncated before closing the object.
+    start = raw.find("{")
+    if start < 0:
         return None
+
+    candidate = raw[start:].strip()
+
+    # First try a balanced substring ending at the last closing brace.
+    last_close = candidate.rfind("}")
+    if last_close > 0:
+        maybe = candidate[: last_close + 1]
+        try:
+            return json.loads(maybe)
+        except Exception:
+            pass
+
+    # Repair common case: output was cut inside the final reason string.
+    # Remove an incomplete reason field if necessary; the scores are what we need.
+    repaired = candidate
+    reason_pos = repaired.rfind('"reason"')
+    if reason_pos != -1:
+        before_reason = repaired[:reason_pos].rstrip().rstrip(",")
+        repaired = before_reason + ', "reason": "truncated"}'
+
+    # Balance braces and brackets conservatively.
+    open_braces = repaired.count("{")
+    close_braces = repaired.count("}")
+    if close_braces < open_braces:
+        repaired += "}" * (open_braces - close_braces)
+
+    open_brackets = repaired.count("[")
+    close_brackets = repaired.count("]")
+    if close_brackets < open_brackets:
+        repaired += "]" * (open_brackets - close_brackets)
+
+    # If a quote is still unbalanced, close it at the end.
+    if repaired.count('"') % 2 != 0:
+        repaired += '"'
 
     try:
-        return json.loads(match.group(0))
-    except json.JSONDecodeError:
+        return json.loads(repaired)
+    except Exception:
+        pass
+
+    # Final targeted extraction for facial emotion JSON. This salvages scores
+    # even if the reason field is badly truncated.
+    try:
+        dominant_match = re.search(r'"dominant_emotion"\s*:\s*"([^"{}]+)"', candidate)
+        confidence_match = re.search(r'"confidence"\s*:\s*([0-9.]+)', candidate)
+        scores_match = re.search(r'"scores"\s*:\s*\{(.*?)\}', candidate, flags=re.DOTALL)
+
+        if not scores_match:
+            return None
+
+        scores_text = scores_match.group(1)
+        scores: dict[str, float] = {}
+        for emotion in [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]:
+            match = re.search(rf'"{emotion}"\s*:\s*([0-9.]+)', scores_text)
+            if match:
+                scores[emotion] = float(match.group(1))
+
+        if not scores:
+            return None
+
+        dominant = dominant_match.group(1).strip().lower() if dominant_match else max(scores.items(), key=lambda item: item[1])[0]
+        confidence = float(confidence_match.group(1)) if confidence_match else max(scores.values())
+
+        return {
+            "dominant_emotion": dominant,
+            "confidence": confidence,
+            "scores": scores,
+            "reason": "recovered from partial JSON",
+        }
+    except Exception:
         return None
+
+
+
+# =========================
+# Self-RAG helpers
+# =========================
+
+def self_rag_disabled_context(query: str, reason: str, error: Optional[str] = None) -> SelfRAGContext:
+    return SelfRAGContext(
+        available=False,
+        used=False,
+        query=query,
+        context_text="",
+        sources=[],
+        reason=reason,
+        error=error,
+    )
+
+
+def clean_knowledge_text(text: str) -> str:
+    text = re.sub(r"\r\n?", "\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def read_knowledge_file(path: str) -> str:
+    ext = os.path.splitext(path)[1].lower()
+
+    if ext == ".pdf":
+        try:
+            from pypdf import PdfReader
+        except Exception as exc:
+            print_ts(f"Skipping PDF because pypdf is not installed: {path} ({exc})")
+            return ""
+
+        try:
+            reader = PdfReader(path)
+            pages = []
+            for page in reader.pages:
+                pages.append(page.extract_text() or "")
+            return clean_knowledge_text("\n\n".join(pages))
+        except Exception as exc:
+            print_ts(f"Could not read PDF knowledge file {path}: {exc}")
+            return ""
+
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as file:
+            return clean_knowledge_text(file.read())
+    except Exception as exc:
+        print_ts(f"Could not read knowledge file {path}: {exc}")
+        return ""
+
+
+def iter_knowledge_files(kb_dir: str) -> list[str]:
+    if not os.path.isdir(kb_dir):
+        return []
+
+    paths: list[str] = []
+    for root, _, files in os.walk(kb_dir):
+        for filename in files:
+            path = os.path.join(root, filename)
+            ext = os.path.splitext(path)[1].lower()
+            if ext in SELF_RAG_SUPPORTED_EXTENSIONS:
+                paths.append(path)
+    return sorted(paths)
+
+
+def chunk_text(text: str, chunk_size: int = SELF_RAG_CHUNK_SIZE, overlap: int = SELF_RAG_CHUNK_OVERLAP) -> list[str]:
+    text = clean_knowledge_text(text)
+    if not text:
+        return []
+
+    if len(text) <= chunk_size:
+        return [text]
+
+    chunks: list[str] = []
+    start = 0
+    step = max(1, chunk_size - overlap)
+
+    while start < len(text):
+        end = min(len(text), start + chunk_size)
+        chunk = text[start:end].strip()
+
+        # Prefer not to cut in the middle of a sentence when possible.
+        if end < len(text):
+            last_break = max(chunk.rfind(". "), chunk.rfind("\n"), chunk.rfind("; "))
+            if last_break > int(chunk_size * 0.55):
+                chunk = chunk[: last_break + 1].strip()
+                end = start + last_break + 1
+
+        if chunk:
+            chunks.append(chunk)
+
+        start = max(end - overlap, start + step)
+
+    return chunks
+
+
+def stable_chunk_id(path: str, chunk: str, index: int) -> str:
+    raw = f"{path}:{index}:{chunk}".encode("utf-8", errors="ignore")
+    return hashlib.sha256(raw).hexdigest()[:32]
+
+def resolve_scrape_script_path() -> Optional[str]:
+    """Find scrape.py so the main Ameca app can rebuild the RRLab KB on demand."""
+    candidates = [
+        SELF_RAG_SCRAPE_SCRIPT,
+        os.path.join(os.getcwd(), SELF_RAG_SCRAPE_SCRIPT),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), SELF_RAG_SCRAPE_SCRIPT),
+    ]
+
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate):
+            return os.path.abspath(candidate)
+
+    return None
+
+
+def run_rrlab_scraper() -> bool:
+    """
+    Rebuild the RRLab website ChromaDB index by executing scrape.py.
+
+    scrape.py is responsible for crawling https://rrlab.cs.rptu.de/en and writing
+    to the same ChromaDB path/collection configured above:
+      SELF_RAG_DB_DIR='chroma_db'
+      SELF_RAG_COLLECTION='emah_knowledge'
+    """
+    script_path = resolve_scrape_script_path()
+
+    if not script_path:
+        print_ts(
+            "Could not find scrape.py. Put scrape.py in the same folder as this script "
+            "or set SELF_RAG_SCRAPE_SCRIPT=/full/path/to/scrape.py."
+        )
+        return False
+
+    print_ts(f"Running RRLab scraper: {script_path}")
+
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+
+    try:
+        completed = subprocess.run(
+            [sys.executable, script_path],
+            cwd=os.path.dirname(script_path) or os.getcwd(),
+            env=env,
+            check=False,
+        )
+
+        if completed.returncode != 0:
+            print_ts(f"RRLab scraper failed with exit code {completed.returncode}.")
+            return False
+
+        print_ts("RRLab scraper finished successfully.")
+        return True
+
+    except KeyboardInterrupt:
+        raise
+    except Exception as exc:
+        print_ts(f"RRLab scraper could not run: {exc}")
+        return False
+
+
+def init_self_rag_store() -> SelfRAGStore:
+    if not SELF_RAG_ENABLED:
+        print_ts("Self-RAG disabled by SELF_RAG_ENABLED=0.")
+        return SelfRAGStore(enabled=False, error="Self-RAG disabled.")
+
+    try:
+        import chromadb
+        from sentence_transformers import SentenceTransformer
+    except Exception as exc:
+        print_ts(
+            "Self-RAG dependencies missing. Install with: "
+            "pip install chromadb sentence-transformers pypdf"
+        )
+        return SelfRAGStore(enabled=False, error=str(exc))
+
+    try:
+        os.makedirs(SELF_RAG_DB_DIR, exist_ok=True)
+        chroma_client = chromadb.PersistentClient(path=SELF_RAG_DB_DIR)
+        collection = chroma_client.get_or_create_collection(
+            name=SELF_RAG_COLLECTION,
+            metadata={"hnsw:space": "cosine"},
+        )
+        embedder = SentenceTransformer(SELF_RAG_EMBED_MODEL)
+        store = SelfRAGStore(enabled=True, collection=collection, embedder=embedder)
+
+        if SELF_RAG_REINDEX_ON_START:
+            index_self_rag_knowledge(store)
+
+        count = collection.count()
+
+        if count == 0 and SELF_RAG_AUTO_SCRAPE_ON_EMPTY:
+            print_ts("Self-RAG collection is empty. Running scrape.py to build the RRLab website index...")
+            run_rrlab_scraper()
+            count = collection.count()
+
+        if count == 0:
+            print_ts(
+                "Self-RAG collection is empty. Run 'python scrape.py' first, "
+                "or type '/rrlab crawl' while the app is running."
+            )
+
+        print_ts(f"Self-RAG ready. Collection='{SELF_RAG_COLLECTION}', chunks={count}.")
+        return store
+    except Exception as exc:
+        print_ts(f"Self-RAG initialization failed: {exc}")
+        return SelfRAGStore(enabled=False, error=str(exc))
+
+
+def index_self_rag_knowledge(store: SelfRAGStore) -> None:
+    if not store.enabled or store.collection is None or store.embedder is None:
+        return
+
+    paths = iter_knowledge_files(SELF_RAG_KB_DIR)
+    if not paths:
+        print_ts(
+            f"Self-RAG knowledge folder '{SELF_RAG_KB_DIR}' has no supported files. "
+            "Create the folder and add .txt, .md, .pdf, .json, .csv, .py, or .html files."
+        )
+        return
+
+    ids: list[str] = []
+    docs: list[str] = []
+    metas: list[dict] = []
+
+    for path in paths:
+        text = read_knowledge_file(path)
+        if len(text) < SELF_RAG_MIN_CONTEXT_CHARS:
+            continue
+
+        rel_path = os.path.relpath(path, SELF_RAG_KB_DIR)
+        for index, chunk in enumerate(chunk_text(text)):
+            if len(chunk) < SELF_RAG_MIN_CONTEXT_CHARS:
+                continue
+            ids.append(stable_chunk_id(rel_path, chunk, index))
+            docs.append(chunk)
+            metas.append({
+                "source": rel_path,
+                "chunk_index": index,
+                "source_path": path,
+                "indexed_at": now_ts(),
+            })
+
+    if not docs:
+        print_ts("Self-RAG found knowledge files, but no usable text chunks were extracted.")
+        return
+
+    embeddings = store.embedder.encode(docs, normalize_embeddings=True).tolist()
+    store.collection.upsert(ids=ids, documents=docs, metadatas=metas, embeddings=embeddings)
+    print_ts(f"Self-RAG indexed/updated {len(docs)} chunks from {len(paths)} files.")
+
+
+
+
+def normalize_self_rag_query_text(text: str) -> str:
+    lowered = text.lower()
+    replacements = {
+        "ashita ashuk": "ashita ashok",
+        "ashita ashook": "ashita ashok",
+        "ashuk": "ashok",
+        "ashook": "ashok",
+        "robots amaker": "robot ameca",
+        "robot amaker": "robot ameca",
+        "amaker": "ameca",
+        "emeka": "ameca",
+        "robotic lab": "robotics research lab",
+        "robotics lab": "robotics research lab",
+    }
+    for wrong, right in replacements.items():
+        lowered = lowered.replace(wrong, right)
+    return lowered
+
+
+def extract_person_lookup_name(text: str) -> Optional[str]:
+    cleaned = normalize_self_rag_query_text(text)
+    cleaned = re.sub(r"[^a-zA-Z\s]", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    patterns = [
+        r"\bwho is ([a-z]+(?:\s+[a-z]+){0,2})\b",
+        r"\bdo you know who is ([a-z]+(?:\s+[a-z]+){0,2})\b",
+        r"\bdo you know about ([a-z]+(?:\s+[a-z]+){0,2})\b",
+        r"\babout ([a-z]+(?:\s+[a-z]+){0,2}) in the robotics research lab\b",
+    ]
+
+    stop_words = {
+        "the", "a", "an", "robot", "robots", "robotic", "robotics",
+        "lab", "laboratory", "research", "group", "people", "person",
+    }
+
+    for pattern in patterns:
+        match = re.search(pattern, cleaned)
+        if not match:
+            continue
+        name = match.group(1).strip()
+        words = [w for w in name.split() if w not in stop_words]
+        if words:
+            return " ".join(words)
+
+    return None
+
+
+def candidate_contains_person(candidate: dict[str, Any], person_name: str) -> bool:
+    if not person_name:
+        return True
+
+    normalized_person = normalize_self_rag_query_text(person_name).strip()
+    tokens = [t for t in normalized_person.split() if len(t) > 2]
+    haystack = " ".join([
+        str(candidate.get("text") or ""),
+        str(candidate.get("title") or ""),
+        str(candidate.get("source") or ""),
+    ]).lower()
+
+    if normalized_person and normalized_person in haystack:
+        return True
+    if normalized_person and normalized_person.replace(" ", "-") in haystack:
+        return True
+    if len(tokens) == 1:
+        return bool(re.search(rf"\b{re.escape(tokens[0])}\b", haystack))
+    return all(re.search(rf"\b{re.escape(token)}\b", haystack) for token in tokens)
+
+
+def force_self_rag_for_entity(text: str) -> bool:
+    lowered = normalize_self_rag_query_text(text)
+    return any(entity in lowered for entity in KNOWN_RRLAB_ENTITIES)
+
+
+def is_social_or_support_message(text: str) -> tuple[bool, str]:
+    lowered = text.strip().lower()
+    simple = re.sub(r"[^a-z0-9\s']", " ", lowered)
+    simple = re.sub(r"\s+", " ", simple).strip()
+
+    social_patterns = [
+        "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
+        "nice to meet you", "thank you", "thanks", "how are you",
+        "goodbye", "bye", "see you", "talk later",
+    ]
+    if SELF_RAG_SKIP_SOCIAL and any(pattern in simple for pattern in social_patterns):
+        return True, "Social greeting/small talk does not need local knowledge retrieval."
+
+    support_patterns = [
+        "i am stressed", "i'm stressed", "i feel stressed", "so stressed",
+        "stressful", "overwhelmed", "anxious", "worried",
+        "tired", "exhausted", "i feel sad", "i am sad", "i'm sad",
+    ]
+    if SELF_RAG_SKIP_EMOTIONAL_SUPPORT and any(pattern in simple for pattern in support_patterns):
+        return True, "Emotional support message; response should be empathetic without forcing retrieved RRLab knowledge."
+
+    return False, ""
+
+
+def infer_self_rag_category(query: str) -> Optional[str]:
+    q = normalize_self_rag_query_text(query)
+    if any(token in q for token in ["ashita", "ashita ashok", "professor", "head", "leader", "leads", "staff", "research associate", "who is"]):
+        return "staff"
+    if any(token in q for token in ["project", "current project", "sembai", "senna", "casrew", "zukunftbau", "znt"]):
+        return "project"
+    if any(token in q for token in ["robot", "robots", "ameca", "emah", "ravon", "robin", "unimog", "carl"]):
+        return "robot"
+    if any(token in q for token in ["publication", "paper", "textbook", "dissertation"]):
+        return "publication"
+    if any(token in q for token in ["research area", "what does rrlab research", "rrlab research", "researches"]):
+        return "research_area"
+    return None
+
+
+def rewrite_self_rag_query(query: str) -> str:
+    q = normalize_self_rag_query_text(query).strip()
+    if "who leads" in q or ("head" in q and "laboratory" in q):
+        return "head of laboratory professor robotics research lab"
+    if "current projects" in q:
+        return "current RRLab projects SEmbAI SENNA CASREW ZukunftBau ZNT project"
+    if "what is ameca" in q or "what is emah" in q:
+        return "Ameca Emah humanoid robot RRLab student companion"
+    if "what robots" in q:
+        return "RRLab robots Ameca RAVON Robin Unimog CARL robot platforms"
+    if "ashita" in q:
+        return "M. Sc. Ashita Ashok Ameca Robothespian human robot interaction trust expectation alignment"
+    if "what does rrlab research" in q or "rrlab research" in q:
+        return "RRLab research areas control architectures outdoor robots indoor robots humanoid robots simulation projects"
+    return query
+
+
+def self_rag_hybrid_score(candidate: dict[str, Any], inferred_category: Optional[str], query: str) -> float:
+    distance = float(candidate.get("distance", 1.0))
+    score = 1.0 - distance
+    category = candidate.get("category")
+    title = str(candidate.get("title") or "").lower()
+    source = str(candidate.get("source") or "").lower()
+    q = query.lower()
+
+    try:
+        priority = int(candidate.get("priority", 0) or 0)
+    except Exception:
+        priority = 0
+
+    if inferred_category and category == inferred_category:
+        score += 0.12
+    if priority >= 100:
+        score += 0.12
+    elif priority >= 90:
+        score += 0.08
+    elif priority >= 80:
+        score += 0.04
+    if "/former-staff-members/" in source:
+        score -= 0.14
+    if category == "conference":
+        score -= 0.15
+    if inferred_category == "robot" and category == "staff":
+        score -= 0.18
+    if inferred_category == "robot" and category == "conference":
+        score -= 0.25
+    if inferred_category == "project" and category not in {"project", "general"}:
+        score -= 0.12
+    if inferred_category == "staff" and category not in {"staff", "general"}:
+        score -= 0.12
+    if "head of laboratory" in q or "who leads" in q:
+        if "head of the laboratory" in title or "head-of-the-laboratory" in source:
+            score += 0.25
+        if "technical staff" in title:
+            score -= 0.25
+        if "research associates" in title:
+            score -= 0.12
+    if "ashita" in q and ("ashita ashok" in title or "ashita-ashok" in source):
+        score += 0.25
+    if ("ameca" in q or "emah" in q) and ("/robots/ameca" in source or title == "emah"):
+        score += 0.25
+    if "project" in q:
+        if "/research/projects/" in source and "/finished-projects/" not in source:
+            score += 0.10
+        if "/finished-projects/" in source and "current" in q:
+            score -= 0.18
+    return score
+
+
+def retrieve_self_rag_candidates(store: SelfRAGStore, query: str, top_k: int = SELF_RAG_TOP_K) -> list[dict[str, Any]]:
+    if not store.enabled or store.collection is None or store.embedder is None:
+        return []
+    if not query.strip():
+        return []
+
+    normalized_query = normalize_self_rag_query_text(query)
+    rewritten_query = rewrite_self_rag_query(normalized_query)
+    inferred_category = infer_self_rag_category(rewritten_query)
+    person_lookup_name = extract_person_lookup_name(normalized_query)
+    force_rag = force_self_rag_for_entity(normalized_query)
+
+    try:
+        query_embedding = store.embedder.encode([rewritten_query], normalize_embeddings=True).tolist()[0]
+
+        def run_query(where_filter: Optional[dict] = None) -> list[dict[str, Any]]:
+            kwargs = {
+                "query_embeddings": [query_embedding],
+                "n_results": max(1, top_k),
+                "include": ["documents", "metadatas", "distances"],
+            }
+            if where_filter:
+                kwargs["where"] = where_filter
+
+            result = store.collection.query(**kwargs)
+            docs = result.get("documents", [[]])[0]
+            metas = result.get("metadatas", [[]])[0]
+            distances = result.get("distances", [[]])[0]
+
+            rows: list[dict[str, Any]] = []
+            for doc, meta, distance in zip(docs, metas, distances):
+                meta = meta or {}
+                rows.append({
+                    "text": doc,
+                    "source": meta.get("source", "unknown"),
+                    "title": meta.get("title"),
+                    "kind": meta.get("kind"),
+                    "category": meta.get("category"),
+                    "priority": meta.get("priority"),
+                    "chunk_index": meta.get("chunk_index"),
+                    "distance": float(distance),
+                })
+            return rows
+
+        rows: list[dict[str, Any]] = []
+        if inferred_category:
+            rows.extend(run_query({"category": inferred_category}))
+        rows.extend(run_query(None))
+
+        rows = [
+            row for row in rows
+            if float(row.get("distance", 1.0)) <= SELF_RAG_MAX_DISTANCE
+        ]
+
+        if SELF_RAG_PERSON_LOOKUP_STRICT and person_lookup_name:
+            rows = [
+                row for row in rows
+                if candidate_contains_person(row, person_lookup_name)
+            ]
+
+        best_by_source: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            row["hybrid_score"] = self_rag_hybrid_score(row, inferred_category, rewritten_query)
+
+            min_score = SELF_RAG_MIN_HYBRID_SCORE
+            if force_rag:
+                min_score = max(0.50, SELF_RAG_MIN_HYBRID_SCORE - 0.10)
+
+            if row["hybrid_score"] < min_score:
+                continue
+
+            source = str(row.get("source") or "")
+            if source not in best_by_source or row["hybrid_score"] > best_by_source[source]["hybrid_score"]:
+                best_by_source[source] = row
+
+        reranked = sorted(
+            best_by_source.values(),
+            key=lambda item: item.get("hybrid_score", 0.0),
+            reverse=True,
+        )
+        return reranked[:SELF_RAG_FINAL_TOP_K]
+
+    except Exception as exc:
+        print_ts(f"Self-RAG retrieval failed: {exc}")
+        return []
+
+
+
+def grade_self_rag_context(client: Client, user_text: str, candidates: list[dict[str, Any]]) -> tuple[bool, str]:
+    if not candidates:
+        return False, "No retrieved knowledge chunks were available."
+
+    compact_context = "\n\n".join(
+        f"[{idx + 1}] source={item['source']}\n{limit_text_length(item['text'], 700)}"
+        for idx, item in enumerate(candidates[:SELF_RAG_FINAL_TOP_K])
+    )
+
+    prompt = f"""
+You are the retrieval judge in a Self-RAG pipeline for a humanoid robot assistant.
+
+Decide whether the retrieved local knowledge is useful for answering the user's latest message.
+
+User message:
+{user_text}
+
+Retrieved local knowledge:
+{compact_context}
+
+Return JSON only:
+{{
+  "use_context": true,
+  "reason": "brief reason"
+}}
+
+Rules:
+- use_context must be true only when the retrieved knowledge directly and specifically answers the message.
+- use_context must be false for greetings, small talk, emotional support, or unrelated knowledge.
+- use_context must be false if the retrieved text is too weak, unrelated, generic, only keyword-matched, or does not contain the named person/entity asked about.
+""".strip()
+
+    try:
+        response = client.chat(
+            model=MODEL_NAME,
+            format="json",
+            messages=[
+                {"role": "system", "content": "You return valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            options={"temperature": 0.0, "num_predict": 120, "num_ctx": 3072},
+            stream=False,
+        )
+        data = safe_json_extract(response.get("message", {}).get("content", ""))
+        if not isinstance(data, dict):
+            return False, "Retrieval judge returned unparseable output."
+        return bool(data.get("use_context", False)), str(data.get("reason", "")).strip()
+    except Exception as exc:
+        print_ts(f"Self-RAG relevance grading failed: {exc}")
+        return False, f"Retrieval judge failed: {exc}"
+
+
+def build_self_rag_context(client: Client, store: SelfRAGStore, user_text: str) -> SelfRAGContext:
+    if not store.enabled:
+        return self_rag_disabled_context(user_text, "Self-RAG store is not enabled.", store.error)
+
+    force_rag = force_self_rag_for_entity(user_text)
+
+    should_skip, skip_reason = is_social_or_support_message(user_text)
+    if should_skip and not force_rag:
+        return SelfRAGContext(
+            available=True,
+            used=False,
+            query=user_text,
+            context_text="",
+            sources=[],
+            reason=skip_reason,
+        )
+
+    candidates = retrieve_self_rag_candidates(store, user_text)
+    if not candidates:
+        person_lookup_name = extract_person_lookup_name(user_text)
+        if person_lookup_name:
+            return SelfRAGContext(
+                available=True,
+                used=False,
+                query=user_text,
+                context_text="",
+                sources=[],
+                reason=(
+                    f"No direct local knowledge was found for person lookup: {person_lookup_name}. "
+                    "Generic RRLab pages were not used because they do not directly answer the question."
+                ),
+            )
+        return self_rag_disabled_context(user_text, "No sufficiently relevant local knowledge was retrieved.")
+
+    should_use, reason = grade_self_rag_context(client, user_text, candidates)
+    if not should_use:
+        return SelfRAGContext(
+            available=True,
+            used=False,
+            query=user_text,
+            context_text="",
+            sources=[{k: v for k, v in item.items() if k != "text"} for item in candidates],
+            reason=reason or "Retrieved context was judged not useful.",
+        )
+
+    context_parts: list[str] = []
+    sources: list[dict[str, Any]] = []
+    remaining = SELF_RAG_MAX_CONTEXT_CHARS
+
+    for idx, item in enumerate(candidates, start=1):
+        text = clean_knowledge_text(item["text"])
+        if not text:
+            continue
+        clipped = text[:remaining]
+        if not clipped:
+            break
+        context_parts.append(f"[Source {idx}: {item['source']}]\n{clipped}")
+        sources.append({k: v for k, v in item.items() if k != "text"})
+        remaining -= len(clipped)
+        if remaining <= 0:
+            break
+
+    return SelfRAGContext(
+        available=True,
+        used=bool(context_parts),
+        query=user_text,
+        context_text="\n\n".join(context_parts),
+        sources=sources,
+        reason=reason or "Retrieved context was judged useful.",
+    )
+
+
+def build_self_rag_prompt_block(self_rag_context: Optional[SelfRAGContext]) -> str:
+    if not self_rag_context or not self_rag_context.used:
+        return "SELF-RAG CONTEXT\nNo local knowledge was used for this turn."
+
+    return f"""
+SELF-RAG CONTEXT
+The following local knowledge was retrieved and judged relevant. Use it as grounding evidence.
+If the knowledge is insufficient, say what is missing instead of inventing details.
+Do not expose raw source metadata unless the user asks.
+
+{self_rag_context.context_text}
+""".strip()
+
+
+# =========================
+# Prosody and adaptive reliability-aware fusion helpers
+# =========================
+
+def analyze_prosody_from_audio(audio_16k: np.ndarray, sample_rate: int = TARGET_SAMPLE_RATE) -> ProsodyEmotionResult:
+    """
+    Lightweight acoustic/prosody heuristic.
+
+    This is intentionally weak. It estimates broad arousal patterns and should
+    never dominate text or reliable facial emotion.
+    """
+    if audio_16k is None or audio_16k.size == 0:
+        return ProsodyEmotionResult(
+            available=False,
+            emotion="trust",
+            confidence=0.0,
+            reason="No audio available for prosody analysis.",
+            features={},
+        )
+
+    try:
+        audio = audio_16k.astype(np.float32, copy=False)
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        rms = float(np.sqrt(np.mean(audio ** 2))) if audio.size else 0.0
+        duration = float(len(audio) / max(1, sample_rate))
+
+        frame_size = max(1, int(0.05 * sample_rate))
+        frame_rms = []
+        for start in range(0, len(audio), frame_size):
+            frame = audio[start:start + frame_size]
+            if frame.size:
+                frame_rms.append(float(np.sqrt(np.mean(frame ** 2))))
+
+        energy_std = float(np.std(frame_rms)) if frame_rms else 0.0
+        zero_crossing_rate = float(np.mean(np.abs(np.diff(np.signbit(audio))))) if audio.size > 1 else 0.0
+
+        features = {
+            "peak": peak,
+            "rms": rms,
+            "duration": duration,
+            "energy_std": energy_std,
+            "zero_crossing_rate": zero_crossing_rate,
+        }
+
+        if rms < 0.006 and duration > 1.0:
+            return ProsodyEmotionResult(
+                available=True,
+                emotion="sadness",
+                confidence=0.35,
+                reason="Low vocal energy suggests a subdued tone.",
+                features=features,
+            )
+
+        if rms > 0.025 or energy_std > 0.018:
+            return ProsodyEmotionResult(
+                available=True,
+                emotion="anticipation",
+                confidence=0.30,
+                reason="Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+                features=features,
+            )
+
+        return ProsodyEmotionResult(
+            available=True,
+            emotion="trust",
+            confidence=0.25,
+            reason="Prosody suggests calm conversational speech.",
+            features=features,
+        )
+
+    except Exception as exc:
+        return ProsodyEmotionResult(
+            available=False,
+            emotion="trust",
+            confidence=0.0,
+            reason=f"Prosody analysis failed: {exc}",
+            features={},
+        )
+
+
+def one_hot_emotion_distribution(emotion: str, confidence: float) -> dict[str, float]:
+    emotion = emotion if emotion in PLUTCHIK_EMOTIONS and emotion != "neutral" else "trust"
+    confidence = max(0.0, min(1.0, float(confidence)))
+    emotions = [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]
+    remaining = max(0.0, 1.0 - confidence)
+    other = remaining / max(1, len(emotions) - 1)
+    return {emo: confidence if emo == emotion else other for emo in emotions}
+
+
+def face_json_to_distribution(face_emotion_json: Optional[dict]) -> dict[str, float]:
+    emotions = [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]
+    scores = {emo: 0.0 for emo in emotions}
+
+    if not face_emotion_json or not face_emotion_json.get("available"):
+        return scores
+
+    raw_scores = face_emotion_json.get("averaged_scores", {}) or {}
+    for emo in emotions:
+        try:
+            scores[emo] = max(0.0, float(raw_scores.get(emo, 0.0))) / 100.0
+        except Exception:
+            scores[emo] = 0.0
+
+    total = sum(scores.values())
+    if total <= 0.0:
+        dom = face_emotion_json.get("dominant_emotion")
+        if dom in scores:
+            scores[dom] = 1.0
+        return scores
+
+    return {emo: value / total for emo, value in scores.items()}
+
+
+def explicit_emotion_from_text(text: str) -> Optional[str]:
+    """
+    Detect explicit emotional language. This is used as a semantic override so
+    clear statements like "I am angry" are not overruled by a sad-looking face.
+    """
+    t = text.lower()
+
+    patterns = {
+        "anger": [
+            "angry", "annoyed", "frustrated", "furious", "irritated",
+            "hate this", "i hate", "so annoying", "this is annoying",
+        ],
+        "sadness": [
+            "sad", "exhausted", "tired", "burned out", "overwhelmed",
+            "depressed", "unhappy", "crying",
+        ],
+        "fear": [
+            "afraid", "scared", "terrified", "anxious", "worried",
+            "panic", "nervous",
+        ],
+        "joy": [
+            "happy", "excited", "glad", "great", "amazing", "i love",
+        ],
+        "surprise": [
+            "oh my god", "wow", "surprised", "unexpected", "shocked",
+        ],
+        "disgust": [
+            "disgusting", "gross", "revolting",
+        ],
+        "anticipation": [
+            "looking forward", "curious", "interested", "expecting",
+        ],
+    }
+
+    for emotion, terms in patterns.items():
+        if any(term in t for term in terms):
+            return emotion
+
+    return None
+
+
+def face_reliability_score(face_emotion_json: Optional[dict]) -> float:
+    if not face_emotion_json or not face_emotion_json.get("available"):
+        return 0.0
+
+    scores = face_emotion_json.get("averaged_scores", {}) or {}
+    values = []
+    for emotion in [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]:
+        try:
+            values.append(float(scores.get(emotion, 0.0)))
+        except Exception:
+            values.append(0.0)
+
+    if not values:
+        return 0.0
+
+    ordered = sorted(values, reverse=True)
+    top = ordered[0]
+    second = ordered[1] if len(ordered) > 1 else 0.0
+    margin = max(0.0, top - second)
+
+    top_score_component = min(1.0, top / 100.0)
+    margin_component = min(1.0, margin / 60.0)
+
+    frame_count = float(face_emotion_json.get("sampled_frame_count", 0) or 0)
+    frame_component = min(1.0, frame_count / max(1.0, float(FACE_MULTI_FRAME_COUNT)))
+
+    declared_reliable = 1.0 if face_emotion_json.get("reliable") else 0.65
+
+    return max(0.0, min(1.0, (0.45 * top_score_component) + (0.35 * margin_component) + (0.20 * frame_component))) * declared_reliable
+
+
+def text_reliability_score(text_emotion: EmotionResult, user_text: str = "") -> float:
+    base = max(0.0, min(1.0, float(text_emotion.confidence)))
+    explicit = explicit_emotion_from_text(user_text)
+
+    if explicit and explicit == text_emotion.emotion:
+        base = max(base, 0.90)
+    elif explicit and explicit != text_emotion.emotion:
+        base = max(base, 0.75)
+
+    return max(0.0, min(1.0, base))
+
+
+def prosody_reliability_score(prosody_emotion: Optional[ProsodyEmotionResult]) -> float:
+    if not prosody_emotion or not prosody_emotion.available:
+        return 0.0
+    return max(0.0, min(0.45, float(prosody_emotion.confidence)))
+
+
+def adaptive_reliability_aware_fusion(
+    text_emotion: EmotionResult,
+    face_emotion_json: Optional[dict],
+    prosody_emotion: Optional[ProsodyEmotionResult],
+    user_text: str = "",
+) -> FusedEmotionResult:
+    """
+    Adaptive reliability-aware late fusion.
+
+    Base weights are text=0.5, visual=0.4, prosody=0.1, but each weight is
+    multiplied by a modality reliability score and then normalized.
+
+    Explicit emotional language receives semantic priority because user speech
+    is usually more reliable than facial expression for direct emotion claims.
+    """
+    emotions = [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]
+
+    text_dist = one_hot_emotion_distribution(text_emotion.emotion, text_emotion.confidence)
+    visual_dist = face_json_to_distribution(face_emotion_json)
+
+    if prosody_emotion and prosody_emotion.available:
+        prosody_dist = one_hot_emotion_distribution(prosody_emotion.emotion, prosody_emotion.confidence)
+    else:
+        prosody_dist = {emo: 0.0 for emo in emotions}
+
+    explicit_text_emotion = explicit_emotion_from_text(user_text)
+
+    text_rel = text_reliability_score(text_emotion, user_text)
+    visual_rel = face_reliability_score(face_emotion_json)
+    prosody_rel = prosody_reliability_score(prosody_emotion)
+
+    visual_emotion = face_emotion_json.get("dominant_emotion") if face_emotion_json else None
+
+    # If the user explicitly states anger/frustration/fear/etc., do not let a
+    # generic sad-looking facial output dominate.
+    if explicit_text_emotion:
+        text_rel = max(text_rel, 0.95)
+        if visual_emotion and visual_emotion != explicit_text_emotion:
+            visual_rel *= 0.45
+        prosody_rel = min(prosody_rel, 0.25)
+
+    # Common conflict: user says anger/frustration, face appears sad/tired.
+    # Keep the mixed signal but make language primary.
+    if text_emotion.emotion == "anger" and visual_emotion == "sadness":
+        visual_rel *= 0.40
+        text_rel = max(text_rel, 0.92)
+
+    # For factual questions, visual sadness should not hijack the response tone.
+    question_like = user_text.strip().endswith("?") or any(
+        phrase in user_text.lower()
+        for phrase in ["who is", "what is", "do you know", "can you tell", "where is", "how do"]
+    )
+    if question_like:
+        visual_rel *= 0.35
+        text_rel = max(text_rel, 0.80)
+
+    raw_text_weight = FUSION_TEXT_WEIGHT * text_rel
+    raw_visual_weight = FUSION_VISUAL_WEIGHT * visual_rel
+    raw_prosody_weight = FUSION_PROSODY_WEIGHT * prosody_rel
+
+    total = raw_text_weight + raw_visual_weight + raw_prosody_weight
+    if total <= 0:
+        wt, wv, wp = 1.0, 0.0, 0.0
+    else:
+        wt = raw_text_weight / total
+        wv = raw_visual_weight / total
+        wp = raw_prosody_weight / total
+
+    fused_scores = {}
+    for emo in emotions:
+        fused_scores[emo] = (
+            wt * text_dist.get(emo, 0.0)
+            + wv * visual_dist.get(emo, 0.0)
+            + wp * prosody_dist.get(emo, 0.0)
+        )
+
+    dominant = max(fused_scores.items(), key=lambda item: item[1])[0]
+    confidence = max(0.0, min(1.0, fused_scores[dominant]))
+
+    reason = (
+        f"Adaptive reliability-aware fusion selected {dominant}: "
+        f"text={text_emotion.emotion} rel={text_rel:.2f}, "
+        f"visual={visual_emotion} rel={visual_rel:.2f}, "
+        f"prosody={prosody_emotion.emotion if prosody_emotion else None} rel={prosody_rel:.2f}."
+    )
+
+    return FusedEmotionResult(
+        emotion=dominant,
+        confidence=confidence,
+        reason=reason,
+        scores=fused_scores,
+        weights={
+            "base_text": FUSION_TEXT_WEIGHT,
+            "base_visual": FUSION_VISUAL_WEIGHT,
+            "base_prosody": FUSION_PROSODY_WEIGHT,
+            "reliability_text": text_rel,
+            "reliability_visual": visual_rel,
+            "reliability_prosody": prosody_rel,
+            "active_normalized_text": wt,
+            "active_normalized_visual": wv,
+            "active_normalized_prosody": wp,
+        },
+        text_emotion={
+            "emotion": text_emotion.emotion,
+            "confidence": text_emotion.confidence,
+            "reason": text_emotion.reason,
+        },
+        visual_emotion=face_emotion_json or default_face_emotion_json(),
+        prosody_emotion=prosody_emotion.as_json if prosody_emotion else {
+            "available": False,
+            "emotion": None,
+            "confidence": 0.0,
+            "reason": "No prosody result provided.",
+            "features": {},
+        },
+    )
+
+
+# Backwards-compatible alias for older main-loop code paths.
+adaptive_reliability_aware_fusion = adaptive_reliability_aware_fusion
 
 
 # =========================
@@ -2392,6 +3613,7 @@ def build_response_system_prompt(
     emotion_result: EmotionResult,
     user_profile: Optional[dict] = None,
     face_emotion_json: Optional[dict] = None,
+    self_rag_context: Optional[SelfRAGContext] = None,
 ) -> str:
     emoji = PLUTCHIK_EMOTIONS[emotion_result.emotion]
     memory_context = build_user_memory_context(user_profile)
@@ -2411,23 +3633,25 @@ def build_response_system_prompt(
         {runtime_context()}
 
         {memory_context}
+
+        {build_self_rag_prompt_block(self_rag_context)}
+
         You are generating Ameca's next conversational response.
 
         PRIVATE EMOTION CONTEXT
         Use this context only for tone control only. Do not mention it directly.
 
-        Text/LLM emotion JSON:
+        Fused emotion JSON:
         {json.dumps(text_emotion_json, indent=2)}
 
         Face/Qwen2.5-VL emotion JSON:
         {json.dumps(face_emotion_json, indent=2)}
 
         Interpretation rules:
-        - Treat the Text/LLM emotion JSON as the primary emotional signal.
-        - Treat the Face/Qwen2.5-VL emotion JSON as a secondary weak supporting signal.
-        - If both signals agree, you may gently adapt tone more confidently.
-        - If both signals conflict, trust the text emotion more.
-        - Do not mention camera, Qwen2.5-VL, facial analysis, detected emotion, or private emotion context to the user.
+        - The active emotion was produced by adaptive reliability-aware late fusion.
+        - The base fusion weights are text=0.5, visual=0.4, prosody=0.1 and are adjusted by modality reliability.
+        - Use the fused emotion only to adjust tone.
+        - Do not mention camera, Qwen2.5-VL, prosody, fusion, detected emotion, or private emotion context to the user.
         - Do not say things like "you look sad", "your face shows", or "I detected".
 
         Return JSON only in this exact shape:
@@ -2439,6 +3663,14 @@ def build_response_system_prompt(
 
         Speech recognition note:
         - If the user says their name, update the profile silently and greet them by the corrected name.
+
+        Self-RAG grounding rules:
+        - If SELF-RAG CONTEXT is provided, answer factual or lab/domain-specific questions ONLY from that retrieved context.
+        - Do not invent names, titles, degrees, conference details, personal relationships, or project claims that are not explicitly in the retrieved context.
+        - If the retrieved context does not directly answer the question, say that you could not verify it from the local lab knowledge.
+        - For person lookup questions, only confirm a person if their name appears in the retrieved context.
+        - Do not say "I know" someone personally. Say "The local lab knowledge mentions..." or "I found a lab page for...".
+        - Do not mention Self-RAG, vector databases, embeddings, ChromaDB, or retrieval unless the user explicitly asks how the system works.
 
         Conversation behavior rules:
         - Always ensure your response is context appropriate.
@@ -2452,6 +3684,7 @@ def build_response_system_prompt(
         - Use the user's name occasionally, not in every response.
         - Do not immediately give a list of advice unless the user asks for advice.
         - Speak directly and naturally.
+        - Do not introduce unrelated topics such as Lego, Legoland, legal advice, or robotics toys unless the user explicitly mentions them.
         - Do not mention emotion labels unless the user explicitly asks.
         - Do not use markdown, bullets, numbered lists, or long advice unless the user asks for detail.
         - Do not repeat advice already given in the recent conversation.
@@ -2478,7 +3711,7 @@ def limit_text_length(text: str, max_chars: int = 1500) -> str:
     return text[:max_chars]
 
 
-def limit_system_prompt(prompt: str, max_chars: int = 6000) -> str:
+def limit_system_prompt(prompt: str, max_chars: int = 9000) -> str:
     return prompt[:max_chars]
 
 
@@ -2497,6 +3730,7 @@ def generate_response(
     history: list[dict],
     user_profile: Optional[dict] = None,
     face_emotion_json: Optional[dict] = None,
+    self_rag_context: Optional[SelfRAGContext] = None,
 ) -> str:
     deterministic = deterministic_reply_if_applicable(
         user_text=user_text,
@@ -2512,6 +3746,7 @@ def generate_response(
             emotion_result=emotion_result,
             user_profile=user_profile,
             face_emotion_json=face_emotion_json,
+            self_rag_context=self_rag_context,
         )
     )
 
@@ -2539,9 +3774,6 @@ def generate_response(
         stream=False,
     )
 
-    raw_reply = response["message"]["content"]
-    # return normalize_reply(raw_reply, emotion_result.emotion)
-    # return raw_reply
     raw_reply = response["message"]["content"]
     data = safe_json_extract(raw_reply)
 
@@ -2577,6 +3809,8 @@ def main() -> None:
 
     client = Client(host=OLLAMA_HOST)
 
+    self_rag_store = init_self_rag_store()
+
     list_input_devices()
 
     print_ts("Loading Silero VAD...")
@@ -2589,6 +3823,8 @@ def main() -> None:
             "pip install silero-vad torch\n\n"
             f"Original error: {exc}"
         )
+
+    print_ts(f"Name spelling enabled: {ENABLE_NAME_SPELLING}")
 
     print_ts("Loading faster-whisper...")
     try:
@@ -2623,7 +3859,7 @@ def main() -> None:
         print()
 
     print("Automatic listening mode is active.")
-    print("Speak naturally. Silero VAD will detect speech, Qwen2.5-VL will analyze one cleaned facial snapshot after speech ends, faster-whisper will transcribe it, and Ameca will respond.")
+    print("Speak naturally. Silero VAD will detect speech, Qwen2.5-VL will analyze one cleaned facial snapshot after speech ends, faster-whisper will transcribe it, adaptive reliability-aware fusion will combine text/visual/prosody, and Ameca will respond.")
     print("Say '/exit' or press Ctrl+C to save the transcript and quit.")
     print()
 
@@ -2658,7 +3894,9 @@ def main() -> None:
             if not wav_path:
                 continue
 
+            audio_for_prosody = np.array([], dtype=np.float32)
             try:
+                audio_for_prosody = load_audio_for_prosody(wav_path)
                 user_text = transcribe_audio(wav_path, whisper_model)
             finally:
                 try:
@@ -2718,27 +3956,81 @@ def main() -> None:
                 print_ts("Conversation history cleared.")
                 continue
 
+            if command in {"rrlab crawl", "crawl rrlab", "scrape rrlab", "rrlab scrape"}:
+                ok = run_rrlab_scraper()
+                if ok:
+                    print_ts("RRLab website knowledge base rebuilt. Self-RAG will use the updated ChromaDB index.")
+                else:
+                    print_ts("RRLab website knowledge base was not rebuilt.")
+                continue
+
+            if command in {"rag reindex", "reindex rag", "selfrag reindex", "self-rag reindex"}:
+                # Prefer the RRLab website scraper when scrape.py is available.
+                # Fall back to the old local-folder indexer for custom documents.
+                if resolve_scrape_script_path():
+                    ok = run_rrlab_scraper()
+                    if ok:
+                        print_ts("Self-RAG RRLab website index rebuilt from scrape.py.")
+                    else:
+                        print_ts("scrape.py failed; falling back to local knowledge folder indexing.")
+                        index_self_rag_knowledge(self_rag_store)
+                else:
+                    index_self_rag_knowledge(self_rag_store)
+                    print_ts("Self-RAG local knowledge base reindexed.")
+                continue
+
             facial_hint = face_capture.summary_text if face_capture else None
             face_emotion_json = face_capture.as_json if face_capture else default_face_emotion_json()
 
-            emotion_result = detect_emotion(
+            text_emotion_result = detect_emotion(
                 client=client,
                 transcribed_text=user_text,
                 facial_emotion_hint=facial_hint,
             )
 
-            emotion_json = {
-                "emotion": emotion_result.emotion,
-                "confidence": emotion_result.confidence,
-                "reason": emotion_result.reason,
+            prosody_result = analyze_prosody_from_audio(audio_for_prosody, TARGET_SAMPLE_RATE)
+
+            fused_emotion_result = adaptive_reliability_aware_fusion(
+                text_emotion=text_emotion_result,
+                face_emotion_json=face_emotion_json,
+                prosody_emotion=prosody_result,
+                user_text=user_text,
+            )
+
+            emotion_result = fused_emotion_result.to_emotion_result()
+
+            text_emotion_json = {
+                "emotion": text_emotion_result.emotion,
+                "confidence": text_emotion_result.confidence,
+                "reason": text_emotion_result.reason,
             }
 
-            print_ts("Detected emotion JSON:")
-            print(json.dumps(emotion_json, indent=2))
+            prosody_json = prosody_result.as_json
+            emotion_json = fused_emotion_result.as_json
+
+            print_ts("Text emotion JSON:")
+            print(json.dumps(text_emotion_json, indent=2))
             print()
 
             print_ts("Face emotion JSON:")
             print(json.dumps(face_emotion_json, indent=2))
+            print()
+
+            print_ts("Prosody emotion JSON:")
+            print(json.dumps(prosody_json, indent=2))
+            print()
+
+            print_ts("Adaptive reliability-aware fusion JSON:")
+            print(json.dumps(emotion_json, indent=2))
+            print()
+
+            self_rag_context = build_self_rag_context(
+                client=client,
+                store=self_rag_store,
+                user_text=user_text,
+            )
+            print_ts("Self-RAG JSON:")
+            print(json.dumps(self_rag_context.as_json, indent=2))
             print()
 
             reply = generate_response(
@@ -2748,6 +4040,7 @@ def main() -> None:
                 history=history,
                 user_profile=user_profile,
                 face_emotion_json=face_emotion_json,
+                self_rag_context=self_rag_context,
             )
 
             print_ts(f"Assistant: {reply}")
@@ -2760,7 +4053,10 @@ def main() -> None:
                 "emotion": emotion_json,
                 "facial_emotion_hint": facial_hint,
                 "face_emotion": face_emotion_json,
-                "input_mode": "silero_vad_faster_whisper_qwen25vl",
+                "text_emotion": text_emotion_json,
+                "prosody_emotion": prosody_json,
+                "self_rag": self_rag_context.as_json,
+                "input_mode": "silero_vad_faster_whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag",
             }
 
             assistant_message = {
