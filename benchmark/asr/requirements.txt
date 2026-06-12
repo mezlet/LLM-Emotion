@@ -7,3 +7,5 @@ numpy>=1.24.0
 matplotlib>=3.7.0
 soundfile>=0.12.1
 datacollective          # Mozilla Data Collective — for Common Voice download
+google-cloud-speech>=2.20.0  # Google Cloud Speech-to-Text (optional, needs GOOGLE_APPLICATION_CREDENTIALS)
+google-cloud-storage>=2.10.0 # GCS upload for audio clips > 60 s (optional)

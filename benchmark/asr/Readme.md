@@ -1,6 +1,6 @@
 # ASR Benchmark: WhisperX vs. faster-whisper
 
-Evaluates both ASR systems across **WER**, **CER**, and **RTF** on four datasets:
+Evaluates ASR systems across **WER**, **CER**, and **RTF** on four datasets:
 - **LibriSpeech** — clean read speech, auto-downloads ~346 MB
 - **L2-ARCTIC** — non-native/accented English (6 L1 backgrounds), streams from HF, no storage needed
 - **Mozilla Common Voice** — crowd-sourced natural speech, requires MDC API key
@@ -10,13 +10,14 @@ Evaluates both ASR systems across **WER**, **CER**, and **RTF** on four datasets
 
 ```
 asr_benchmark/
-├── benchmark_asr.py                   # Main entry point (all four datasets)
+├── benchmark_asr.py                   # Main entry point (all four datasets, three runners)
 ├── dataset_loader.py                  # LibriSpeech loader via torchaudio
 ├── l2arctic_loader.py                 # L2-ARCTIC accented English loader via HF streaming
 ├── common_voice_loader.py             # Common Voice loader via MDC API
 ├── speech_accent_archive_loader.py    # Speech Accent Archive loader via HF streaming
 ├── whisperx_runner.py                 # WhisperX inference wrapper
 ├── faster_whisper_runner.py           # faster-whisper inference wrapper
+├── google_asr_runner.py               # Google Cloud Speech-to-Text wrapper (optional)
 ├── metrics.py                         # WER / CER / RTF computation (jiwer)
 ├── results_writer.py                  # JSON + CSV + Markdown output
 ├── visualize_results.py               # Matplotlib plots from saved JSON
@@ -103,6 +104,56 @@ python benchmark_asr.py --dataset speechaccent --split train --num-samples 200 \
 Sample dict fields: `id`, `audio_path`, `transcript`, `duration_s`, `sample_rate`,
 `speaker_id`, `native_language`, `age`, `sex`, `english_residence`, `age_of_english_onset`
 
+---
+
+## ASR Runners
+
+The benchmark compares **WhisperX** and **faster-whisper** by default. Google Cloud Speech-to-Text can be added with `--google-asr`.
+
+### Google Cloud Speech-to-Text (optional)
+
+**Setup:**
+1. Create a GCP project and enable the **Cloud Speech-to-Text API**.
+2. Create a service-account key and download the JSON file.
+3. Export the path:
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
+   ```
+4. For audio clips longer than 60 s, also create a GCS bucket and export:
+   ```bash
+   export GOOGLE_STORAGE_BUCKET=your-bucket-name
+   ```
+
+**Install dependencies:**
+```bash
+pip install google-cloud-speech google-cloud-storage
+```
+
+**Run with Google ASR included:**
+```bash
+# Add --google-asr to any benchmark command
+python benchmark_asr.py --dataset librispeech --split test-clean \
+    --num-samples 200 --device cpu --compute-type int8 --google-asr
+
+# Choose a different Google model or language
+python benchmark_asr.py --dataset speechaccent --split train \
+    --num-samples 200 --device cpu --compute-type int8 \
+    --google-asr --google-model latest_long --google-language en-US
+```
+
+**Available `--google-model` values:**
+
+| Model | Best for |
+|-------|----------|
+| `latest_long` | Long-form audio, default for benchmarking |
+| `latest_short` | Short utterances (< 60 s) |
+| `phone_call` | Telephony / noisy audio |
+| `video` | Video / multi-speaker |
+| `command_and_search` | Short voice commands |
+| `default` | Legacy baseline |
+
+> **Note:** Google Speech-to-Text is a paid API. Each minute of audio incurs a cost; check the [pricing page](https://cloud.google.com/speech-to-text/pricing) before running large-scale benchmarks.
+
 ## Split Reference
 
 Each dataset uses different split names — **do not mix them up**:
@@ -126,6 +177,8 @@ Each dataset uses different split names — **do not mix them up**:
 | `datasets` | HF streaming (L2-ARCTIC) | `pip install "datasets==2.19.2"` |
 | `soundfile` | Audio decoding | `pip install soundfile` |
 | `ffmpeg` | Audio loading for WhisperX | `conda install -c conda-forge ffmpeg` |
+| `google-cloud-speech` | Google Cloud ASR (optional) | `pip install google-cloud-speech` |
+| `google-cloud-storage` | GCS upload for clips > 60 s (optional) | `pip install google-cloud-storage` |
 
 > **Important:** Use `datasets==2.19.2` specifically. Newer versions require `torchcodec`/`librosa` which conflict with the environment.
 

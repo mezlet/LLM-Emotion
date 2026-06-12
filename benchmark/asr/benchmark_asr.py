@@ -40,6 +40,7 @@ from l2arctic_loader import L2ArcticLoader
 from speech_accent_archive_loader import SpeechAccentArchiveLoader
 from whisperx_runner import WhisperXRunner
 from faster_whisper_runner import FasterWhisperRunner
+from google_asr_runner import GoogleASRRunner
 from metrics import compute_wer, compute_cer, compute_rtf
 from results_writer import ResultsWriter
 
@@ -47,6 +48,10 @@ from results_writer import ResultsWriter
 @dataclass
 class BenchmarkConfig:
     dataset: str = "librispeech"        # "librispeech" | "commonvoice" | "l2arctic" | "speechaccent"
+    # Google ASR options
+    google_asr: bool = False            # include Google Cloud Speech-to-Text runner
+    google_model: str = "latest_long"   # Google model name
+    google_language: str = "en-US"      # BCP-47 language code
     split: str = "test-clean"
     num_samples: Optional[int] = 100
     model_size: str = "base"
@@ -178,6 +183,11 @@ def run_benchmark(cfg: BenchmarkConfig):
             language=cfg.language,
         ),
     }
+    if cfg.google_asr:
+        runners["google-asr"] = GoogleASRRunner(
+            language_code=cfg.google_language,
+            model=cfg.google_model,
+        )
 
     output_dir = Path(cfg.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -302,6 +312,17 @@ if __name__ == "__main__":
     parser.add_argument("--librispeech-dir", default="./data/LibriSpeech")
     parser.add_argument("--no-download", action="store_true")
 
+    # Google Cloud Speech-to-Text options
+    parser.add_argument("--google-asr", action="store_true",
+                        help="Include Google Cloud Speech-to-Text in the benchmark. "
+                             "Requires GOOGLE_APPLICATION_CREDENTIALS env var.")
+    parser.add_argument("--google-model", default="latest_long",
+                        choices=["latest_long", "latest_short", "phone_call",
+                                 "video", "command_and_search", "default"],
+                        help="Google Speech-to-Text model (default: latest_long)")
+    parser.add_argument("--google-language", default="en-US",
+                        help="BCP-47 language code for Google ASR (default: en-US)")
+
     args = parser.parse_args()
 
     cfg = BenchmarkConfig(
@@ -319,5 +340,8 @@ if __name__ == "__main__":
         l1_filter=args.l1_filter,
         native_language_filter=args.native_language_filter,
         download=not args.no_download,
+        google_asr=args.google_asr,
+        google_model=args.google_model,
+        google_language=args.google_language,
     )
     run_benchmark(cfg)
