@@ -1,7 +1,8 @@
 """
 ASR Benchmark: WhisperX vs. faster-whisper
 ==========================================
-Supports LibriSpeech and Mozilla Common Voice 11.0 (via HF streaming).
+Supports LibriSpeech, Mozilla Common Voice 11.0, L2-ARCTIC, and
+Speech Accent Archive (via HF streaming).
 
 Usage:
     # LibriSpeech (auto-downloads ~346 MB)
@@ -11,6 +12,11 @@ Usage:
     # Common Voice 11.0 — streams from HF, no local storage needed
     # Requires: huggingface-cli login  +  accepting dataset terms on HF
     python benchmark_asr.py --dataset commonvoice --split test \\
+        --num-samples 200 --device cpu --compute-type int8
+
+    # Speech Accent Archive — streams from HF, fixed elicitation paragraph
+    # Requires: huggingface-cli login
+    python benchmark_asr.py --dataset speechaccent --split train \\
         --num-samples 200 --device cpu --compute-type int8
 """
 
@@ -31,15 +37,21 @@ import torch
 from dataset_loader import LibriSpeechLoader
 from common_voice_loader import CommonVoiceLoader
 from l2arctic_loader import L2ArcticLoader
+from speech_accent_archive_loader import SpeechAccentArchiveLoader
 from whisperx_runner import WhisperXRunner
 from faster_whisper_runner import FasterWhisperRunner
+from google_asr_runner import GoogleASRRunner
 from metrics import compute_wer, compute_cer, compute_rtf
 from results_writer import ResultsWriter
 
 
 @dataclass
 class BenchmarkConfig:
-    dataset: str = "librispeech"        # "librispeech" | "commonvoice" | "l2arctic"
+    dataset: str = "librispeech"        # "librispeech" | "commonvoice" | "l2arctic" | "speechaccent"
+    # Google ASR options
+    google_asr: bool = False            # include Google Cloud Speech-to-Text runner
+    google_model: str = "latest_long"   # Google model name
+    google_language: str = "en-US"      # BCP-47 language code
     split: str = "test-clean"
     num_samples: Optional[int] = 100
     model_size: str = "base"
@@ -49,7 +61,8 @@ class BenchmarkConfig:
     output_dir: str = "results"
     librispeech_dir: str = "./data/LibriSpeech"
     cv_dir: Optional[str] = None
-    l1_filter: Optional[list] = None    # e.g. ["arabic", "mandarin"] for l2arctic
+    l1_filter: Optional[list] = None          # e.g. ["arabic", "mandarin"] for l2arctic
+    native_language_filter: Optional[list] = None  # e.g. ["english", "mandarin"] for speechaccent
     beam_size: int = 5
     language: str = "en"
     download: bool = True
@@ -120,8 +133,21 @@ def load_samples(cfg: BenchmarkConfig) -> list[dict]:
         samples = loader.load()
         print(f"Loaded {len(samples)} samples from Common Voice ({hf_split})\n")
 
+    elif cfg.dataset == "speechaccent":
+        saa_split = cfg.split if cfg.split == "train" else "train"
+        loader = SpeechAccentArchiveLoader(
+            split=saa_split,
+            max_samples=cfg.num_samples,
+            native_language_filter=cfg.native_language_filter,
+        )
+        samples = loader.load()
+        print(f"Loaded {len(samples)} samples from Speech Accent Archive ({saa_split})\n")
+
     else:
-        raise ValueError(f"Unknown dataset '{cfg.dataset}'. Choose 'librispeech' or 'commonvoice'.")
+        raise ValueError(
+            f"Unknown dataset '{cfg.dataset}'. "
+            "Choose 'librispeech', 'commonvoice', 'l2arctic', or 'speechaccent'."
+        )
 
     return samples
 
@@ -157,6 +183,11 @@ def run_benchmark(cfg: BenchmarkConfig):
             language=cfg.language,
         ),
     }
+    if cfg.google_asr:
+        runners["google-asr"] = GoogleASRRunner(
+            language_code=cfg.google_language,
+            model=cfg.google_model,
+        )
 
     output_dir = Path(cfg.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -253,14 +284,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="WhisperX vs faster-whisper benchmark")
 
     parser.add_argument("--dataset", default="librispeech",
-                        choices=["librispeech", "commonvoice", "l2arctic"])
+                        choices=["librispeech", "commonvoice", "l2arctic", "speechaccent"])
     parser.add_argument("--split", default="test-clean",
                         help="LibriSpeech: test-clean/test-other/dev-clean/dev-other | "
                              "CommonVoice: test/validation/train | "
-                             "L2-ARCTIC: scripted/spontaneous")
+                             "L2-ARCTIC: scripted/spontaneous | "
+                             "SpeechAccent: train")
     parser.add_argument("--l1-filter", nargs="+", default=None,
                         choices=["arabic", "hindi", "korean", "mandarin", "spanish", "vietnamese"],
                         help="L2-ARCTIC only: filter by speaker L1 background")
+    parser.add_argument("--native-language-filter", nargs="+", default=None,
+                        metavar="LANGUAGE",
+                        help="Speech Accent Archive only: filter by native language "
+                             "(e.g. --native-language-filter english mandarin arabic)")
     parser.add_argument("--num-samples", type=int, default=100)
     parser.add_argument("--model-size", default="base",
                         choices=["tiny", "base", "small", "medium", "large-v2", "large-v3"])
@@ -275,6 +311,17 @@ if __name__ == "__main__":
                              "If omitted, downloads via MDC API using MDC_API_KEY env var.")
     parser.add_argument("--librispeech-dir", default="./data/LibriSpeech")
     parser.add_argument("--no-download", action="store_true")
+
+    # Google Cloud Speech-to-Text options
+    parser.add_argument("--google-asr", action="store_true",
+                        help="Include Google Cloud Speech-to-Text in the benchmark. "
+                             "Requires GOOGLE_APPLICATION_CREDENTIALS env var.")
+    parser.add_argument("--google-model", default="latest_long",
+                        choices=["latest_long", "latest_short", "phone_call",
+                                 "video", "command_and_search", "default"],
+                        help="Google Speech-to-Text model (default: latest_long)")
+    parser.add_argument("--google-language", default="en-US",
+                        help="BCP-47 language code for Google ASR (default: en-US)")
 
     args = parser.parse_args()
 
@@ -291,6 +338,10 @@ if __name__ == "__main__":
         librispeech_dir=args.librispeech_dir,
         cv_dir=args.cv_dir,
         l1_filter=args.l1_filter,
+        native_language_filter=args.native_language_filter,
         download=not args.no_download,
+        google_asr=args.google_asr,
+        google_model=args.google_model,
+        google_language=args.google_language,
     )
     run_benchmark(cfg)
