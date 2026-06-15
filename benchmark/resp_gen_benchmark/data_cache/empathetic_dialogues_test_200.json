@@ -1,0 +1,1346 @@
+[
+  {
+    "conv_id": "hit:659_conv:1318",
+    "emotion": "afraid",
+    "context": "Some times at night_comma_ I can hear some shouting \"AHHHHHHH\"_comma_ \"HEE HEE\". | That's creepy. What do you think they were_comma_ hyenas?",
+    "utterance": "No_comma_ the spooky thing is... I think it's the ghost of Michael Jackson. I even saw him dancing to Billie Jean.",
+    "reference": "Must have been quite a sight."
+  },
+  {
+    "conv_id": "hit:11027_conv:22054",
+    "emotion": "afraid",
+    "context": "I went for a walk the other day and one of the neighbors dogs was loose_comma_ a bit white husky_comma_ he was aggressive. | Was the owner not around? Did the dog cause any harm?",
+    "utterance": "He was growling at me and looked like he wanted to bite me_comma_ the neighbor finally came out and called him home. was intense.",
+    "reference": "Sounds scary! Dogs are very loyal creatures but can cause a lot of harm"
+  },
+  {
+    "conv_id": "hit:4728_conv:9457",
+    "emotion": "afraid",
+    "context": "I managed to spook myself really bad once watching too many horror movies and being in a house alone by the woods. | That would definitely creep me out.",
+    "utterance": "Yeah.  I kept thinking trees were people or things standing out in the woods.",
+    "reference": "I have done that before lol"
+  },
+  {
+    "conv_id": "hit:284_conv:569",
+    "emotion": "afraid",
+    "context": "Me and my mom were at this grocery store recently and this guy started following us outside the store and then again inside the store it was so scary! | Did he do anything to you and your mom?",
+    "utterance": "Well I knew he was following us and so I asked the manager to walk us out to the car and when he did we saw the guy come out again from between the two buildings b/c he was waiting on us.  so scary!",
+    "reference": "I am glad that nothing happened."
+  },
+  {
+    "conv_id": "hit:5573_conv:11146",
+    "emotion": "afraid",
+    "context": "So college is starting up soon and I'm worried I won't be able to deal with the workload again. | School can be tough. How many credits are you taking on?",
+    "utterance": "I wanna say 14 credit hours for engineering classes. I have a part time job too I work 20 hours a week at.",
+    "reference": "Engineering is already tough. If you can get through this_comma_ I'd say you'll be very successful in life."
+  },
+  {
+    "conv_id": "hit:12390_conv:24781",
+    "emotion": "afraid",
+    "context": "Some random dude walked into my room while I was laying down_comma_ couldn't have been more weird | Oh wow that is weird. Did you say anything to him?",
+    "utterance": "I was like what the hell_comma_ and then he said sorry and walked out",
+    "reference": "Yeesh_comma_ how awkward is that."
+  },
+  {
+    "conv_id": "hit:9647_conv:19295",
+    "emotion": "angry",
+    "context": "i cannot stand seeing people throw trash on the streets | this is what you need to do_comma_ get out of your car and go give them a beat down that they need",
+    "utterance": "i know right i feel like doing that every time but i dont want to get arrested hahaha let karma get them_comma_",
+    "reference": "yea but it will feel better if you take action"
+  },
+  {
+    "conv_id": "hit:104_conv:208",
+    "emotion": "angry",
+    "context": "i just moved to this neighborhood and some dumb criminals shot one of my neighbors and ran into the woods! | Thats not good. Do you own a gun?",
+    "utterance": "I do! I want to be able to protect my son",
+    "reference": "That is always number one goal."
+  },
+  {
+    "conv_id": "hit:8192_conv:16384",
+    "emotion": "angry",
+    "context": "I was stopped at a traffic light when a woman in a truck scraped slowly along the side of my car. | That's brutal_comma_ did she get out?",
+    "utterance": "Yeah_comma_ we both stopped and pulled over.  I think she was high or something_comma_ she was really off.",
+    "reference": "Did she have insurance?"
+  },
+  {
+    "conv_id": "hit:2975_conv:5950",
+    "emotion": "angry",
+    "context": "You too_comma_ huh? How do you nicely ask someone to shut up? Yelling at that time of day just wouldn't be right. | Leave a note on their door. and at the end put \"thanks in advance\" lol | Nice idea_comma_ but I don't think subtlety is their strong point - they'd be liable to make even more noise_comma_ lol. | Well_comma_ you can at least try.",
+    "utterance": "I guess I could. Or I could just move. Still mad though!",
+    "reference": "You could get earplugs lol"
+  },
+  {
+    "conv_id": "hit:1627_conv:3255",
+    "emotion": "angry",
+    "context": "I always feel like no one hears me. Like When I speak it falls on deaf ears. | That sucks. Maybe it's time to get new friends?",
+    "utterance": "Well_comma_ for the most part it's my family. My husband_comma_ kids and pets. I know they're not deaf and it's frustrating!",
+    "reference": "Don't worry_comma_ it will get better. I know you deserve better"
+  },
+  {
+    "conv_id": "hit:9559_conv:19118",
+    "emotion": "angry",
+    "context": "i really hate when my kids leave their dirty clothes on the floor | I can imagine they are a right pain to pick up after!",
+    "utterance": "yeah they even have a bin specially for that",
+    "reference": "What an annoyance!"
+  },
+  {
+    "conv_id": "hit:4983_conv:9966",
+    "emotion": "annoyed",
+    "context": "We went out to dinner for our first anniversary and they got our order all wrong. | thats always terrible_comma_ but congrats on the anniversary!",
+    "utterance": "Thank you. The restaurant came highly rated by a lot of people so I guess my expectations were high. I tried not to let it bother me.",
+    "reference": "that makes the situation worse when your expectations are through the roof"
+  },
+  {
+    "conv_id": "hit:2637_conv:5275",
+    "emotion": "annoyed",
+    "context": "I couldn't buy my brother his gift from an online retailer that starts with an A_comma_ because apparently they don't ship to Canada from their .com website. :( | Oh I think I can guess which retailer you're talking about. I've had so many problems with them over the years",
+    "utterance": "Yeah_comma_ it's horrible. I mean_comma_ what's so difficult about shipping to Canada? You can pay for other people to ship the item to you from their address_comma_ you'd think it would be just as simple for a big company like that.",
+    "reference": "I know. Canada isn't even overseas in the literal sense_comma_ it's just over the border!"
+  },
+  {
+    "conv_id": "hit:7410_conv:14820",
+    "emotion": "annoyed",
+    "context": "I have been having a rough week! | Are you glad its over?",
+    "utterance": "Yes but I am afraid I might loose my job..",
+    "reference": "I am sorry_comma_ any backup options?"
+  },
+  {
+    "conv_id": "hit:11408_conv:22817",
+    "emotion": "annoyed",
+    "context": "I had an unprofessional job interview. | What happened?",
+    "utterance": "The receptionist ignored me_comma_ and my interviewer was not prepared.",
+    "reference": "I hate when that happens_comma_ They expect us to be on point every time_comma_ yet they can't bother. I usually decline anything after."
+  },
+  {
+    "conv_id": "hit:147_conv:295",
+    "emotion": "annoyed",
+    "context": "I have a friend that has a child that is unruly and does bad things. One day at our home_comma_ he grabbed a game and sat on it_comma_ instantly breaking it! It was expensive and this really irked me_comma_ especially because she doesn't discipline him when he does bad things. | oh man. i'm all about discipline! I don't like spoiled bratty kids",
+    "utterance": "Me either! I have two of my own children_comma_ and I would have never let them get away with that kind of behavior when they were his age. I just don't understand those kind of parents@!",
+    "reference": "yes_comma_ i've heard some parents don't ever say no to their kids. makes no sense"
+  },
+  {
+    "conv_id": "hit:3412_conv:6825",
+    "emotion": "annoyed",
+    "context": "I just got an assigment.  I was doing well on it but rushed through the very end.  Now I'm not sure I'll be paid. | Why would you not get paid?",
+    "utterance": "I can no longer prove I did the assignment.  Computer work is for the birds sometimes.",
+    "reference": "I can imagine it is"
+  },
+  {
+    "conv_id": "hit:1666_conv:3332",
+    "emotion": "anticipating",
+    "context": "I'm really looking forward to this trip I have planned next week. | Where are you going?",
+    "utterance": "I'm going to visit the national parks in california... well the ones not on fire.",
+    "reference": "I've never been to California."
+  },
+  {
+    "conv_id": "hit:11189_conv:22379",
+    "emotion": "anticipating",
+    "context": "I went on a job interview. I'm anxiously waiting to hear if I got the job. | When will you find out? | I still need wait another week.",
+    "utterance": "Oh the wait is terrible.  What type of job?",
+    "reference": "A drafter."
+  },
+  {
+    "conv_id": "hit:4684_conv:9369",
+    "emotion": "anticipating",
+    "context": "Interestingly_comma_ I also had a job interview recently_comma_ although I've already heard back and I got it! | Oh! I am so happy for you. Congratulations. What was the job?",
+    "utterance": "A lab manager for a Physics department at a University.",
+    "reference": "That sounds very interesting. I'm sure you will do great."
+  },
+  {
+    "conv_id": "hit:346_conv:692",
+    "emotion": "anticipating",
+    "context": "I am looking forward to going on vacation in a few weeks! We have a condo reserved on the beach_comma_ with fantastic ocean views. I'm ready! | Ah_comma_ that sounds fantastic! Which ocean will you be enjoying?",
+    "utterance": "Well_comma_ we are staying at Panama City Beach_comma_ so we're right there at the Gulf of Mexico.",
+    "reference": "Sounds awesome! Do you have a beachside beverage or traditions that you enjoy? (Mine would be tequila + lime...very Jimmy Buffett ;-))"
+  },
+  {
+    "conv_id": "hit:6313_conv:12626",
+    "emotion": "anticipating",
+    "context": "Waiting for something to come in the mail can send me in to a tizzy. It's even worse when it's parts I need to finish a computer repair job. | That's true. Did you finish the job?",
+    "utterance": "I did get it done in the end. It was a nail biter since the client was leaving the day after the parts came.",
+    "reference": "That's really great. It's nice when everything works out in the end."
+  },
+  {
+    "conv_id": "hit:10179_conv:20359",
+    "emotion": "anticipating",
+    "context": "My husband and I are planning a big trip to Washington_comma_DC | Oh_comma_ that sounds so exciting! What do you plan to see while you are there?",
+    "utterance": "I really want to go to the Smithsonian.  I love history and can't wait till we get to go",
+    "reference": "The Smithsonian would be amazing. I have not been to DC yet. I hope you guys have a great time!"
+  },
+  {
+    "conv_id": "hit:6015_conv:12031",
+    "emotion": "anxious",
+    "context": "My cat broke her leg not too long ago and had to have surgery one it | how much did you pay for the surgery?",
+    "utterance": "I was lucky cause I know my vet personally so I only paid 175 usd I was so scared for her",
+    "reference": "uhmnnn! scared of your cat or the vet?"
+  },
+  {
+    "conv_id": "hit:274_conv:548",
+    "emotion": "anxious",
+    "context": "My husband and I both work for ourselves -- a blessing and a curse at times_comma_ since it can be tough to determine a \"regular\" income. | I bet it's tough. A regular income is nice but the freedom you get from working for yourselfs is better. | We found a pretty good balance in that I have a part-time job that I *love* -- and that comes with benefits like insurance. That's a big worry addressed_comma_ right there.",
+    "utterance": "Your so lucky. Insurance is my number one worry every month.",
+    "reference": "I am sorry_comma_ because I absolutely know that concern. I truly hope you find a resolution to that."
+  },
+  {
+    "conv_id": "hit:6205_conv:12411",
+    "emotion": "anxious",
+    "context": "I've been having anxiety attacks lately. Everything is great and suddenly i start thinking about something bad happening and i have a full blown anxiety attack over something that didn't even happen | Is this a common occurrence?",
+    "utterance": "no_comma_ it just started happening. I would say it started a couple of months ago. i will see a doctor in 2 weeks",
+    "reference": "That's good. I hope it's controllable."
+  },
+  {
+    "conv_id": "hit:3478_conv:6956",
+    "emotion": "anxious",
+    "context": "My bills and mortgage payment is coming up soon.  I not sure if I can cover them all. | good for you! that is how it is supposed to be",
+    "utterance": "I am working hard to make sure I can cover them.  Hope fully this month of work is better than last month.",
+    "reference": "I wish you the very best on that my friend"
+  },
+  {
+    "conv_id": "hit:3326_conv:6652",
+    "emotion": "anxious",
+    "context": "I feel uneasy because I don't know if I will be able to save enough money in time | What are you saving for?",
+    "utterance": "Baby is due in less than 3 months",
+    "reference": "I am sure everything will be fine. Do not stress."
+  },
+  {
+    "conv_id": "hit:12423_conv:24847",
+    "emotion": "anxious",
+    "context": "I have a big test on Monday_comma_ I am so nervous. | What is the test on?",
+    "utterance": "It's for my Chemistry class. I haven't slept much because I'm worried so I keep studying.",
+    "reference": "Chemistry is quite difficult_comma_have you studied hard?"
+  },
+  {
+    "conv_id": "hit:5624_conv:11249",
+    "emotion": "apprehensive",
+    "context": "I am so nervous to start my new job tommorrow. | I am sorry to hear that_comma_ I am sure you will be fine. What kind of job is it?",
+    "utterance": "it's a desk job. Its my first time in a place like this.",
+    "reference": "Well_comma_ it shouldn't be too bad. If you couldn't do the work I'm sure they wouldn't have hired you."
+  },
+  {
+    "conv_id": "hit:656_conv:1313",
+    "emotion": "apprehensive",
+    "context": "we were 20 mins from the airport and the car broke down_comma_ overheated and would not start ! | oh no! that sounds annoying. Did you end up getting help?",
+    "utterance": "had to hitch hike. made it on time for check in though. now the cars been in the shop 4 days_comma_ no progress. kinda getting worried about it",
+    "reference": "that sounds terrible! I hope everything gets sorted! Be positive"
+  },
+  {
+    "conv_id": "hit:10160_conv:20321",
+    "emotion": "apprehensive",
+    "context": "I'm a bit nervous- I have an upcoming certification exam to take for my teaching license and it's a big deal. | That's an amazing accomplishment!  I'm sure you'll do great!  Have you been studying a lot?",
+    "utterance": "I've been studying a WHOLE lot - so I think I'll do okay_comma_ but it's still making me feel nervous.",
+    "reference": "I hope you can stay calm_comma_ you seem really well prepared!"
+  },
+  {
+    "conv_id": "hit:1690_conv:3380",
+    "emotion": "apprehensive",
+    "context": "I had a job interview yesterday. I was really nervous before it started. | Was it on the phone or in person?",
+    "utterance": "It was in person. We mostly interviewed in a conference room_comma_ then we took a lab tour afterwards.",
+    "reference": "How did you do?"
+  },
+  {
+    "conv_id": "hit:10865_conv:21731",
+    "emotion": "apprehensive",
+    "context": "We ordered 3 diet cokes with dinner the other night_comma_ and they all came out a different shade of coloring! | Wow that is weird.  I love Diet Coke.  What was wrong with it?",
+    "utterance": "I was concerned they were the wrong drink order_comma_ we lined them up and talked to the server and together figured out the syrup bag must be going empty!",
+    "reference": "Nothing worse than a bad soda! lol.  I like the new Freestyle machines_comma_ it's always just right."
+  },
+  {
+    "conv_id": "hit:4819_conv:9639",
+    "emotion": "apprehensive",
+    "context": "I want to ask this girl I'm friends with out but I'm nervous to to so. | You wont know an answer if you dont ask",
+    "utterance": "Problem is if she says no then it would make things weird between us.  I am afraid that either way I may not be able to see her again.",
+    "reference": "Just play it safe"
+  },
+  {
+    "conv_id": "hit:11136_conv:22273",
+    "emotion": "ashamed",
+    "context": "When I go out with friends I really have to be tight with my money. Times are really hard for me financially? | I understand completely. One has to live within one's budget. It can be hard though.",
+    "utterance": "I like go out but I have to really make sure that I don't spend too much. I sometimes like to leave a tip if possible.",
+    "reference": "It's only normal to want to live within one's means. Too bad you can't leave a tip every time."
+  },
+  {
+    "conv_id": "hit:11479_conv:22959",
+    "emotion": "ashamed",
+    "context": "Im embarrassed to admit I forgot to pick up my brother from worth the other day after agreeing to | Well hopefully he is understanding_comma_ if he is anything like my brother nothing a cold 6 pack won't fix.",
+    "utterance": "Ha ha_comma_ he was a little miffed. He got over it though when I stopped and got him ice cream on the way back though! I felt like such a jerk.",
+    "reference": "All is well that ends well_comma_ especially with family they gotta give ya do overs."
+  },
+  {
+    "conv_id": "hit:208_conv:417",
+    "emotion": "ashamed",
+    "context": "I can still look back with shame at the way I treated a girl in sixth grade. I wasn't as bad as others_comma_ but that doesn't make me feel any better. | Where you not secure in your self? | Well_comma_ like a lot of 6th graders I was aware of *not* wanting to be an outcast for any reason. And unfortunately_comma_ she was. As an adult of course_comma_ my heart squeezes for *all* the kids we were! | You can track her down to say sorry_comma_ or would that be creepy?",
+    "utterance": "Unfortunately_comma_ she died. I only found out when Facebook first came out_comma_ and her brother and I \"friended\" one another.",
+    "reference": "Wow_comma_ so your going to take being a bad person to the grave. Maybe you'll see her in the next life?"
+  },
+  {
+    "conv_id": "hit:10515_conv:21030",
+    "emotion": "ashamed",
+    "context": "I ca not believe what happened the other night at my friends house_comma_ I'll never show my face again. | Can you please give a little more detail about what happened at your friends house that made you not want to show your face?? | Sure_comma_ I fell asleep on the chair and had a dream_comma_ in my dream I went to the restroom_comma_ so yeah_comma_ I peed right there in their chair.",
+    "utterance": "How embarrassing! I did that one time when I was sleeping in my bed and I thought I got up and went to the bathroom to pee_comma_ but I did not go to the bathroom_comma_ I peed my pants in the bed.",
+    "reference": "Yes_comma_ it was not fun_comma_ but good to know I am not the only one."
+  },
+  {
+    "conv_id": "hit:1511_conv:3023",
+    "emotion": "ashamed",
+    "context": "I lost something of my mother in laws the other day_comma_ I feel so bad. | That sucks. Can you make it up to her somehow? | I'll have to buy her another piece of tupperwear_comma_ it seems silly but it's expensive stuff!",
+    "utterance": "At least those things come in sets_comma_ so you can keep part of it?",
+    "reference": "I may do that!"
+  },
+  {
+    "conv_id": "hit:10192_conv:20385",
+    "emotion": "ashamed",
+    "context": "I used to live out of my car and it made me feel pretty down on myself back then | I no how you feeI I have had to live in worse places than that _comma_ but it looks like you found a way out of that situation.",
+    "utterance": "What types of situations? And yeah it could have been worse but I'm glad I'm out of it.",
+    "reference": "I had to squat in houses before. I'm glad things have changed for you and for me."
+  },
+  {
+    "conv_id": "hit:6013_conv:12026",
+    "emotion": "caring",
+    "context": "I love dogs very much they are always great companions | I also love dogs.",
+    "utterance": "I got a puppy not to long ago and love him with all my heart",
+    "reference": "Puppy's are the best. I love puppies!"
+  },
+  {
+    "conv_id": "hit:34_conv:69",
+    "emotion": "caring",
+    "context": "Well_comma_ can you tell me about your experience? I think we swapped places | Yeah i wanted to tell you about the time i was hit by a drunk driver im so happy to still be alive after that experience",
+    "utterance": "Oh my goodness_comma_ that's very scary! I hope you are okay now and the drunk driver was punished for his actions?",
+    "reference": "Yeah he was punished hes in jail still"
+  },
+  {
+    "conv_id": "hit:4785_conv:9571",
+    "emotion": "caring",
+    "context": "I saw a homeless lady and i felt so bad for her because it was so hot outside so went to five guys and bought her some food and cold drinks | that's extremely sweet of you! you're a nice person. my wife and i made some blessing bags and we give them everytime we see homeless people | blessing bags?? what are those?",
+    "utterance": "basically it's a bag with necessities. we put some water_comma_ some non perishable foods_comma_ snacks_comma_ some wipes and a little bit of money",
+    "reference": "wow that's a great idea! I will do the same! thanks for sharing"
+  },
+  {
+    "conv_id": "hit:6035_conv:12071",
+    "emotion": "caring",
+    "context": "My sister is so caring_comma_ she took care of me when I was sick | That's very nice of her_comma_ family is one of the best things we have in this world.",
+    "utterance": "That is so true. I am so very thankful",
+    "reference": "As you should be_comma_ some people don't have anyone to lean on in their lives."
+  },
+  {
+    "conv_id": "hit:3705_conv:7410",
+    "emotion": "caring",
+    "context": "My daughter just got married and moved across the country and is homesick. I've been talking to her every day to make her feel better. | That's sweet. I'm sure she will adjust in time. Have you ever personally had to make a move like your daughter did?",
+    "utterance": "Actually_comma_ I did! I moved across the world to Doha_comma_ Qatar to teach for a couple of years. Even though my husband and daughter was with me_comma_ it was very hard to be away. Have you ever moved far away?",
+    "reference": "No_comma_ I never have. I've always lived in my state I was born in. However_comma_ I did travel to Utah which was about 1200 miles away and got a bit homesick so I can relate."
+  },
+  {
+    "conv_id": "hit:5403_conv:10807",
+    "emotion": "caring",
+    "context": "I like to help at the animal shelter walking the dogs. They get a chance to get out of their cages and be with a nice human like me. | That is really nice of you! I am sure they appreciate it",
+    "utterance": "They do. They get to smell the grass_comma_ they play they get their exercise_comma_ they get to have fun_comma_ they get to be a dog!",
+    "reference": "They get to enjoy themselves and have a good time! :)"
+  },
+  {
+    "conv_id": "hit:388_conv:776",
+    "emotion": "confident",
+    "context": "I went to a court hearing for unemployment with my former employer_comma_ and I felt great about it since I was so prepared with all of the documents and everything I needed to show the court I was in the right for quitting. | Did it go your way? | Yes_comma_ I actually ended up winning it and they gave me 6 months of unemployment pay.",
+    "utterance": "That is great - have you found another job yet?",
+    "reference": "Yes I am currently working as a processing assistant at a warehouse. I love it. Much better than my last job"
+  },
+  {
+    "conv_id": "hit:10961_conv:21923",
+    "emotion": "confident",
+    "context": "I am going to play dominos tonight | That sounds like fun!  Is it with friends? | Well with some locals at the local brewpub",
+    "utterance": "So cool_comma_ I hope it goes well",
+    "reference": "Yes I think I will do well even though I just learned last week how to play!"
+  },
+  {
+    "conv_id": "hit:2622_conv:5244",
+    "emotion": "confident",
+    "context": "Recently my daughter was voted 'Most Artistic' by her peers! She is so talented and we feel lucky to be her parents. | so very nice.your doughter.",
+    "utterance": "Yes_comma_ she has a natural talent_comma_ but really puts much practice and time into it.",
+    "reference": "whove very nice ya and super talent."
+  },
+  {
+    "conv_id": "hit:272_conv:545",
+    "emotion": "confident",
+    "context": "I have a hard time having confidence in myself but when I got married and I had my hair and makeup done I felt like I was beautiful!  I had so much confidence in myself that day and it was great! | I bet you were beautiful on that day. :) I hope that confidence has carried on since then!",
+    "utterance": "I really try but it's hard to replicate that day for sure.",
+    "reference": "It would be hard to replicate that day for sure_comma_ but I bet you have a lot to be confident about. You got this!"
+  },
+  {
+    "conv_id": "hit:8343_conv:16686",
+    "emotion": "confident",
+    "context": "I had my final exam for Chemistry today! | How did you do?",
+    "utterance": "I'm pretty sure I Aced it! I've been studying for weeks.",
+    "reference": "That's good. I was never good at chemistry"
+  },
+  {
+    "conv_id": "hit:10907_conv:21814",
+    "emotion": "confident",
+    "context": "I was the captain of the volley ball team in middle school and high school_comma_ so I signed my daughters up to play. since they had an interest in it too. When we got the practice on the first day_comma_ the coach said that it was her first year coaching and she asked me if I would help a little. | Oh thats awesome_comma_ im sure you were excited to help",
+    "utterance": "I was very excite to help. I miss playing very much_comma_ so being able to play with my daughters and show of my skills a little was great.",
+    "reference": "thats great_comma_ sounds like a fun time. And you got to share time with your daughters which is awesome."
+  },
+  {
+    "conv_id": "hit:725_conv:1451",
+    "emotion": "content",
+    "context": "I feel happy about the new house I have and that I can work from home. Thanks be to God | Congratulations! I hope to get a house next year",
+    "utterance": "It took me 9 months of determination and sacrifice. But worth it.",
+    "reference": "I bet! Hard work pays off"
+  },
+  {
+    "conv_id": "hit:8153_conv:16306",
+    "emotion": "content",
+    "context": "summer was so boring for me_comma_ im really happy school is starting again | Why was it boring_comma_ nothing exciting to do where you live?",
+    "utterance": "not really_comma_ i just stayed home all summer because my parents worked the whole summer as well as i did",
+    "reference": "Ah yeah_comma_ that sucks. No time for anything fun."
+  },
+  {
+    "conv_id": "hit:2586_conv:5172",
+    "emotion": "content",
+    "context": "Well_comma_ first I tried whole milk_comma_ and that was gross. But I just tried 2% milk_comma_ and I like it! | I like 2% as well.  It's perfect for cereal and chocolate milk! | I agree! I'm so happy I can enjoy it now. | Have you tried 1%?",
+    "utterance": "No_comma_ but I am satisfied with my choice.",
+    "reference": "That's great.  2% is much more healthful than whole milk."
+  },
+  {
+    "conv_id": "hit:143_conv:286",
+    "emotion": "content",
+    "context": "my baby is sleeping. it's so peaceful and quiet in this house | I guess it makes you appreciate things you used to take for granted_comma_ lol. But it doesn't last forever and is worth it.",
+    "utterance": "i totally agree with you!",
+    "reference": "That's a full time job raising a human"
+  },
+  {
+    "conv_id": "hit:9471_conv:18942",
+    "emotion": "content",
+    "context": "For me_comma_ one of life's greatest pleasures is to be sitting on my porch with a good book and a glass of wine. | What book do you enjoy reading? | Lots of things. I like historical novels and legal dramas best. What about you? Does reading give you a sense of relaxation?",
+    "utterance": "No_comma_ actually I'm under a lot of stress right now and I'm in pretty dire straights financially. The only book i'm really reading at this time is the Bible.",
+    "reference": "There's no finer book to help you in distressful times than the Bible. I hope it gives you a sense of peace to read it. So sorry to hear you're stressed out."
+  },
+  {
+    "conv_id": "hit:9886_conv:19772",
+    "emotion": "content",
+    "context": "I was eating dinner with my husband last night and I was so happy | Sometimes the simplest things are the nicest",
+    "utterance": "I whole heatedly agree! It was just so freeing and peaceful",
+    "reference": "I hope you have many more then!"
+  },
+  {
+    "conv_id": "hit:8897_conv:17795",
+    "emotion": "devastated",
+    "context": "My husband's grandmother and I were very close. We hung out and talked everyday. One Friday_comma_ we went to breakfast and she told me that her and her husband were going on vacation the next day. She was so excited. The next morning I called her after they had left and told her to be safe_comma_ have fun_comma_ and that I loved her. She told me she loved me too. The morning after that phone call_comma_ we found out that she had a heart attack and died. | Oh my. That is very unfortunate. | Yes_comma_ it hit our whole family very hard. That was in 2013_comma_ and sometimes I still pick up the phone to call her and tell her something.",
+    "utterance": "I know that feeling. Im sure she is looking down on you all.",
+    "reference": "Thank you."
+  },
+  {
+    "conv_id": "hit:4053_conv:8107",
+    "emotion": "devastated",
+    "context": "My friend passed away in a car crash a couple days ago_comma_ I'm still in shock. | Oh I'm sorry.  How are his family doing?",
+    "utterance": "They've been really closed up about the whole thing_comma_ I can't contact them or anything. They must be going through a tough time_comma_ I could not imagine.",
+    "reference": "It's pretty hard to deal with.  One of my friend's buddies died in a car crash as well."
+  },
+  {
+    "conv_id": "hit:913_conv:1827",
+    "emotion": "devastated",
+    "context": "When i was younger_comma_ I came back to the house with my family to find our family pet dead. | Oh no_comma_ I'm so sorry to hear that. Did you ever figure out what happened?",
+    "utterance": "He was very old_comma_ so I guess we were all expecting it.. He lived a good life!",
+    "reference": "Oh_comma_ well that's a somewhat happy ending I suppose."
+  },
+  {
+    "conv_id": "hit:3350_conv:6700",
+    "emotion": "devastated",
+    "context": "the floods destroyed everything. The insurer is not returning our calls | wow. When that happened?",
+    "utterance": "Last week. we're in temporary housing now",
+    "reference": "Sorry to hear that. I hope your insurer will call you back soon."
+  },
+  {
+    "conv_id": "hit:10263_conv:20527",
+    "emotion": "devastated",
+    "context": "I had my dog for 13 years before she passed away last year from cancer. It was devastating! | Oh no I am so sorry to hear that. Are you planning on getting  a new dog?",
+    "utterance": "Probably not for a while. She was a great companion_comma_ but I don't think my heart is ready to bring in a new dog quite yet.",
+    "reference": "Aww_comma_ yeah I know what you mean. Dogs are so lovable. I also have a new pup myself. I got him a couple years ago"
+  },
+  {
+    "conv_id": "hit:10088_conv:20176",
+    "emotion": "devastated",
+    "context": "The other night I found my cat laying dead in the side of the road | I'm so sorry for your loss_comma_ it isn't easy losing a pet. How are you doing?",
+    "utterance": "It's tough. I was crying so hard that I had to call my husband to come pick us up",
+    "reference": "Understandably so. I hope you feel better soon."
+  },
+  {
+    "conv_id": "hit:4449_conv:8898",
+    "emotion": "disappointed",
+    "context": "i felt betrayed when my girlfriend kissed another guy at a party | Oh no.. That should have sucked for you. what did you do?",
+    "utterance": "Nothing. She was drunk_comma_ so i let it go. I still feel disappointed",
+    "reference": "As you should. It will pass away_comma_ dont worry"
+  },
+  {
+    "conv_id": "hit:136_conv:273",
+    "emotion": "disappointed",
+    "context": "So yeah i drove 2 hours to get to wallmart. with 299 in my wallet as advertised_comma_ and the real price of the tv was 399 usd. what a bummer | Thats horrible. | Yeah i had my hopes reall high and then i left empty handed_comma_ such a terrible feeling!",
+    "utterance": "Yes I do not like walmart.",
+    "reference": "Yes_comma_ i guess walmart and the rest of false advertisement in the US_comma_ the look in my daugther eyes when i came home empty handed"
+  },
+  {
+    "conv_id": "hit:2959_conv:5919",
+    "emotion": "disappointed",
+    "context": "I recently went on a trip with a woman I adore. The trip ended poorly_comma_ though_comma_ and things have not been the same since. | I hate to hear that_comma_ what happened that made it end poorly?",
+    "utterance": "We did not capitalize well on the short amount of time that we had together.",
+    "reference": "maybe you can plan another trip together soon - sounds like you guys need some time to reconnect and just truly enjoy each other."
+  },
+  {
+    "conv_id": "hit:4678_conv:9357",
+    "emotion": "disappointed",
+    "context": "I went to the fride and was surprised to find what I thought was an ice cream cake. | Oh! Was the ice cream cake for you?",
+    "utterance": "It turned out to not even be an ice cream cake.  It was some kind of pinapple cake.  I still had a piece but it was disappointing.",
+    "reference": "Awww that is kind of disappointing. Ice cream cake sounds tastier than pineapple cake."
+  },
+  {
+    "conv_id": "hit:2579_conv:5158",
+    "emotion": "disappointed",
+    "context": "I just had my Sweet 16 party... | Happy belated Birthday! Did it turn out the way you had hoped? | Well_comma_ about that... my dad KNEW I wanted a pink car for my birthday. But...",
+    "utterance": "What did you get instead?",
+    "reference": "A BLUE one! I'm so devastated. I don't know what to do."
+  },
+  {
+    "conv_id": "hit:3677_conv:7354",
+    "emotion": "disappointed",
+    "context": "I felt so let down by a person who promised me a project -- but then pulled it away at the last minute in a way that was very personal and reactionary. | That's terrible. People need to learn to commit to their promises.",
+    "utterance": "Especially when it's based on emotion versus honoring a commitment. And when they know it has a very real economic impact.",
+    "reference": "I don't understand how so many people value emotion over logic and reason!"
+  },
+  {
+    "conv_id": "hit:11003_conv:22007",
+    "emotion": "disgusted",
+    "context": "Last week_comma_ they arrested 9 people for animal cruelty at a nearby farm and the place was littered with dead and sick and dying animals that they weren't taking care of. | That's horrible news!  I don't understand how people can be so cruel sometimes. | I have a hard enough time understanding man's inhumanity towards their fellow man_comma_ but towards animals who can't do much to defend themselves?  I hope they put those people *under* the jail!",
+    "utterance": "I know in some places_comma_ the penalty for hurting an animal can be tougher than that for hurting your kids.  Nothing makes sense sometimes.",
+    "reference": "Where I live_comma_ they're only now starting to toughen up the animal cruelty laws.  Even so_comma_ they lag far behind a lot of other states."
+  },
+  {
+    "conv_id": "hit:331_conv:662",
+    "emotion": "disgusted",
+    "context": "This past Friday night our refrigerator stopped cooling! We had to go the weekend without it_comma_ and of course had to deal with some unpleasant smells and throw away a large amount of food! It wasn't a fun weekend for us! | Oh no_comma_ I hate when that happens. I can sympathize with you because thats happen to me twice! Its okay in the winter time and you can sort of keep your food fresh but not during the summer",
+    "utterance": "Yes_comma_ and of course we tried to call and have someone come out_comma_ but to no avail! You don't realize how much you rely on things like that until they aren't working!",
+    "reference": "I wish refrigerators would have a warranty that replaced food when they went bad."
+  },
+  {
+    "conv_id": "hit:10447_conv:20895",
+    "emotion": "disgusted",
+    "context": "My sister threw up the other day and made a huge mess. | that must have been an explosion and a half_comma_ did  you clean it up?",
+    "utterance": "Fortunately no- she cleaned it up. But she had just had spaghetti and it was floating in it. It was so gross!",
+    "reference": "i can imagine_comma_ that's gross as hell"
+  },
+  {
+    "conv_id": "hit:3499_conv:6998",
+    "emotion": "disgusted",
+    "context": "I once ate a piece of cake_comma_ it was old.  After the first bite I noticed spots of mold on it. | That sounds gross_comma_ did you get sick from it?",
+    "utterance": "No I spit it out and listerined my mouth.",
+    "reference": "Smart move_comma_ at least you noticed it and it wasn't hidden under icing or anything"
+  },
+  {
+    "conv_id": "hit:2773_conv:5546",
+    "emotion": "disgusted",
+    "context": "I ate a gas station burrito for lunch. It was not very appetizing. Actually_comma_ it was absolutely horrible.,5|5|5_5|5|5,\nhit:2773_conv:5546,2,disgusted,I ate a gas station burrito for lunch. It was not very appetizing. Actually_comma_ it was absolutely horrible.,238,yea i hear ya,5|5|5_5|5|5,,Yeah as a child it's hard to see other kids with a bunch of friends when you don't have that many.|well you are really lucky to have an empty airport|what do you all have planned|Hey that's awesome!  Where ya goin?|Oh I just did that recently. I just got back from 2 months. It will be a fantastic time.|Oh! Gotcha! I've never played the switch but I heard it's an exciting console!|I bet that was the ride of your life.|Ah_comma_ I see. Had a great childhood_comma_ hu?|Sorry that that happened to you_comma_ I hope you're doing well.|yea i hear ya|How'd that go?|I understand being fascinated by them they can be very intriguing. Maybe you should stop watching as many though. |That is terrible and a little odd!|I am sorry_comma_ maybe she will share?|wow lol I didn't know you can track ovulation. Good luck with getting pregannt|That is insane! I've never heard of anything like that before.  You all should start protesting!|Thats horrible! You should tell them as that is their property. What if someone did that to your stuff?|tHat is insane_comma_ I usually give myself like 2 or 3 days.|you're welcome_comma_ but for what?|Do you have a good chance with her. Have you talked to her about it?|Did you have a good workout?|Nice_comma_ I guess the only times I was nervous to take a test was when I wasn't prepared_comma_ but there's only so much preparation you can do until you just have to trust your brain or whatever|Dragon tongue beans! I've never heard of them! What do they look like?|Is it far away_|Oh really_comma_ that sounds nice. I miss childhood.|Oh wow! That must have been terrifying! Were they able to help her?|That's awesome_comma_ have you ever tried surfing?|I bet you are_comma_ that's some pretty good foresight right there! Did you have to use it this past winter?|How did you place in the competition?|Oh really? I thought summer ended after July. You learn something new everyday lol|Oh no_comma_ what happened?|i'm glad you feel good today!|Aren't you the luckiest? |That's cool.  For what class|That's what I was thinking.|Yes_comma_ you are correct. You can always hope\" for the best_comma_ but also \"plan\" for the worst. Being prepared is a comfortable feeling.|Seems like we all have. Some people shirk having to though.|I used to struggle with the same problem_comma_ it can be overwhelming|creepy.  Were you able to fall asleep after watching it?|Woo hoo! That is awesome! Congrats! When will you find out/|Oh dear. I am so sorry to hear. It is possible for you to get a second job?|Oh dear_comma_ that must be difficult. Are there medications to take that will help?|How fun! yes I am sure they will have  a great time!|So what did you do?|That's so sweet! We have blue healers_comma_ they just make the world better.|that is so sad i hope your pet gets better|That is incredible! I swear some things in life are determined by fate. I'm glad you were able to get a car.|They are bad now too_comma_ they are so annoying|Lovely.  What did you do together?|That is sure to make you feel the nostalgic?|goodness_comma_ i would be so upset_comma_ that is a terrible experience!|I believe that!|I bet I would have been scared|That sounds pretty exciting.|don't be. i'm sure you raised him right. he will be starting his new adventure|Phew_comma_ so they got most of the attention.|I am sure they have forgotten about it|I feel you_comma_ it would be really scary. How did it turn out?|oh that's great. You must be the luckiest granddad in the whole world|Wow_comma_ please make it real.|Dont worry_comma_ anyone would have felt the same way. If it makes you feel better remember that we were all babies once.|aww. I understand you. That feeling is priceless.|That is awesome_comma_ what degree are you working towards?|I wish I had a grandma.. did she send you anything extra?|Well_comma_ they would probably be the same if they were in your shoes|Haha good! I'm glad that one went well.|I can imagine! Is he doing okay?|Was the weather good?|Being jealous of another person is a perfectly fine response. Despite this_comma_ you never know what is going on behind the scenes_comma_ she may have taken out huge loans just to fund her trips.|What made you nervous about it?|That is bizarre_comma_ have you had this seen about?|Congratulations. Are you going on a hollywood|Well_comma_ I hope you have some really good earphones - or that they quiet down - it's a big egotistical to think that no one around you cares when you are that loud.|Why didn't you say anything?|Oh_comma_ no! That's so terrible!|Oh wow! I would be very angry as well! Unless it was some kind of emergency or extenuating circumstance|Congrats_comma_ that must have been a very stressful time leading up the the birth.|My sister got married at Laguna niguel|What a great idea_comma_ where did that come from?|That is great! Can you call him and see if we could all celebrate together?|Sheesh that is brutal_comma_ did you smack him?|Wow_comma_ I hope you have a really nice trip.|That is an amazing feeling. |I have 3- I bet you can't wait to take him fishing.|Yeah_comma_ everyone just seems miserable_comma_ so it kind of drags you down_comma_ too. But it's a necessary evil.|Is she always a flake? Maybe time for a new friend?|Yep! Not really that fun to have since you see things at times.|What?!?! thats amazing! starting a family I imagine can be surreal |i'm glad you didn't |Were they a close friend? And did you pay them with pizza?|Wow. Talking about cleaning up.|Well_comma_ she'll be back soon and you'll have loads of catching up to do. I bet the dogs missed her too!|yep thats one of the things that make it so nice|Well_comma_ often people just give up and relegate themselves to just sitting in a chair and watching TV. Even if you have to force yourself_comma_ at least you are forcing yourself. At some point hopefully you will see progress and feel it getting easier. Once that happens_comma_ motivation starts to become real easy to get.|You do? thats good_comma_ friends can be terrible people to lend too.|Keep your diet clean and you'll keep improving.|I see. I hope for all the best for you and him.|He must be a great speaker.|I've had pets to do that too.|Thar was an embarasing moment for sure",
+    "utterance": "Yes_comma_ and now my tummy has the rumblies. My workplace bathroom is a one-seater right next to my work crush's desk. I'm not sure if I'm gonna make it.",
+    "reference": "hope you feel better"
+  },
+  {
+    "conv_id": "hit:8926_conv:17853",
+    "emotion": "disgusted",
+    "context": "I get really mad when I hear about people abusing animals. What revolting individuals! | Me too!!! ii never could understand what drives people to be so mean to such innocent creatures. | They're filthy_comma_ ignorant bullies. I would sentence them to life in prison_comma_ without parole!!!",
+    "utterance": "Really!! I would go even further and give them the electric chair. I have no tolerance for those types of people.",
+    "reference": "More laws need to be passed so they can be prosecuted. So many states have nothing on the statute books."
+  },
+  {
+    "conv_id": "hit:5184_conv:10369",
+    "emotion": "embarrassed",
+    "context": "i hate when i fart in public it is so embarrasing | You're unable to hold them in?",
+    "utterance": "i can hold them but some of them are just accidental and it is the worst_comma_ depends on what i eat haha",
+    "reference": "I'm sorry_comma_ that must be pretty rough on you!"
+  },
+  {
+    "conv_id": "hit:337_conv:675",
+    "emotion": "embarrassed",
+    "context": "I was at the mall and hug my mom and said to her: Time to go Mommy! and i wasnt her_comma_ can you imagine my reaction to it? | Oh_comma_ I'm sure you were embarrassed! But_comma_ maybe you can laugh about it now? | Yes_comma_ totally but at the moment i felt like the stupidiest person on earth_comma_ didn't know were to hide! and my mom was watching",
+    "utterance": "Well_comma_ I'm sure mom had a laugh lol! I can imagine how you felt at the time though!",
+    "reference": "THe good thing about it_comma_ was the lady_comma_ she was laughing and later told me that it has happened to her childrens to_comma_ no worries!"
+  },
+  {
+    "conv_id": "hit:3231_conv:6463",
+    "emotion": "embarrassed",
+    "context": "The other day I was just having a really off day. Just couldn't get my mind and body to work right. | Everyone has those kinds of days_comma_ it happens",
+    "utterance": "It does but I'm sure the people at the busy store thought I was drunk. I ran into everything_comma_ shelves_comma_ displays and even the door when I was leaving.",
+    "reference": "I am sure they have forgotten about it"
+  },
+  {
+    "conv_id": "hit:5525_conv:11051",
+    "emotion": "embarrassed",
+    "context": "Not all of my high-school memories are fond ones. Like the time I drank too much and passed out at a party. | How old were you?",
+    "utterance": "I was about 16 at the time. The thing is_comma_ I passed out right in front of the entrance to the house. Everyone coming and going had to step over me!",
+    "reference": "That is young_comma_ I wish someone had helped you!"
+  },
+  {
+    "conv_id": "hit:2799_conv:5599",
+    "emotion": "embarrassed",
+    "context": "i have been more happy that i have bought a car | That is an exciting purchase! What kind did you get?",
+    "utterance": "audi q7",
+    "reference": "That is a nice car! I know you are enjoying that!"
+  },
+  {
+    "conv_id": "hit:4833_conv:9667",
+    "emotion": "embarrassed",
+    "context": "I once walkd around the grocery store without knowing my fly was down. | I think we've all done a version of that.",
+    "utterance": "I found an empty aile a went to zip up.  Just then a mom with kids comes around the corner.",
+    "reference": "ha_comma_ that's too funny."
+  },
+  {
+    "conv_id": "hit:5917_conv:11835",
+    "emotion": "excited",
+    "context": "Having a baby 3 months ago really changed my view on life for the better. | Oh awesome!  Congrats!!!!  How has it changed life for you?",
+    "utterance": "I was a heavy drinker_comma_ and looking back now_comma_ I know I was in a downward spiral_comma_ I just couldn't tell at the time. Now I'm pursuing my education and have become much more healthy and responsible.",
+    "reference": "That's really fantastic!  I'm glad to hear you turned your life around."
+  },
+  {
+    "conv_id": "hit:3514_conv:7029",
+    "emotion": "excited",
+    "context": "I was so thrilled to get to see Hamilton_comma_ i was really looking forward to it | Who is hamilton?",
+    "utterance": "It is the broadway show_comma_ by Lin manuel miranda",
+    "reference": "Oh okay_comma_ did you see it in NYC?"
+  },
+  {
+    "conv_id": "hit:7367_conv:14734",
+    "emotion": "excited",
+    "context": "Tomorrow is my husbands Birthday! | That is great!  Do you have anything fun planned for him",
+    "utterance": "Yes_comma_ we are going out for a nice dinner. We haven't been on a date in months!",
+    "reference": "That sounds like a good birthday.  I hope you guys have fun"
+  },
+  {
+    "conv_id": "hit:11460_conv:22921",
+    "emotion": "excited",
+    "context": "So my partner gave me the biggest surprise this week. | what did they do?",
+    "utterance": "He got us a trip to Hawaii! I couldn't believe it_comma_ I am so elated!",
+    "reference": "That is awesome! I bet your happy about that"
+  },
+  {
+    "conv_id": "hit:40_conv:81",
+    "emotion": "excited",
+    "context": "I couldn't wait to go to the concert. | Which Concert?",
+    "utterance": "The U2 concert. Tickets were really expensive and I never thought we would be able to go_comma_ but somehow we did!!!",
+    "reference": "Wow_comma_ that's awesome! I have never been to an actual concert."
+  },
+  {
+    "conv_id": "hit:3622_conv:7245",
+    "emotion": "excited",
+    "context": "I can not wait until some of my family come in to town. They will be coming in to town in two weeks. | When is the last time you seen them?",
+    "utterance": "I saw them last summer which seems so long ago. I am very excited to see them because I am very close to them.",
+    "reference": "That's awesome I hope yall have a good time!"
+  },
+  {
+    "conv_id": "hit:3510_conv:7020",
+    "emotion": "faithful",
+    "context": "My friends are saying my girlfriend is cheating behind my back_comma_ but i trust her | Aww_comma_ such a nice boyfriend in this day and age! She is so lucky.",
+    "utterance": "May be. But i have known her all my life_comma_ she would die before going behind my back",
+    "reference": "I assure you she is a keeper. Marry her buddy!"
+  },
+  {
+    "conv_id": "hit:11007_conv:22014",
+    "emotion": "faithful",
+    "context": "When the England national team made the semi-finals of the World Cup | Was that a good day for you?",
+    "utterance": "So good_comma_ genuinely had my faith restored in the national team and everyone was having a good time larking about in good weather!",
+    "reference": "That's amazing! Sounds like a beauty day! Are you English?"
+  },
+  {
+    "conv_id": "hit:10318_conv:20636",
+    "emotion": "faithful",
+    "context": "I adore my girlfriend. I am getting very serious about not leaving her side. | That is great to here!",
+    "utterance": "Thank you. Do you have a romantic interest?",
+    "reference": "Not at the moment. I'm too focused on bettering myself."
+  },
+  {
+    "conv_id": "hit:11725_conv:23451",
+    "emotion": "faithful",
+    "context": "My husband is on the road a lot_comma_ I hardley ever see him. | I'm sorry. My wife could sympathize with you since I'm gone a lot on business as well.",
+    "utterance": "Yes_comma_ its hard but I try to remember he does it for our family! I have been trying to adapt to enjoying alone time.",
+    "reference": "I'm sorry you feel lonely.  My wife says she ofens feels the same way.  I know your husband misses you awfully while he's away.  I love having chats with my wife every day when I'm gone."
+  },
+  {
+    "conv_id": "hit:5047_conv:10095",
+    "emotion": "faithful",
+    "context": "I've been married almost 23 years. My husband travel so much_comma_ but we both have trust in each other to be true and loyal. | That is great_comma_ Why does he travel so much?",
+    "utterance": "for his job. So_comma_ it can be hard_comma_ but we trust each other.",
+    "reference": "What does he do for his job?"
+  },
+  {
+    "conv_id": "hit:12196_conv:24392",
+    "emotion": "faithful",
+    "context": "I love my girlfriend. She would never cheat on me | That is really nice that you guys have that trust.",
+    "utterance": "I hope to make her my wife some day!",
+    "reference": "That is an awesome goal! Good luck!"
+  },
+  {
+    "conv_id": "hit:7816_conv:15633",
+    "emotion": "furious",
+    "context": "Someone stole my identity. | Oh no! How did that happen and how much damage did they do?",
+    "utterance": "I don't know. They completely cleaned out my bank account and maxed out my credit cards. I am fuming.",
+    "reference": "That is horrible! What will you do?"
+  },
+  {
+    "conv_id": "hit:4413_conv:8827",
+    "emotion": "furious",
+    "context": "i was so angry when i found out my girlfriend kissed a friend of mine | Oh_comma_ that's awful. What did you do? I would've dumped her and beat that dude's face in.",
+    "utterance": "i have not confronted them. still thinking about it",
+    "reference": "Well_comma_ I gave you the solution right there_comma_ buckaroo. All ya gotta do is execute."
+  },
+  {
+    "conv_id": "hit:688_conv:1377",
+    "emotion": "furious",
+    "context": "after she got her 1st job and new car_comma_ she started doing girls night out. Out until 3am one morning. I checked her chat history and sure enough she had kissed another guy >:( | Wow_comma_ you must have felt jealous",
+    "utterance": "jealous isn't the one I felt. I wanted to rip her apart lol",
+    "reference": "Hahahaa_comma_ its not easy though_comma_ I would have done same"
+  },
+  {
+    "conv_id": "hit:2618_conv:5236",
+    "emotion": "furious",
+    "context": "I flew all the way to New York City to buy a designer dress for the prom. | You must be wealthy. I would love to visit NYC",
+    "utterance": "I am_comma_ thanks_comma_ but I wouldn't go there... Becky STILL managed to get the same dress as me! I am so mad!",
+    "reference": "OMG! I know how you feel"
+  },
+  {
+    "conv_id": "hit:10209_conv:20418",
+    "emotion": "furious",
+    "context": "I was hurrying around the house and wasn't paying attention fully_comma_ I ending up hitting my toe on my dogs toys. | Dang dogs leaving their things around!",
+    "utterance": "It really hurt_comma_ I think I may need to take all his toys away to punish him.",
+    "reference": "Yeah_comma_ minus one for dogs"
+  },
+  {
+    "conv_id": "hit:9498_conv:18997",
+    "emotion": "furious",
+    "context": "I woke up and the first thing I saw that my cat had decided to play with my shoes and ruin them! | Oh my_comma_ you must have been annoyed with your cat. I guess he just wanted your attention.",
+    "utterance": "I was SO mad! I felt so bad being mad at him",
+    "reference": "Aw he's just a kitty after all. I'm sure he didn't mean to make you mad."
+  },
+  {
+    "conv_id": "hit:7837_conv:15674",
+    "emotion": "grateful",
+    "context": "My dog just gave me a bunch of kisses! I love her so much | Dogs really are such great companions_comma_ what breed is she?",
+    "utterance": "She is a golden retriever. Do you have any pets?",
+    "reference": "Yes I have a miniature pinscher_comma_ he just turned 15."
+  },
+  {
+    "conv_id": "hit:2210_conv:4421",
+    "emotion": "grateful",
+    "context": "My dog started looking really sick and in pain_comma_ but I didn't have the money to take him to an emergency vet_comma_ so I had to ask my parents for a loan until I got paid. | THat is stressful.  Are they ok?",
+    "utterance": "Yeah_comma_ he's fine now.  It was some kind of stomach thing_comma_ but he got medicine and rest and is good now.",
+    "reference": "That is really good to hear"
+  },
+  {
+    "conv_id": "hit:8855_conv:17711",
+    "emotion": "grateful",
+    "context": "I'm about to go overseas and i was so overwhelmed with packing and getting ready and my friend came over and helped me to pack | That's a good friend you got there.",
+    "utterance": "she is wonderful! She helped me out so many times i don't know what i would do withiut her",
+    "reference": "Never take someone like that for granted. They are so rare."
+  },
+  {
+    "conv_id": "hit:9010_conv:18020",
+    "emotion": "grateful",
+    "context": "Today I was getting coffee and the person in front of me paid for my drink. I couldn't believe people would be so nice_comma_ I was so thankful because money has been tight. | How thoughtful.  Now you have to pay it forward_comma_ as the saying goes. | I will_comma_ you never know when someone else is in need!",
+    "utterance": "Kindness is infectious.",
+    "reference": "It is_comma_ I have been so blessed in my life!"
+  },
+  {
+    "conv_id": "hit:171_conv:342",
+    "emotion": "grateful",
+    "context": "Have you ever been in a situation when payment of some kind has come through *just* in the nick of time?! Talk about gratitude! | I bet that must have been nerve wracking until it happened.",
+    "utterance": "Absolutely. You go from scared and desperate to grateful and optimistic in one quick moment! It's not a situation I wish to be in again.",
+    "reference": "Oh I'm sure. I would not like to be in a situation like that. Good thing everything worked out for you."
+  },
+  {
+    "conv_id": "hit:2604_conv:5208",
+    "emotion": "grateful",
+    "context": "When I was pregnant_comma_ I felt ill until it was over. The doctors were worried that something was wrong with the baby. | Oh no! I'm not sure how all that works_comma_ but I thought that was fairly normal for a pregnat woman",
+    "utterance": "Usually the sickness stops within the first few months_comma_ so the fact that I fell ill so much was worrisome. Despite it all_comma_ I had a healthy_comma_ bouncing baby boy. I never have felt more grateful in my life.",
+    "reference": "Well I'm glad for you! And for him! A new life is exciting"
+  },
+  {
+    "conv_id": "hit:10306_conv:20612",
+    "emotion": "guilty",
+    "context": "I really hate when people can't hold themselves accountable for their own actions and decisions. | I agree. So often does pride get in the way of personal growth and reflection.",
+    "utterance": "Absolutely. Yet_comma_ these people have a horrible way of twisting things in order to guilt you_comma_ even if you'd done nothing wrong! It's a very manipulating and confusing feeling.",
+    "reference": "You'd hope folks would grow up_comma_ but sometimes people get set in their ways_comma_ and become impossible to change."
+  },
+  {
+    "conv_id": "hit:11365_conv:22730",
+    "emotion": "guilty",
+    "context": "I forgot about plans that I had made with my mother over the weekend. | How could you? Oh dear now you would have to apologise",
+    "utterance": "I called her right up and we rescheduled! I felt so bad though.",
+    "reference": "I am glad that you were able to reschedule"
+  },
+  {
+    "conv_id": "hit:0_conv:0",
+    "emotion": "guilty",
+    "context": "Yeah about 10 years ago I had a horrifying experience. It was 100% their fault but they hit the water barrels and survived. They had no injuries but they almost ran me off the road. | Did you suffer any injuries? | No I wasn't hit. It turned out they were drunk. I felt guilty but realized it was his fault.",
+    "utterance": "Why did you feel guilty? People really shouldn't drive drunk.",
+    "reference": "I don't know I was new to driving and hadn't experienced anything like that. I felt like my horn made him swerve into the water barrels."
+  },
+  {
+    "conv_id": "hit:8278_conv:16556",
+    "emotion": "guilty",
+    "context": "I ran into my neighbor's mailbox with my car but didn't stop and leave a note. | Thats horrible! You should tell them as that is their property. What if someone did that to your stuff?",
+    "utterance": "I agree_comma_ I felt so bad about it. When I saw him replacing it_comma_ I went out and confessed.",
+    "reference": "GOOD on you!!"
+  },
+  {
+    "conv_id": "hit:663_conv:1326",
+    "emotion": "guilty",
+    "context": "My best friend is doing 30 years in prison. I miss my good friend. | Oh_comma_will u be going to pay him a visit?",
+    "utterance": "I can't visit him. I've had to flee the country. We were robbing banks together_comma_ and he got caught with half the cash. I'm currently in the Bahamas.",
+    "reference": "Hope u will not indulge in such act like theft again?"
+  },
+  {
+    "conv_id": "hit:11376_conv:22752",
+    "emotion": "guilty",
+    "context": "I told a lie to my mother. | Was it a bad one? And did she find out?",
+    "utterance": "I was about school. And I eventually confessed.",
+    "reference": "Sometimes the lies get so heavy you just crack. Good for you though."
+  },
+  {
+    "conv_id": "hit:4766_conv:9532",
+    "emotion": "hopeful",
+    "context": "I really want to have another baby. Baby fever is real lol I don't want to be all crazy about it_comma_ don't wanna track ovulation and do all this but i really wanna get pregnant asap | wow lol I didn't know you can track ovulation. Good luck with getting pregannt",
+    "utterance": "thank you :) oh yeah_comma_ you can track ovulation_comma_ measure basal body temperature_comma_ etc. I'm not gonna go into details",
+    "reference": "please don't lol i'm a man_comma_ I appreciate what you women go through when you're pregnant or on your period but i'm okay with not knowing details"
+  },
+  {
+    "conv_id": "hit:99_conv:199",
+    "emotion": "hopeful",
+    "context": "my husband lost a job but i'm hoping he can find a full time job soon | He will_comma_ I have faith. | thank you so much!",
+    "utterance": "No problem. What kind of work does he do?",
+    "reference": "he is an armed guard"
+  },
+  {
+    "conv_id": "hit:3596_conv:7192",
+    "emotion": "hopeful",
+    "context": "I hope that this summer I can go to Florida with my family | Wait_comma_ summers already over? Next summer? | Summer is not over until Labor Day! We still have the whole month of August!!",
+    "utterance": "Oh really? I thought summer ended after July. You learn something new everyday lol",
+    "reference": "Summer can be over in July for teachers sometimes. Are you a teacher?"
+  },
+  {
+    "conv_id": "hit:4791_conv:9583",
+    "emotion": "hopeful",
+    "context": "I have big renovation plans for my house.  I've made a money plan and have kept to it so far. | Well at least you have a plan. Are you planning to start the renovation soon?",
+    "utterance": "Yes_comma_ hopefully it will all go as planned.  So far so good.",
+    "reference": "Awesome. I'm sure it's going to turn out great."
+  },
+  {
+    "conv_id": "hit:3445_conv:6891",
+    "emotion": "hopeful",
+    "context": "I was feeling so optimistic about getting a new job at Houston a while back | That is great! Did you manage to land the job?",
+    "utterance": "Yeah actually_comma_ i am still working on it. So much fun!",
+    "reference": "I'm glad to hear that! As long as you keep working hard and trying your best you can do it!"
+  },
+  {
+    "conv_id": "hit:4641_conv:9282",
+    "emotion": "hopeful",
+    "context": "I'm in contract to buy my first house_comma_ fingers crossed closing goes well and I close next Friday! | That is so exciting!! buying a house can be such a great experience.",
+    "utterance": "I'm definitely excited. The house just now got built and I saw it for the first time last Monday.",
+    "reference": "Oh so it is brand new.  I bet you cant wait to move in."
+  },
+  {
+    "conv_id": "hit:5334_conv:10669",
+    "emotion": "impressed",
+    "context": "It's great to see my husband doing so well. | I am glad to hear that!  What is happening with him?",
+    "utterance": "He's become the top manager in his division in just two years.",
+    "reference": "That is awesome!  I hope he got a good raise"
+  },
+  {
+    "conv_id": "hit:217_conv:434",
+    "emotion": "impressed",
+    "context": "I'm currently working for someone that is *such* a great example of a leader! It makes going into work inspiring every day / every way. | Lucky you! That is rare. Maybe one day people will think of you like that? | That's a very kind statement_comma_ and certainly what I would strive for. And it's the rarity that *inspires* me. That should be the norm_comma_ not the exception! THAT'S what I'd like to inspire in people. How about you? | I have something totally different. My boss is clueless to the world and have no business being a leader.",
+    "utterance": "That is soul-sapping. What do you do to inspire yourself_comma_ and not let that kind of behavior drag you down?",
+    "reference": "Well I've been in the business all my life and have worked for some great people. So I pull from what I learned from them."
+  },
+  {
+    "conv_id": "hit:4020_conv:8041",
+    "emotion": "impressed",
+    "context": "I visited the BMX park today and saw someone doing a double front flip with their bike_comma_ it was insane! | That's pretty cool. I bet it's pretty difficult to do something like that.",
+    "utterance": "I agree_comma_ years of experience and a lot of guts are needed. You could easily get injured but he pulled it off. It was crazy to see it in person. It's the type of stuff you see on TV",
+    "reference": "I'd love to watch people do tricks like this in person myself_comma_ but I'm not sure if there's any locations near me."
+  },
+  {
+    "conv_id": "hit:5548_conv:11096",
+    "emotion": "impressed",
+    "context": "i cant believe the growth video games are having this past couple of years | What do you mean by that? I'm not a gamer really",
+    "utterance": "gaming has blown up this past couple of years",
+    "reference": "Oh you're right_comma_ it has. I hear about it more and more"
+  },
+  {
+    "conv_id": "hit:3771_conv:7542",
+    "emotion": "impressed",
+    "context": "I went to my friend's niece's dance recital this weekend. I could not believe how well she did. | Ive never been to one of those.  Is she really young or is she like a professional dancer? | She is very young_comma_ and she stole the show. She was hilarious and stood out from all of the rest of the girls. | thats awesome.  I wish I would have taken dancing lessons when I was younger.  Im a horrible dancer",
+    "utterance": "You know you could still do it. I know you can.",
+    "reference": "yea you're right.  Maybe ill look into some classes and give it a shot"
+  },
+  {
+    "conv_id": "hit:4872_conv:9744",
+    "emotion": "impressed",
+    "context": "I finished a class and most of my classmates got an A! It took a lot of work. | That's great. Takes a lot of dedication to be that prepared.",
+    "utterance": "It sure does! I am so proud of the hard work that everyone put in!",
+    "reference": "You should be_comma_ not everyone can really be that dedicated about something."
+  },
+  {
+    "conv_id": "hit:4681_conv:9363",
+    "emotion": "jealous",
+    "context": "I was surprised when my wife left me | Oh im so sorry to hear that.. how long were you married?",
+    "utterance": "We were married for 10 years",
+    "reference": "It must have felt unbelievably hurtful for you.. I hope you find someone very soon.."
+  },
+  {
+    "conv_id": "hit:275_conv:551",
+    "emotion": "jealous",
+    "context": "I met up with an old flame recently_comma_ didn't go how I expected | Oh ya? What happened?? I'm intrigued | Well_comma_ right after she gave me a big hug_comma_ she introduced me to her new boyfriend.",
+    "utterance": "Woah plot twist. She brought him along to meet you?",
+    "reference": "I know right! No warning or anything. He turned out to be a nice guy_comma_ but I thought it was a little misleading on her part."
+  },
+  {
+    "conv_id": "hit:3530_conv:7061",
+    "emotion": "jealous",
+    "context": "my friend bought a big house and i'm happy for her but at the same time i'm a little bit jealous | Big houses are a pain in the neck to keep clean.",
+    "utterance": "true_comma_ but there is so much space for her kid to run and play at and I live in a tiny apartment with my son",
+    "reference": "It does have its benefits."
+  },
+  {
+    "conv_id": "hit:4743_conv:9487",
+    "emotion": "jealous",
+    "context": "it sure must be nice to be able to get all the cool stuff_comma_ and do whatever you want and not have to work for any of it. | Well I wouldn't know lol",
+    "utterance": "Yeah me either. I have some friends that get to experience it. Fortunately they are sharing so that is nice.",
+    "reference": "I don't have any sharing friends either lol. You're lucky"
+  },
+  {
+    "conv_id": "hit:2837_conv:5674",
+    "emotion": "jealous",
+    "context": "My sister is always the sibling that my parents talk about. Sometimes I wonder if they even notice me. | I am sorry to hear that. Have you ever talked to your parents about that?",
+    "utterance": "I haven't. I'm scared that it would just make the situation worse. Do you think I should tell them how I feel?",
+    "reference": "Yes_comma_ you do.Otherwise_comma_ you are going to carry that pain the rest of your life."
+  },
+  {
+    "conv_id": "hit:3973_conv:7946",
+    "emotion": "jealous",
+    "context": "It's my brother's 16th birthday in a couple days and he's probably getting a nicer car than I currently have. I'm 24. | Oh wow_comma_ I'd be really jealous of him.",
+    "utterance": "I certainly am! Of course_comma_ I can't be certain yet because I don't know what he's getting. My car is junk though so it's bound to be better.",
+    "reference": "Well_comma_ hopefully you can get yourself a better car soon."
+  },
+  {
+    "conv_id": "hit:3982_conv:7964",
+    "emotion": "joyful",
+    "context": "So my brother is turning 16 soon which means I don't have to drive him around anymore. Score! | That is nice.",
+    "utterance": "Yes indeed! I am very happy about it. Do you have any younger siblings?",
+    "reference": "I have one younger brother but he is old enough to drive on his own_comma_"
+  },
+  {
+    "conv_id": "hit:111_conv:222",
+    "emotion": "joyful",
+    "context": "i'm so excited because i'm finally going to visit my parents next month! I didn't see them for 3 years | 3 years is a long time. How come?",
+    "utterance": "I moved to the US and they stayed in my homecountry",
+    "reference": "Oh I see. They must miss you_comma_ too."
+  },
+  {
+    "conv_id": "hit:3393_conv:6787",
+    "emotion": "joyful",
+    "context": "I can't seem to feel happy but I'm not depressed | So what is the problem exactly?",
+    "utterance": "I just feel kinda stuck in life",
+    "reference": "Try doing something you never did before."
+  },
+  {
+    "conv_id": "hit:4223_conv:8447",
+    "emotion": "joyful",
+    "context": "My sunday was great. All my chores were done ahead of time. It was a rare and welcomed day. | that is awesome. sundays are usually my veg out days. | I wish I could more often_comma_ but it rarely happens. Especially during the summer. My yard grows like literal weeds. | mine is going crazy with mosquitos",
+    "utterance": "ouch! I would not have had a relaxing sunday if my yard was that way.",
+    "reference": "i tried to trim my tomato leaves yesterday but i got bit up so bad i ran back inside"
+  },
+  {
+    "conv_id": "hit:2772_conv:5545",
+    "emotion": "joyful",
+    "context": "My grandpa is coming to visit!,5|5|5_5|5|5,\nhit:2772_conv:5545,2,joyful,My grandpa is coming to visit!,11,That sounds like you are excited for sure! When is he coming and what are yall going to do? ,5|5|5_5|5|5,,You are so right.|I know how you feel. My oldest is in her sophomore year of college. |Oh my_comma_ so close! But you can try better next time.|Ahhh! Me too_comma_ there is so much that can be done on the weekends!|oh no.. what happeneed|That's nice to hear.  It's always a good thing in a marriage to show each other support through thick and thin.|I hope so too_comma_ best of luck with that!|It was nice of you to step up and help out.|That's very faithful of you_comma_ and the right thing to do I'd say. |Good think you're prepared \ud83d\udc4d|Oh man_comma_ you gotta super clean it_comma_ have the professionals do it even |Nostalgia can stir emotions. You'll find something to love about life again.|I've never imagined something like that before. Where did you see this?|Oh wow haha that's not good|And who was right in this case?  Dis anyone turned it in?|Is that a bad sign? Perhaps the plant is not getting enough nutrition or sunlight?|I would be too_comma_ that is a long time!|That is quite impressive! You must be very proud of your work!|people change over time_comma_ is she thinking of coming back ?|lol. don't do the crime if can't face the Bat ;)|Cool!  Have fun and be safe!!|Hahahaha_comma_ that's so funny|Yeah i can imagine but a little worm wont hurt ya|Wow_comma_ did you ever get them in trouble?|that is really cool i hope you get the job|It's pretty hard to deal with.  One of my friend's buddies died in a car crash as well.|I am glad that you are okay!|it happens to the best of us_comma_ and i totally understand where your coming from _comma_ spend some time with your friends or loved ones |That's so sweet! We have blue healers_comma_ they just make the world better.|You got too_comma_ my cats dont do that thankfully.|It's going to help your family out so much I bet everyone is so proud of you_comma_ congrats you deserve it.|Oh poor thing.  I hope she is doing better now.  Losing a pet is extremely hard!|Nice_comma_ I am jealous of your friendship!|Yeah I have lol. What's your brothers name?|Great_comma_ where did you go?|Well_comma_ I hope you got over that issue and ended up making lots of friends yourself.|For sure! I bet it was nice to have the hosue a little more quiet too.|The wiring was probably old and not up to code anymore.|Yeah.  Back when the only buttons on a controller were Start_comma_ Select_comma_ A and B!|This is TRUE! I am glad to be at home with these guys right now. Have a great day! |on to the next one_comma_ as they say!|i believe you|Yea for sure_comma_ I definitely learned that sometimes life just works in a funny way. When's the last time you have been really disappointed? |That would be horrific.  Do you know someone that this happened to?|Definitely not! Music is a great idea though; I listen to music on all bus rides and car rides.|That sounds so fun! |Oh_comma_will u be going to pay him a visit?|They both sound like great plans! Tubing would be a great way to keep her happy while you fish haha!|That sounds horrible. I would not have been able to sleep after that.|Good for you! I wish more people were like this_comma_ unlike my ex! |I have never been married_comma_ so i cant imagine_comma_  but I would want to be with my spouse every moment of every day.|That sounds like you are excited for sure! When is he coming and what are yall going to do? |i can imagine_comma_ that's gross as hell|Congratulations! Waiting for results can be very stressful - everything's out of your hands and all you can do is wait.|I think you should always focus on your strength then it won't matter who is there and what they say|That must suck not living close to a beach. Hopefully you get to go back real soon.|How sad to lose a dog you love! Ta least she/he died of old age_comma_ she must be in doggy heaven.|I was just going to say the same thing! I'm like Stay away!\" |My goodness_comma_ well I guess that happens to all of us at least once.|Can you blame her?   I mean_comma_ if i didn't have bills that's what I'd be doing.|Better luck next time!  I love to scratch!|Haha good! I'm glad that one went well.|i like paprika in my mac and cheese|Oh that sucks :( Maybe organize the socks better?|Oh no! I hope it didn't fall on anything or anyone!|That's great_comma_ man! Did you study hard for it?|It sounds like a great experience!|Yes! and new opportunties for my family. We need the fresh start on life. I don't like living in Texas.|I'm so glad you made it through|That sucks. Maybe it's time to get new friends?|that is so sweet_comma_ i think that is why she got better_comma_ your caring ways|Oh_comma_ that's not right. I have a rescue dog_comma_ she had a litter of puppies at a puppy mill before she was a year. |oh my goodness thats terrible_comma_ i am so sorry!|That's awesome!  What kind of house is it?|I can imagine. When I was in the hospital with my 3 year old they lost all his vitals as well. Kids like to keep us on our toes from the start!|Just buy another one and don't eat it. lol|I completely understand think of it as maybe they are not meant to be apart of your life_comma_ you will find some good friends just be patient. |What was the boy kid's problem?|Well I hope one day your parents are more accepting!|Sounds good_comma_ when she got back I hope you schooled her on Halo ?|Oh well that's a plu!|I'm so very sorry for your loss_comma_ I can only imagine that pain. I had to put my girl down 3 years ago and I promise that it does get easier.|That is frightening! especially if you didn't know whether it was a harmful spider or not! What did you do?|im sorry_comma_ thats awful. its a shame his parents arent being more supportive|Why did she break up with you?|Kindness is infectious.|Do you have any advice on what kind of tape?|Yikes that sounds scary but overall good for the end results. How do you feel about it? |Oh really? What was it they served?|How fun! I wonder how they knew.|When did you get separated? By the way_comma_ that is terrible to hear.|I'll have to do the same! I wish my skin looked better than it does.|Yeah me too. I like that though_comma_ I like earning my way. |Exhaust all options_comma_ social media is a big way to stay connected|Sick. I hope it's as fun as it looks!|That's a long time to kind of hang in limbo. I am sorry you had to endure that for a month.|Same here.  Try to take advantage of your gaming and be more outgoing during gametime.|Why did he get called back in?|Well_comma_ that's very nice. I'm sure you were looking forward to that shopping trip.|OUCH. New car is cheaper than replacing the engine?",
+    "utterance": "He is coming next week! We are going to play Bingo at the local American Legion every night!",
+    "reference": "Honestly that sounds pretty fun to me I havent been to bingo in years. I love listening to the older people arguing when someone wins."
+  },
+  {
+    "conv_id": "hit:3544_conv:7088",
+    "emotion": "joyful",
+    "context": "Are you a parent. | I am not_comma_ I am still young",
+    "utterance": "When you become one_comma_ you will never forget the day it happens. You'll weep of happiness.",
+    "reference": "I hope so_comma_ I am still not sure if I want kids"
+  },
+  {
+    "conv_id": "hit:452_conv:905",
+    "emotion": "lonely",
+    "context": "One of the hardest times in my life was when I had to leave my husband and daughter when I went through a divorce. | I am so sorry. I can't imagine what you must have went through. | I felt like I had no one. The two people I loved most in life I barely saw and was disconnected from.",
+    "utterance": "That must have been really hard.",
+    "reference": "It was_comma_ but I grew so much from it_comma_ and it ended up being the very best thing that could have happened to me."
+  },
+  {
+    "conv_id": "hit:4969_conv:9938",
+    "emotion": "lonely",
+    "context": "I am so lonely right now because no one wants to be with me | I'm sad to hear that. Have you tried using social media to make new friends?",
+    "utterance": "Yeah_comma_ but no luck",
+    "reference": "Try going to the park then. You could run into someone that is into you."
+  },
+  {
+    "conv_id": "hit:1375_conv:2751",
+    "emotion": "lonely",
+    "context": "My wife went to Germany to attend a language course at the end of June.  I've been mostly spending time with my dogs while she's been gone since we recently moved and I don't really know anyone outside of work. | you should take the dogs to a dog park after work and meet people!",
+    "utterance": "That's a good idea.  I don't know where there's a dog park near me_comma_ I should look into that.",
+    "reference": "Definitely. I think even Waze app will tell you in you search 'around me'."
+  },
+  {
+    "conv_id": "hit:37_conv:74",
+    "emotion": "lonely",
+    "context": "I there_comma_ dont know what to do_comma_ jst broke up with my girlfirned_comma_ we were 8 years together | sorry to hear! do you have any idea about the break up? did you think about it ?",
+    "utterance": "Yes we decided together with our minds_comma_ and know i come home and feel so distant from the world",
+    "reference": "sorry again! hope you'll get relief from this sadness. Please concentrate on your interests to divert your mind from this."
+  },
+  {
+    "conv_id": "hit:6436_conv:12872",
+    "emotion": "lonely",
+    "context": "I like being alone_comma_ but not feeling bad when no one is around to talk to | Me time is very crucial for anyone_comma_ it help one clear hi or her mind. We are so much alike..",
+    "utterance": "It's true I do need my alone time",
+    "reference": "Sort of reduces stress_comma_very crucial"
+  },
+  {
+    "conv_id": "hit:6884_conv:13769",
+    "emotion": "lonely",
+    "context": "Its so quiet in my house_comma_ my husband is out of town for work. | Hey I like alone time!  Just gotta find some cool stuff to do!",
+    "utterance": "True_comma_ I'm trying but keep hearing creepy noises. Guess I need to turn the TV up louder haha",
+    "reference": "oh no!!  The ghosts are coming!! Yeah turn the TV up LOUD :D"
+  },
+  {
+    "conv_id": "hit:469_conv:939",
+    "emotion": "nostalgic",
+    "context": "Have you ever heard a song on the radio and it just takes you back to a different time? Like an escape? | All the time.  That is part of listening to music I suppose.  The songs remind you of when you first heard them. | Yeah_comma_ I guess that's fair. It happens all the time to me too. Sometimes makes me wish I was reliving those moments but I don't think I would really want to go back..",
+    "utterance": "I know what you mean.  However_comma_ the older I get the more I want to go back LOL.",
+    "reference": "lol :) That's true. Life is hard and did seem so much more carefree when I was younger_comma_ but I just don't like who I was. I like me now much better :)"
+  },
+  {
+    "conv_id": "hit:6363_conv:12726",
+    "emotion": "nostalgic",
+    "context": "I love it when the new star wars movies come out_comma_ seeing all those kids (and adults) dress up for the theater really takes me back! | Do you dress up when the new movies come out also?",
+    "utterance": "I don't anymore_comma_ but when I was a kid_comma_ a friend and I dressed up as the hero and the villain for the premiere of Episode I.",
+    "reference": "Ah_comma_ I bet seeing all of the kids now dressed up does take you back to an earlier time.  Nostalgia has a way of getting to each of us."
+  },
+  {
+    "conv_id": "hit:2064_conv:4128",
+    "emotion": "nostalgic",
+    "context": "Years ago I used to have such a good time. I had money to spend_comma_ time to do the things I love. How I long for those times again! | I know exactly how you feel_comma_ I've been slipping back into paycheck to paycheck living recently. It was so much better when I had the money to pay for everything. | Didn't the sun always shine back then_comma_ when we were happy and young and had money?!",
+    "utterance": "Hahaha yes_comma_ you are so right. Then again_comma_ I'm a Christian so I am also comforted when I remember that we have a real_comma_ more important and awesome life to look forward to one day.",
+    "reference": "That's true. I still like to look fondly upon the past_comma_ but the future will be bright_comma_ too."
+  },
+  {
+    "conv_id": "hit:155_conv:311",
+    "emotion": "nostalgic",
+    "context": "I recently spoke with my ex-girlfriend on the phone. The conversation went pretty well_comma_ and it reminded me of my past experiences with her. | Did things end amicably? I hope everything is good now! | Yes_comma_ they ended somewhat well_comma_ but there were tense moments. I am glad she's doing well_comma_ but I miss her.",
+    "utterance": "I understand that_comma_ I hope things work out well for you both in the end!",
+    "reference": "Thank you! That means a lot."
+  },
+  {
+    "conv_id": "hit:8051_conv:16102",
+    "emotion": "nostalgic",
+    "context": "I got to hear a lot of cool songs on a radio station I usually don't listen to. | Nice! Which ones did you hear!",
+    "utterance": "Mambo #5_comma_ Missy Elliot_comma_ and Ricky Martin. It really took me back",
+    "reference": "That one is a zinger! I remember listening to that when I took my grandma to prom!"
+  },
+  {
+    "conv_id": "hit:8721_conv:17443",
+    "emotion": "nostalgic",
+    "context": "I love playing old school video games. The music is amazing | Old school video games are full nostalgic memories for me. That is why i try to avoid them as they evoke many emotions in me",
+    "utterance": "For me it's happy emotions",
+    "reference": "It is just that I miss my friends a lot with whom i used to play. I wish i could just rewind time and go back"
+  },
+  {
+    "conv_id": "hit:844_conv:1689",
+    "emotion": "prepared",
+    "context": "I'm going overseas and I think I packed everything i need! | Where are you headed ?",
+    "utterance": "Going to Kazakhstan. That's where i was born. My parents still live there and i miss them so much",
+    "reference": "Great_comma_ I hope you have a nice trip. How long will you be staying?"
+  },
+  {
+    "conv_id": "hit:6423_conv:12846",
+    "emotion": "prepared",
+    "context": "My Calculus final was no joke! I started studying hard two weeks before the test. | tHat is insane_comma_ I usually give myself like 2 or 3 days.",
+    "utterance": "Trust me it all paid off. When I went in to take the test_comma_ I was absolutely solid on the material.",
+    "reference": "Thats right! thats such a good feeling_comma_ just breezing through a test."
+  },
+  {
+    "conv_id": "hit:2745_conv:5490",
+    "emotion": "prepared",
+    "context": "i never get anxious about knowing that i am fully prepared before i go somewhere | haha.. i feel you. my mom feels the same way",
+    "utterance": "well_comma_ i guess women are more detail oriented",
+    "reference": "Amen sister! women always keep things in check"
+  },
+  {
+    "conv_id": "hit:441_conv:882",
+    "emotion": "prepared",
+    "context": "One time I studied my butt off for my first psychology exam. It was hard and I studied all night. | How did you do | I ended up actually getting a 98%!",
+    "utterance": "That is great! My B.S. ( I always hate saying that because I have to say I have my BS in psychology) is in Psychology.",
+    "reference": "Haha I always thought that was a funny term too. That's amazing. Psychology is absolutely fascinating."
+  },
+  {
+    "conv_id": "hit:8012_conv:16025",
+    "emotion": "prepared",
+    "context": "I've been so busy packing_comma_ packing and more packing. | That sounds pretty stressful. Are you moving soon?",
+    "utterance": "Yes_comma_ don't know exactly when but I hate being rushed so I've been doing what I can.",
+    "reference": "That makes sense. I hate leaving things for the last second as well. Hopefully you won't have to leave everything boxed up for too long."
+  },
+  {
+    "conv_id": "hit:8235_conv:16470",
+    "emotion": "prepared",
+    "context": "I've been training hard for a marathon next week_comma_ and I am beating my record time! | That's amazing! How long have you been running?",
+    "utterance": "For a few months now_comma_ but I've been training pretty hard just these past few months.",
+    "reference": "That's pretty cool. I hope you win!"
+  },
+  {
+    "conv_id": "hit:9100_conv:18201",
+    "emotion": "proud",
+    "context": "I am constantly amazed by my sister's art skills. I'm not sure where she got them...my brother and I can't draw to save our lives. | what does she draw",
+    "utterance": "Mostly anime characters and various portraits. She's still quite young_comma_ so she has a way to go_comma_ but if you asked me to draw anything similar to what she can when I was her age? Forget about it.",
+    "reference": "thats awesome"
+  },
+  {
+    "conv_id": "hit:8882_conv:17765",
+    "emotion": "proud",
+    "context": "After studying and preaching for a few years_comma_ my husband was ordained to be a minister. | That's wonderful_comma_ it's always good when hard work pays off like that! | Yes it is and he is so devoted to God and living for Him. I was so happy for him.",
+    "utterance": "I bet so that sounds nice",
+    "reference": "Thank you."
+  },
+  {
+    "conv_id": "hit:8100_conv:16201",
+    "emotion": "proud",
+    "context": "i was really happy the day i finished my doctorate | Wow. That is quite an accomplishment! Congratulations! | yeah it really took a lot of hard work to do it but it was worth it at the end",
+    "utterance": "What was is your doctorate in?",
+    "reference": "in science of medicine it was really a fun exppirience"
+  },
+  {
+    "conv_id": "hit:11698_conv:23397",
+    "emotion": "proud",
+    "context": "I finished first in a race. I feel like gold | Oh my goodness!  That's amazing!  Congratulations! Was it your first gold medal race?",
+    "utterance": "Yes! It was my first victory. All my hard work is paying off",
+    "reference": "That is awesome! It is for running?"
+  },
+  {
+    "conv_id": "hit:3712_conv:7424",
+    "emotion": "proud",
+    "context": "I recently got accepted to an Electrical Engineering program at my school. | That awesome! Congratulations! You should be very proud of yourself!",
+    "utterance": "I was very excited when I found out. Have you ever been accepted to anything that you really wanted before?",
+    "reference": "Yes_comma_ I have! It's a great feeling when all of your hard work pays off! Best of luck to you!"
+  },
+  {
+    "conv_id": "hit:9028_conv:18057",
+    "emotion": "proud",
+    "context": "My sister got a promotion at work last week! | oh that is awesome. what does she do?",
+    "utterance": "She is an accountant for a college in Alaska. She's been working their for years so I'm glad they saw her dedication :)",
+    "reference": "that is great. my sister is an account too. she's also the office manager."
+  },
+  {
+    "conv_id": "hit:10222_conv:20445",
+    "emotion": "sad",
+    "context": "I get pretty sad some nights_comma_ but it feels good to cry sometimes | Oh_comma_ why are you crying? Is anything wrong in particular? Have you talked to somebody?",
+    "utterance": "Yeah_comma_ sometimes it's like a deep sadness comes out of nowhere",
+    "reference": "Oh I'm sorry_comma_ I hope you get the help that you need."
+  },
+  {
+    "conv_id": "hit:49_conv:98",
+    "emotion": "sad",
+    "context": "I'm so sad because i've read an article about a newborn girl who died because her parents didn't believe in medication and doctors | Ugh_comma_ those articles always get me too... :( What was wrong with her? | she was born premature at home_comma_ she had hard time breathing on her own but instead of taking her to the doctor parents were just praying",
+    "utterance": "Jeez! Its so unfortunate... very sad really.",
+    "reference": "yes! And i do believe in God and prayers but goodness gracious please take your children to the hospital and let God heal them THROUGH doctors"
+  },
+  {
+    "conv_id": "hit:4650_conv:9300",
+    "emotion": "sad",
+    "context": "My Mother and I made plans to hang out and do lunch this past week. | Really?",
+    "utterance": "Unfortunately she was unable to make it because her diabetes is wreking her health.",
+    "reference": "So sorry about that"
+  },
+  {
+    "conv_id": "hit:3717_conv:7435",
+    "emotion": "sad",
+    "context": "I was quite distressed to hear of the passing of Anthony Bourdain. That someone who has given so much joy to a huge number of people should take his own life is just awful. | I know!  I was just watching his show on Netflix!  So sad_comma_ especially since he had a little girl he is leaving behind. | Indeed. Depression is a terrible disease and there simply aren't enough resources devoted to mental illness_comma_ imo.",
+    "utterance": "I agree.  He had so much to live for.  I guess it is hard to know what demons people are hiding inside.",
+    "reference": "It is. I read his book Kitchen Confidential. He's been battling addiction and demons all his life. I thought he'd found peace_comma_ but I guess not."
+  },
+  {
+    "conv_id": "hit:1441_conv:2883",
+    "emotion": "sad",
+    "context": "It's hard as a parent_comma_ when your kids are teenagers and have to handle their own problems | You kinda want to hold their hand_comma_ but you know it's best they solve some problems on their own. You can't be with them all the time.",
+    "utterance": "I know_comma_ they mommy in me wants to just jump in and fix it all like I used to",
+    "reference": "It is truely for the best. Try not to worry."
+  },
+  {
+    "conv_id": "hit:8988_conv:17976",
+    "emotion": "sad",
+    "context": "In some ways_comma_ losing a pet dog is even worse than losing a relative. They're so innocent_comma_ they're so helpless. They don't deserve to have to die or suffer ever. | Goodness_comma_ you're right about that. Plus a pet is the only thing to show unconditional and neverending love for you. | Exactly_comma_ and they never demand anything from you. When my golden retriever Louie died a few weeks ago_comma_ I honestly thought I would die too.",
+    "utterance": "I'm so very sorry for your loss_comma_ I can only imagine that pain. I had to put my girl down 3 years ago and I promise that it does get easier.",
+    "reference": "Thank you_comma_ that's good to hear. I find it pretty difficult to continue on most days...but I suppose it's starting to get easier."
+  },
+  {
+    "conv_id": "hit:7862_conv:15724",
+    "emotion": "sentimental",
+    "context": "My oldest child's birthday is next week and it always makes me emotional. | I can imagine. How old will they be?",
+    "utterance": "She will be 30. It makes me feel so old_comma_ but also how fun it was when they were little.",
+    "reference": "Yeah but also just think of all the amazing movies she has done."
+  },
+  {
+    "conv_id": "hit:3987_conv:7975",
+    "emotion": "sentimental",
+    "context": "I love the adventure and perspective of living away from my home state -- but that doesn't mean I don't miss elements of it while I'm gone! | Same here. I actually moved to the other side of the USA_comma_ and I do miss my home",
+    "utterance": "Are you able to visit often? That helps -- but it's funny how things never feel *exactly* the same_comma_ you know?",
+    "reference": "Not as often as I would like. Air travel is expensive after all. I know exactly what you mean though!"
+  },
+  {
+    "conv_id": "hit:9759_conv:19519",
+    "emotion": "sentimental",
+    "context": "What is parvo? | It's a deadly dog illness_comma_ basically a virus that often leads to death. We think she caught it at the shelter. | That's terrible. Can you confirm it? | Yes_comma_ they have to do a fecal sample and test it. We take her in tomorrow to see.",
+    "utterance": "I hope she is okay.",
+    "reference": "Thank you!"
+  },
+  {
+    "conv_id": "hit:12024_conv:24049",
+    "emotion": "sentimental",
+    "context": "It was so nice. I'm terrible about throwing cards out. I feel_comma_ if someone's taken the time to write_comma_ I should preserve it. Does that sound silly? | Of course not. There is so much paper in this house. I keep cards_comma_ photos_comma_ school projects. Everything. We arent here forever | That's very true. My Dad kept everything too. When he passed we had quite a task sorting through things. I think my brother's still at it! | I found lots of things to pass down when my grandmother passed. I think they passed down their hoarding to us lol",
+    "utterance": "I believe you are right! My family are going to go nuts when they see what they've got to deal with_comma_ lol.",
+    "reference": "Lol. Me too!!"
+  },
+  {
+    "conv_id": "hit:265_conv:530",
+    "emotion": "sentimental",
+    "context": "Every time I look through older photos of my children_comma_ I'm taken right back to the time they were that size_comma_ and what we were doing! It's a bittersweet feeling_comma_ for sure. | Oh_comma_ it sure is_comma_ I feel the same way. They grow up so fast! | Are your kids adults now?",
+    "utterance": "One of them is! I have an 18 year old and a 12 year old.",
+    "reference": "I have an 18 year old as well -- I don't know about you_comma_ but it's hard to consider her an adult sometimes!"
+  },
+  {
+    "conv_id": "hit:4725_conv:9451",
+    "emotion": "sentimental",
+    "context": "I was digging through some old stuff I had and I found letters that my wife wrote me when we were still dating. They were so sweet. | Aww. Thats nnice",
+    "utterance": "Yeah! It gave me all of the feels. I read through them and pretty much fell in love with her all over again.",
+    "reference": "No one writes letters anymore... its kind of sad"
+  },
+  {
+    "conv_id": "hit:1807_conv:3615",
+    "emotion": "surprised",
+    "context": "We knew she was pregnant_comma_ but didn't know the gender yet. Imagine my shock when I saw the ultrasound for the gender! | I am sure it will be fine_comma_ do you have a preference",
+    "utterance": "Well it's a boy. Which is what I have been wanting since we met",
+    "reference": "I am happy for you then"
+  },
+  {
+    "conv_id": "hit:9632_conv:19264",
+    "emotion": "surprised",
+    "context": "We went on vacation and the kids stayed home. I couldn't believe it when I walked in the door and the house was totally clean. | Lol! I thought you were going to say MESSY! Good kids! | Wonders never cease to amaze me. First time for everything I guess_comma_ lol | So true! Maybe they want something or they did something bad and are hiding it lol",
+    "utterance": "I totally thought the same thing. Too funny (but you might be right)",
+    "reference": "Lol ;) Well enjoy the clean house_comma_ don't worry about the rest!"
+  },
+  {
+    "conv_id": "hit:7118_conv:14237",
+    "emotion": "surprised",
+    "context": "Not that long ago_comma_ my husband planned a secret trip for us! I didn't have a clue he was doing it and was pleasantly shocked. It was so much fun! | Where did he take you to?",
+    "utterance": "We just took a weekend trip to Tunica_comma_ MS. We stayed at a really nice casino hotel and just played some Blackjack_comma_ enjoyed good food and each other's company!",
+    "reference": "I love Tunica. Did you win at blackjack?"
+  },
+  {
+    "conv_id": "hit:4881_conv:9763",
+    "emotion": "surprised",
+    "context": "When I worked as a hotel rep. in Spain a few years ago I was greeting guests one morning. Suddenly I saw someone I knew - it was my cousin who decided to come and visit me. It was so unexpected! | Oh that must have been so exciting and surprising! | It really was. I had no idea he was coming to visit. I couldn't believe my eyes!",
+    "utterance": "Did you all do some fun things while he was there?",
+    "reference": "We certainly did. Where I was working was a seaside resort and there are loads of clubs_comma_ restaurants etc. so we'd go to the beach and then party at night. Brilliant fun!"
+  },
+  {
+    "conv_id": "hit:3792_conv:7585",
+    "emotion": "surprised",
+    "context": "So yesterday I found out my roommate has been dating someone for 3 months. I can't believe he didn't tell me. | Wow_comma_ that's a good amount of time. Is he usually so secretive?",
+    "utterance": "He is usually a very private person. He hasn't dated anyone in the over 3 years i've lived here_comma_ and he's only ever had one friend over.",
+    "reference": "Ah_comma_ maybe he just wanted to make sure it was going to work before he told anyone."
+  },
+  {
+    "conv_id": "hit:8269_conv:16538",
+    "emotion": "surprised",
+    "context": "My bank_comma_ which I've had a savings account with for over 10 years has been deducting $15/month from me for \"inactivity\". How about that? | Death by a thousand cuts_comma_ I call it! They'll try to make a buck off anything! | Very true. They didn't even tell me. That was the last thing I expected! I only just decided to use it again.",
+    "utterance": "Did you try talking to them about it? I can only assume it wouldn't go well but you never know.",
+    "reference": "Yes. They said that they'd been taken over by another bank and it was the previous one which deducted the money. What rubbish. It just amazes me!"
+  },
+  {
+    "conv_id": "hit:4758_conv:9516",
+    "emotion": "terrified",
+    "context": "I just about had a figurative heart attack the other night. | What happened?",
+    "utterance": "I woke up in the wee hours and thought I saw a person standing in the corner of my room.  It was just some clothes hanging on a door.",
+    "reference": "Oh wow_comma_ I would of been terrified!"
+  },
+  {
+    "conv_id": "hit:154_conv:309",
+    "emotion": "terrified",
+    "context": "I'm so scared of bugs! i found one in my hair yesterday and almost died",
+    "utterance": "ok",
+    "reference": "Ugh I hate bugs with a passion_comma_ they are so creepy"
+  },
+  {
+    "conv_id": "hit:9018_conv:18037",
+    "emotion": "terrified",
+    "context": "Watching scary movies lately has me paranoid_comma_ I was really frightened the other night. | Oh no! What happened? | I went for a drink downstairs_comma_ and the back door was wide open. I didn't sleep a wink and kept my phone and a big knife with me the rest of the night_comma_lol.",
+    "utterance": "Oh man! I would have been so scared!",
+    "reference": "I really was_comma_ and I'm supposed to be the grown up_comma_ but I got my daughter to lie next to me."
+  },
+  {
+    "conv_id": "hit:814_conv:1629",
+    "emotion": "terrified",
+    "context": "Have you ever had a sleep paralysis dream? | Yep! Not really that fun to have since you see things at times.",
+    "utterance": "Yeah_comma_ in mine I saw a smoke looking shadow over me with red eyes staring at me. I've never been more scared in my life.",
+    "reference": "Man that is scary! Granted i like to hear things about that."
+  },
+  {
+    "conv_id": "hit:10215_conv:20431",
+    "emotion": "terrified",
+    "context": "Paranormal activity is the sCaRiEsT movie of horror movies | Really? I don't find it that scary maybe you just haven't seen true terror.",
+    "utterance": "Yeah you'll have to show me sometime",
+    "reference": "I have a chucky doll sitting in the chair next to me and it looks at me all day. Now thats a movie."
+  },
+  {
+    "conv_id": "hit:3701_conv:7403",
+    "emotion": "terrified",
+    "context": "I had a rather unnerving experience this past winter. Being unable to sleep at 4am_comma_ I went outside for a cigarette (I live in an apartment complex). Suddenly_comma_ out of the darkness_comma_ appeared a tall bulky figure dressed in black. They were coming straight at me! | What did they or the person do to you? | Well_comma_ I'm in a wheelchair_comma_ so can't move too quickly. I just sat looking at them_comma_ trying to figure out whether I could reach the broom at the corner of the porch.",
+    "utterance": "Broom would be a good choice_comma_ hit them in the crotch_comma_ that will stop them.",
+    "reference": "Well_comma_ that would have been an option. The person came right up to my porch and said \"Good morning. Can't sleep either?\" It was my friend and neighbor walking her dog and I didn't recognize her with all her winter gear on. Scared the daylights out of me!"
+  },
+  {
+    "conv_id": "hit:11246_conv:22492",
+    "emotion": "trusting",
+    "context": "I let my daughter ride in the road by herself on her skateboard the other day. | Oh wow.  How did she do?",
+    "utterance": "She did great. She's pretty good about looking out for cars.",
+    "reference": "That's awesome!  That's great exercise!"
+  },
+  {
+    "conv_id": "hit:11707_conv:23414",
+    "emotion": "trusting",
+    "context": "Some of my friends told me that they had a big surprise for me. They know I hate surprises_comma_ but I complied and let the blindfold me and drive me out to the location. | That sounds exciting and scary.  What was the surprise?",
+    "utterance": "They had decided to pool their money together and get me one big present together. It was a flying lesson at the local airport.",
+    "reference": "That is so awesome.  Did you have fun? and more important_comma_ are you a pilot now?"
+  },
+  {
+    "conv_id": "hit:175_conv:351",
+    "emotion": "trusting",
+    "context": "I'm a big believer in listening to your gut. Sometimes I might wonder where my intuition is leading me_comma_ but it always seems to be spot on. | I agree_comma_ someimes we just know",
+    "utterance": "It is a \"knowing\" -- and a flowing! When something is right_comma_ it just feels easier to go with it -- like you're being led_comma_ even if you might not fully know to where.",
+    "reference": "exactly_comma_ i get that entirely!"
+  },
+  {
+    "conv_id": "hit:10544_conv:21089",
+    "emotion": "trusting",
+    "context": "I like like loaning money to friends. It can ruin friendships and sometimes doesn't get paid back. | I'm always leery of loaning money to friends",
+    "utterance": "Yeah_comma_ I meant don't like_comma_ sorry. I recently lent some to my friend with no expectation of getting it back because of her hard situation. I actually got it back.",
+    "reference": "That was a nice surprise!  I have tried lending money to friends but finally had to stop after never getting it back"
+  },
+  {
+    "conv_id": "hit:2561_conv:5123",
+    "emotion": "trusting",
+    "context": "I fed a stray cat that was hanging out in my yard yesterday. | Oh that's nice_comma_ I love doing that. Did the cat seem happy?",
+    "utterance": "The cat appeared very relaxed_comma_ but I could tell it was very pensive about my presence. It took some time to develop some sort of trust.",
+    "reference": "Well how nice_comma_ that must have been fun."
+  },
+  {
+    "conv_id": "hit:10156_conv:20313",
+    "emotion": "trusting",
+    "context": "I have many health problems that require me to see many different speccialist | That's awful!  Will you be feeling better any time soon?",
+    "utterance": "I am working towards that..I have been lucky to find some great doctors which I am able to put faith in because my life is essentially in their hands",
+    "reference": "I am so glad you have doctors that you can trust!"
+  }
+]
