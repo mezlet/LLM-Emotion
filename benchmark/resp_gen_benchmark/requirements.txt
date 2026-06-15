@@ -1,0 +1,22 @@
+# requirements.txt — Response Generation Benchmark
+
+# Dataset
+datasets>=2.18.0
+
+# Core
+pandas>=2.0
+numpy>=1.24
+tqdm>=4.66
+
+# Metrics
+nltk>=3.8
+rouge-score>=0.1.2
+bert-score>=0.3.13        # optional — comment out if not needed
+
+# Empathy scorer + HF backend
+transformers>=4.40
+torch>=2.1                # HF backend + empathy scorer; skip if Ollama-only
+accelerate>=0.28          # for device_map="auto" in HF backend
+
+# Visualisation
+matplotlib>=3.8

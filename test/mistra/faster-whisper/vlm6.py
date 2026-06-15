@@ -43,7 +43,7 @@ USE_ZED_HALF_FRAME_CROP = IS_LINUX
 # =========================
 
 # OLLAMA_HOST = "http://127.0.0.1:11434"
-OLLAMA_HOST = "https://oven-separately-contract-answer.trycloudflare.com"
+OLLAMA_HOST = "https://feof-formed-historic-owners.trycloudflare.com"
 
 MODEL_NAME = "llama3:8b"
 # MODEL_NAME = "mistral:7b"
