@@ -8,7 +8,7 @@ from pathlib import Path
 
 # ── Ollama ────────────────────────────────────────────────────────────────────
 
-OLLAMA_HOST    = "http://localhost:11434"
+OLLAMA_HOST    = "https://crop-judge-fort-micro.trycloudflare.com"
 OLLAMA_TIMEOUT = 120   # seconds per request
 MAX_RETRIES    = 3
 RETRY_DELAY    = 2.0   # seconds between retries

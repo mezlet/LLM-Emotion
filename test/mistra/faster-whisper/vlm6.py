@@ -4050,7 +4050,7 @@ def adaptive_reliability_aware_fusion(
 
 
 # Backwards-compatible alias for older main-loop code paths.
-adaptive_reliability_aware_fusion = adaptive_reliability_aware_fusion
+# adaptive_reliability_aware_fusion = adaptive_reliability_aware_fusion
 
 
 # =========================
