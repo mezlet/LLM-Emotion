@@ -189,7 +189,7 @@ def parse_args():
                    default="empathetic_dialogues",
                    help="Dataset to benchmark on (default: empathetic_dialogues)")
     p.add_argument("--backend",     choices=["ollama", "hf"], default="ollama")
-    p.add_argument("--ollama_host", default="https://crop-judge-fort-micro.trycloudflare.com")
+    p.add_argument("--ollama_host", default="http://localhost:11434")
     p.add_argument("--split",       default=None,
                    help="Dataset split (default: per-dataset config, usually 'test')")
     p.add_argument("--num_samples", type=int, default=None,
@@ -235,8 +235,9 @@ def main():
             "Is the server running?"
         )
 
-    device_map = {"auto": "auto", "cpu": -1, "gpu": 0}
-    empathy_clf = None if args.skip_empathy else load_empathy_classifier(device_map[args.device])
+    # args.device is one of "auto" | "cpu" | "gpu" — load_empathy_classifier
+    # resolves all of these natively now.
+    empathy_clf = None if args.skip_empathy else load_empathy_classifier(args.device)
 
     # ── Run
     all_records: list[dict] = []

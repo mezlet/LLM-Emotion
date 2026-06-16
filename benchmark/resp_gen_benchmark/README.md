@@ -160,12 +160,15 @@ deprecated/blocked endpoint doesn't break the pipeline:
    falls back to the community Parquet mirror `Estwld/empathetic_dialogues_llm`.
 
 3. **DailyDialog fallback** — DailyDialog's original HuggingFace loading
-   script is deprecated/removed on newer `datasets` versions. If the HF load
-   fails after all retries, the loader downloads a tarball of
-   `snakeztc/NeuralDialog-LAED` via `codeload.github.com` and extracts
-   `data/daily_dialog/<split>/dialogues.txt` and `dialogues_emotion.txt`
-   directly (the canonical `__eou__`-delimited dialogue format with
-   per-utterance emotion codes 0–6).
+   script is deprecated/removed on newer `datasets` versions, and unlike
+   namespaced datasets, `refs/convert/parquet` isn't reachable for canonical
+   IDs like `daily_dialog` (HuggingFace requires `namespace/name` for that
+   revision lookup) — so this failure is deterministic, not transient, and
+   the HF attempt is tried only once (no wasted retries) before falling
+   through. The loader then downloads a tarball of `snakeztc/NeuralDialog-LAED`
+   via `codeload.github.com` and extracts `data/daily_dialog/<split>/dialogues.txt`
+   and `dialogues_emotion.txt` directly (the canonical `__eou__`-delimited
+   dialogue format with per-utterance emotion codes 0–6).
 
 4. **Local sample cache** — after grouping/preprocessing, the resulting
    sample list is cached as JSON under `data_cache/<dataset>_<split>_<n>.json`.

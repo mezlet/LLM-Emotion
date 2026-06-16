@@ -50,6 +50,12 @@ def _hf_load_single(hf_path: str, split: str):
          auto-converts every dataset (including script-based ones) to Parquet
          on the `refs/convert/parquet` branch — retry against that revision,
          which bypasses the loading script entirely.
+
+         NOTE: this only works for namespaced dataset IDs ("org/name").
+         Canonical/unnamespaced IDs (e.g. "daily_dialog") raise an HfUriError
+         when resolving that revision — a deterministic failure, not a
+         transient one — so we skip this attempt entirely for those IDs to
+         avoid wasting retry time before falling through to other fallbacks.
     """
     try:
         return hf_load_dataset(hf_path, split=split, trust_remote_code=True)
@@ -64,6 +70,13 @@ def _hf_load_single(hf_path: str, split: str):
     except RuntimeError as e:
         if "Dataset scripts" not in str(e):
             raise
+
+        if "/" not in hf_path:
+            # Unnamespaced canonical ID — refs/convert/parquet is known to
+            # fail here (HfUriError: repo id must be 'namespace/name').
+            # Skip straight to raising so the caller's fallback chain runs.
+            raise
+
         # Fall back to the auto-converted Parquet revision (bypasses the
         # deprecated loading script entirely).
         print(f"[data_loader] '{hf_path}' uses a deprecated loading script; "
@@ -71,19 +84,26 @@ def _hf_load_single(hf_path: str, split: str):
         return hf_load_dataset(hf_path, split=split, revision="refs/convert/parquet")
 
 
-def _load_with_retries(load_fn, label: str):
+def _load_with_retries(load_fn, label: str, max_attempts: int | None = None):
     """
     Call `load_fn()` with retries and exponential back-off.
     Raises the last exception if all attempts fail.
+
+    max_attempts overrides the module-level DOWNLOAD_RETRIES — pass 1 for
+    calls known to fail deterministically (e.g. a script-deprecated dataset
+    with no working refs/convert/parquet revision), so the caller can fall
+    through to a different source immediately instead of wasting time on
+    retries that can't succeed.
     """
+    attempts = max_attempts or DOWNLOAD_RETRIES
     last_exc = None
-    for attempt in range(1, DOWNLOAD_RETRIES + 1):
+    for attempt in range(1, attempts + 1):
         try:
-            print(f"[data_loader] Loading '{label}' [attempt {attempt}/{DOWNLOAD_RETRIES}] …")
+            print(f"[data_loader] Loading '{label}' [attempt {attempt}/{attempts}] …")
             return load_fn()
         except Exception as exc:
             last_exc = exc
-            if attempt < DOWNLOAD_RETRIES:
+            if attempt < attempts:
                 wait = DOWNLOAD_RETRY_DELAY * (2 ** (attempt - 1))
                 print(f"[data_loader] Failed ({exc!r}). Retrying in {wait:.1f}s …")
                 time.sleep(wait)
@@ -487,10 +507,15 @@ def load_daily_dialog(
         if cached is not None:
             return cached
 
-    # 1) Try HuggingFace `datasets` first (with retries)
+    # 1) Try HuggingFace `datasets` first. For "daily_dialog" (unnamespaced),
+    #    the script-deprecation failure is deterministic — refs/convert/parquet
+    #    isn't reachable for canonical IDs — so retrying gains nothing; try
+    #    once and fall through to the GitHub mirror immediately.
     rows = None
     try:
-        ds = _load_with_retries(lambda: _load_daily_dialog_hf(split), label=cfg["hf_path"])
+        ds = _load_with_retries(
+            lambda: _load_daily_dialog_hf(split), label=cfg["hf_path"], max_attempts=1
+        )
         rows = [{"dialog": r["dialog"], "emotion": r["emotion"]} for r in ds]
     except Exception as exc:
         print(f"[data_loader] HuggingFace DailyDialog load failed: {exc!r}")

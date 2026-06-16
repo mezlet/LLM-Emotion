@@ -74,8 +74,8 @@ def load_empathy_classifier(device: int | str = "auto"):
     """
     Load the NLI classifier once and cache it.
 
-    device: -1 → CPU; 0 → first GPU; "auto" → use GPU if available and
-    enough VRAM is likely free, else CPU.
+    device: -1 or "cpu" → CPU; 0 or "gpu" → first GPU; "auto" → use GPU if
+    available, else CPU.
 
     Call this explicitly before evaluate_batch() if you want the scorer.
 
@@ -86,8 +86,7 @@ def load_empathy_classifier(device: int | str = "auto"):
     """
     global _empathy_clf
 
-    if device == "auto":
-        device = _pick_device()
+    device = _resolve_device(device)
 
     try:
         from transformers import pipeline
@@ -96,10 +95,10 @@ def load_empathy_classifier(device: int | str = "auto"):
             model  = "facebook/bart-large-mnli",
             device = device,
         )
-        where = "GPU" if device not in (-1, "cpu") else "CPU"
+        where = "CPU" if device == -1 else f"GPU (cuda:{device})"
         print(f"[evaluator] Empathy classifier loaded on {where} (facebook/bart-large-mnli)")
     except Exception as exc:
-        if device not in (-1, "cpu"):
+        if device != -1:
             print(f"[evaluator] GPU load failed ({exc}); falling back to CPU …")
             try:
                 from transformers import pipeline
@@ -129,6 +128,28 @@ def _pick_device() -> int:
         return 0 if torch.cuda.is_available() else -1
     except ImportError:
         return -1
+
+
+def _resolve_device(device: int | str) -> int:
+    """
+    Normalize a user-supplied device spec into the int form `pipeline()`
+    expects (-1 for CPU, 0+ for GPU index).
+
+    Accepts: -1, 0, 1, ... (already valid ints) and the strings
+    "auto", "cpu", "gpu"/"cuda" (case-insensitive).
+    """
+    if isinstance(device, str):
+        key = device.strip().lower()
+        if key == "auto":
+            return _pick_device()
+        if key == "cpu":
+            return -1
+        if key in ("gpu", "cuda"):
+            return 0
+        raise ValueError(
+            f"Unrecognized device spec '{device}'. Use -1, 0, 'auto', 'cpu', or 'gpu'."
+        )
+    return device
 
 
 def compute_empathy_score(text: str, clf=None) -> float | None:
