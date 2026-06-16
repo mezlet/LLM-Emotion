@@ -189,7 +189,7 @@ def parse_args():
                    default="empathetic_dialogues",
                    help="Dataset to benchmark on (default: empathetic_dialogues)")
     p.add_argument("--backend",     choices=["ollama", "hf"], default="ollama")
-    p.add_argument("--ollama_host", default="http://localhost:11434")
+    p.add_argument("--ollama_host", default="https://crop-judge-fort-micro.trycloudflare.com")
     p.add_argument("--split",       default=None,
                    help="Dataset split (default: per-dataset config, usually 'test')")
     p.add_argument("--num_samples", type=int, default=None,
