@@ -17,6 +17,8 @@ resp_gen_benchmark/
 ├── evaluator.py            # BLEU, ROUGE-L, BERTScore, Empathy Score
 ├── visualize_results.py    # Plots from results/
 ├── requirements.txt
+├── notebooks/
+│   └── resp_gen_benchmark_walkthrough.ipynb   # Interactive cell-by-cell pipeline walkthrough
 ├── data_cache/             # Auto-created — cached preprocessed dataset samples (JSON)
 ├── results/                # Auto-created — CSVs and JSON outputs, per dataset
 │   ├── empathetic_dialogues/
@@ -67,8 +69,14 @@ python benchmark_runner.py --backend hf
 # Larger run (adjust sample count)
 python benchmark_runner.py --num_samples 500
 
-# Skip NLI-based empathy scorer (saves ~1.5 GB RAM)
+# Skip NLI-based empathy scorer (saves ~1.5 GB RAM/VRAM)
 python benchmark_runner.py --skip_empathy
+
+# Force empathy classifier onto GPU (auto-detected by default)
+python benchmark_runner.py --device gpu
+
+# Force empathy classifier onto CPU (e.g. small/shared GPU)
+python benchmark_runner.py --device cpu
 
 # Re-download dataset, bypassing local cache
 python benchmark_runner.py --dataset daily_dialog --force_download
@@ -83,6 +91,22 @@ Plots only (after a completed run):
 python visualize_results.py --results_dir results/empathetic_dialogues --figures_dir figures/empathetic_dialogues
 python visualize_results.py --results_dir results/daily_dialog --figures_dir figures/daily_dialog
 ```
+
+### Interactive notebook
+
+For step-by-step exploration — inspecting prompts, spot-checking individual
+generations, and rendering figures inline — use
+`notebooks/resp_gen_benchmark_walkthrough.ipynb`:
+
+```bash
+jupyter notebook notebooks/resp_gen_benchmark_walkthrough.ipynb
+```
+
+It mirrors `benchmark_runner.py`'s pipeline (load → prompt → generate →
+evaluate → aggregate → visualise) but runs each stage in its own cell, with
+configuration variables (`DATASET_NAME`, `NUM_SAMPLES`, `MODE`, etc.) at the
+top. Defaults to a small sample count for fast interactive iteration; for the
+full benchmark, use the CLI instead.
 
 ---
 
@@ -196,6 +220,12 @@ Few-shot examples are defined in `prompt_builder.py` and can be extended or swap
 | **Latency (s)** | Wall-clock inference time per sample | ↓ lower is better |
 
 BERTScore requires `pip install bert-score`. Empathy Score requires `transformers` and downloads `bart-large-mnli` on first use. Both degrade gracefully (skipped with a warning) if unavailable.
+
+`facebook/bart-large-mnli` needs ~1.6GB VRAM. With `--device auto` (default),
+it loads on GPU if CUDA is available; on small/shared GPUs (e.g. a 3GB card
+already running Ollama), a CUDA OOM during loading triggers automatic
+fallback to CPU rather than aborting the run. Use `--device cpu` to skip
+the GPU attempt entirely, or `--skip_empathy` to disable this metric.
 
 ---
 

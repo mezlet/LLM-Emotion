@@ -70,13 +70,25 @@ _NLI_LABELS   = ["empathetic", "neutral", "dismissive"]
 _empathy_clf  = None    # lazily loaded
 
 
-def load_empathy_classifier(device: int = -1):
+def load_empathy_classifier(device: int | str = "auto"):
     """
     Load the NLI classifier once and cache it.
-    device=-1 → CPU; device=0 → first GPU.
+
+    device: -1 → CPU; 0 → first GPU; "auto" → use GPU if available and
+    enough VRAM is likely free, else CPU.
+
     Call this explicitly before evaluate_batch() if you want the scorer.
+
+    Note: facebook/bart-large-mnli needs ~1.6GB VRAM. On small GPUs (e.g.
+    a 3GB card already running Ollama), this can cause CUDA OOM. If GPU
+    loading fails, automatically falls back to CPU rather than aborting
+    the whole benchmark run.
     """
     global _empathy_clf
+
+    if device == "auto":
+        device = _pick_device()
+
     try:
         from transformers import pipeline
         _empathy_clf = pipeline(
@@ -84,11 +96,39 @@ def load_empathy_classifier(device: int = -1):
             model  = "facebook/bart-large-mnli",
             device = device,
         )
-        print("[evaluator] Empathy classifier loaded (facebook/bart-large-mnli)")
+        where = "GPU" if device not in (-1, "cpu") else "CPU"
+        print(f"[evaluator] Empathy classifier loaded on {where} (facebook/bart-large-mnli)")
     except Exception as exc:
-        print(f"[evaluator] Could not load empathy classifier: {exc}")
-        _empathy_clf = None
+        if device not in (-1, "cpu"):
+            print(f"[evaluator] GPU load failed ({exc}); falling back to CPU …")
+            try:
+                from transformers import pipeline
+                _empathy_clf = pipeline(
+                    "zero-shot-classification",
+                    model  = "facebook/bart-large-mnli",
+                    device = -1,
+                )
+                print("[evaluator] Empathy classifier loaded on CPU (facebook/bart-large-mnli)")
+            except Exception as exc2:
+                print(f"[evaluator] Could not load empathy classifier: {exc2}")
+                _empathy_clf = None
+        else:
+            print(f"[evaluator] Could not load empathy classifier: {exc}")
+            _empathy_clf = None
+
     return _empathy_clf
+
+
+def _pick_device() -> int:
+    """
+    Return 0 if a CUDA GPU is available, else -1 (CPU).
+    Does not check free VRAM — callers should handle OOM via fallback.
+    """
+    try:
+        import torch
+        return 0 if torch.cuda.is_available() else -1
+    except ImportError:
+        return -1
 
 
 def compute_empathy_score(text: str, clf=None) -> float | None:

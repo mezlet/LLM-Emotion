@@ -196,7 +196,11 @@ def parse_args():
                    help="Number of samples (default: per-dataset config, 200)")
     p.add_argument("--max_tokens",  type=int, default=GENERATION["max_tokens"])
     p.add_argument("--skip_empathy", action="store_true",
-                   help="Disable NLI-based empathy scorer (saves ~1.5 GB RAM)")
+                   help="Disable NLI-based empathy scorer (saves ~1.5 GB RAM/VRAM)")
+    p.add_argument("--device",      choices=["auto", "cpu", "gpu"], default="auto",
+                   help="Device for the empathy classifier (default: auto-detect). "
+                        "Falls back to CPU automatically if GPU load fails (e.g. OOM "
+                        "on small GPUs already running Ollama).")
     p.add_argument("--force_download", action="store_true",
                    help="Bypass local dataset cache and re-download from source")
     p.add_argument("--dry_run",     action="store_true",
@@ -231,7 +235,8 @@ def main():
             "Is the server running?"
         )
 
-    empathy_clf = None if args.skip_empathy else load_empathy_classifier()
+    device_map = {"auto": "auto", "cpu": -1, "gpu": 0}
+    empathy_clf = None if args.skip_empathy else load_empathy_classifier(device_map[args.device])
 
     # ── Run
     all_records: list[dict] = []
