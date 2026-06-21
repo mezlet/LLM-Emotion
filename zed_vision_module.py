@@ -64,14 +64,28 @@ class ZedVisionModule:
             return frame
 
     def save_latest_frame(self, folder="logs/vqa"):
+        print("[VISION] save_latest_frame called")
+
         with self.frame_lock:
+            print("[VISION] latest_frame is None:", self.latest_frame is None)
+
             if self.latest_frame is None:
                 return None
+
             frame = self.latest_frame.copy()
 
         os.makedirs(folder, exist_ok=True)
-        image_path = os.path.join(folder, f"zed_frame_{int(time.time())}.jpg")
-        cv2.imwrite(image_path, frame)
+
+        image_path = os.path.join(
+            folder,
+            f"zed_frame_{int(time.time())}.jpg"
+        )
+
+        ok = cv2.imwrite(image_path, frame)
+
+        print("[VISION] cv2.imwrite =", ok)
+        print("[VISION] image_path =", image_path)
+
         return image_path
 
     def start(self):

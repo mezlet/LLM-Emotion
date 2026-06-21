@@ -1,0 +1,2 @@
+python3 -m pip install tensorflow deepface numpy opencv-python tf-keras
+ollama run gpt-oss:20b
