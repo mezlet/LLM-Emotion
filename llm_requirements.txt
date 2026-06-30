@@ -1,0 +1,62 @@
+# ============================================================
+# Ameca demo requirements
+# Covers: ameca_demo_integrated.py, zed_vision_module.py,
+#         tts_active.py, gaze_speaker_utils.py
+# ============================================================
+
+# ---- Core numerics / vision ----
+numpy
+opencv-python
+
+# ---- Audio I/O ----
+sounddevice
+soundfile
+# Required by speech_recognition's sr.Microphone() (Google STT fallback
+# and gaze_speaker_utils.SpeechTranscriber). On Linux you may also need
+# the system package: sudo apt-get install portaudio19-dev
+PyAudio
+
+# ---- ASR ----
+SpeechRecognition          # Google STT fallback (speech_recognition)
+faster-whisper             # primary ASR
+silero-vad                 # voice activity detection
+torch                      # required by silero-vad / faster-whisper / mediapipe pipelines
+
+# ---- LLM / vision-language client ----
+ollama
+
+# ---- HTTP / networking ----
+requests
+websockets                 # tts_active.py (Tritium levels websocket)
+
+# ---- Facial emotion (ZedVisionModule) ----
+tensorflow                 # backend for deepface
+deepface
+
+# ---- Face mesh / gaze / lips (gaze_speaker_utils.py) ----
+mediapipe
+scipy                      # Hungarian assignment (linear_sum_assignment); has a fallback if absent
+
+# ---- Self-RAG (vlm4.py / ameca_demo_integrated.py) ----
+chromadb
+sentence-transformers
+pypdf                      # only needed if your knowledge_base contains PDF files
+
+# ---- Optional: stronger re-identification embeddings ----
+# gaze_speaker_utils.py falls back to an HSV-histogram embedding if this
+# is not installed, so it is optional but recommended for better person
+# re-identification across frames.
+# insightface
+# onnxruntime               # required by insightface; use onnxruntime-gpu for CUDA
+
+# ============================================================
+# Notes:
+# - ffmpeg is required by gaze_speaker_utils.SessionMedia / LiveAVRecorder
+#   (muxing audio+video) but is a system binary, not a pip package.
+#   Install via your OS package manager, e.g.:
+#     sudo apt-get install ffmpeg
+# - For GPU acceleration, replace `torch` with the CUDA build matching
+#   your system from https://pytorch.org/get-started/locally/
+# - tensorflow pulls in its own large dependency set; on Jetson/ARM
+#   devices you may need a platform-specific tensorflow wheel instead.
+# ============================================================
