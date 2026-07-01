@@ -157,7 +157,7 @@ SELF_RAG_KB_DIR = os.environ.get("SELF_RAG_KB_DIR", "knowledge_base")
 
 SELF_RAG_DB_DIR = os.environ.get("SELF_RAG_DB_DIR", "chroma_db")
 SELF_RAG_COLLECTION = os.environ.get("SELF_RAG_COLLECTION", "emah_knowledge")
-SELF_RAG_EMBED_MODEL = os.environ.get("SELF_RAG_EMBED_MODEL", "all-MiniLM-L6-v2")
+SELF_RAG_EMBED_MODEL = os.environ.get("SELF_RAG_EMBED_MODEL", "nomic-embed-text")
 SELF_RAG_TOP_K = int(os.environ.get("SELF_RAG_TOP_K", "12"))
 SELF_RAG_CHUNK_SIZE = int(os.environ.get("SELF_RAG_CHUNK_SIZE", "900"))
 SELF_RAG_CHUNK_OVERLAP = int(os.environ.get("SELF_RAG_CHUNK_OVERLAP", "150"))
@@ -475,7 +475,14 @@ class SelfRAGContext:
 class SelfRAGStore:
     enabled: bool
     collection: Any = None
-    embedder: Any = None
+    # Embeddings are produced via Ollama's embeddings API rather than an
+    # in-process sentence-transformers model. Loading sentence-transformers
+    # (PyTorch) into the same process as zed_vision_module's DeepFace import
+    # (TensorFlow) is a common cause of a silent native segfault on Linux;
+    # routing embeddings through Ollama keeps PyTorch out of this process
+    # entirely. See get_ollama_embedding()/get_ollama_embeddings_batch().
+    ollama_client: Any = None
+    embed_model: str = SELF_RAG_EMBED_MODEL
     error: Optional[str] = None
 
 
@@ -2102,16 +2109,14 @@ def analyze_multiple_frames_emotion_scores(
         )
 
         raw = response.get("message", {}).get("content", "")
-        '''
         if VISION_DEBUG:
             print_ts(f"Qwen2.5-VL raw multi-frame emotion output: {raw[:500]}")
-        '''
+
         data = safe_json_extract(raw)
-        '''
         if not isinstance(data, dict):
             print_ts("Qwen2.5-VL returned no parseable JSON for multi-frame facial emotion.")
             return None
-        '''
+
         normalized_scores = normalize_plutchik_scores(data)
         if not normalized_scores:
             print_ts(f"Qwen2.5-VL multi-frame JSON did not contain usable emotion scores: {data}")
@@ -2327,6 +2332,7 @@ def listen_for_utterance_with_silero_vad(
     input_device: Optional[int],
     silero_model,
     prompt_label: str = "utterance",
+    robot_speaker: Optional[RobotSpeaker] = None,
 ) -> Optional[str]:
     input_sample_rate = get_input_samplerate(input_device)
     input_block_size = max(1, int(input_sample_rate * 0.05))
@@ -2370,6 +2376,20 @@ def listen_for_utterance_with_silero_vad(
             callback=audio_callback,
         ):
             while True:
+                # Do not record/transcribe while the robot is speaking
+                # (echo guard). Without this, a request that is sent to
+                # TTS right before calling this listener (e.g. "please say
+                # your name" or "please spell your name") could have its
+                # own tail end picked up as if it were the user's speech.
+                if robot_speaker is not None and robot_speaker.is_speaking_or_cooling_down():
+                    try:
+                        while True:
+                            audio_queue.get_nowait()
+                    except queue.Empty:
+                        pass
+                    time.sleep(0.05)
+                    continue
+
                 try:
                     block = audio_queue.get(timeout=0.1)
                 except queue.Empty:
@@ -2599,15 +2619,22 @@ def ask_user_to_spell_name(
     silero_model,
     input_device: Optional[int] = INPUT_DEVICE,
     google_recognizer: Optional[sr.Recognizer] = None,
+    robot_speaker: Optional[RobotSpeaker] = None,
 ) -> Optional[str]:
+    spelling_request_text = "Could you please spell your name for me, letter by letter? For example: L E T I C I A."
+
     print()
-    print_ts("Please spell your name letter by letter. For example: L E T I C I A.")
+    print_ts(spelling_request_text)
     print()
+
+    if robot_speaker:
+        robot_speaker.say(spelling_request_text)
 
     wav_path = listen_for_utterance_with_silero_vad(
         input_device=input_device,
         silero_model=silero_model,
         prompt_label="spelled name",
+        robot_speaker=robot_speaker,
     )
 
     if not wav_path:
@@ -2690,10 +2717,18 @@ def prompt_for_user_name(
         print_ts("Please say your name")
         print()
 
+        # Speak the initial name request out loud. On retry attempts, the
+        # "I might have misheard..." line at the end of the previous
+        # iteration already re-asks the user out loud, so we don't repeat
+        # this exact prompt again here.
+        if robot_speaker and attempt == 0:
+            robot_speaker.say("Please tell me your name.")
+
         wav_path = listen_for_utterance_with_silero_vad(
             input_device=input_device,
             silero_model=silero_model,
             prompt_label="name",
+            robot_speaker=robot_speaker,
         )
 
         if not wav_path:
@@ -2731,6 +2766,7 @@ def prompt_for_user_name(
             silero_model=silero_model,
             input_device=input_device,
             google_recognizer=google_recognizer,
+            robot_speaker=robot_speaker,
         )
 
     corrected_spelled_name = correct_spelled_name_with_known_users(
@@ -3027,18 +3063,81 @@ def run_rrlab_scraper() -> bool:
         return False
 
 
-def init_self_rag_store() -> SelfRAGStore:
+def get_ollama_embedding(
+    client: Client,
+    text: str,
+    model: str = SELF_RAG_EMBED_MODEL,
+) -> Optional[list[float]]:
+    """
+    Get a single embedding vector from Ollama's embeddings API.
+
+    This replaces an in-process sentence-transformers model. Loading
+    sentence-transformers (which pulls in PyTorch) into the same process as
+    zed_vision_module's DeepFace import (which pulls in TensorFlow) is a
+    common cause of a silent native segfault on Linux -- routing embeddings
+    through Ollama over HTTP keeps PyTorch out of this process entirely, so
+    it can't collide with TensorFlow the way it did before.
+
+    Requires the embedding model to be pulled in Ollama first, e.g.:
+        ollama pull nomic-embed-text
+
+    Handles two ollama-python client shapes, since the method name changed
+    across versions:
+    - older clients: client.embeddings(model=..., prompt=...) -> {"embedding": [...]}
+    - newer clients: client.embed(model=..., input=...) -> {"embeddings": [[...]]}
+    """
+    text = (text or "").strip()
+    if not text:
+        return None
+
+    # Try the older single-prompt API first.
+    if hasattr(client, "embeddings"):
+        try:
+            response = client.embeddings(model=model, prompt=text)
+            embedding = response.get("embedding") if isinstance(response, dict) else getattr(response, "embedding", None)
+            if embedding:
+                return [float(value) for value in embedding]
+        except Exception as exc:
+            print_ts(f"Ollama client.embeddings() call failed (model={model}): {exc}")
+
+    # Fall back to the newer batch-capable API.
+    if hasattr(client, "embed"):
+        try:
+            response = client.embed(model=model, input=text)
+            embeddings = response.get("embeddings") if isinstance(response, dict) else getattr(response, "embeddings", None)
+            if embeddings:
+                return [float(value) for value in embeddings[0]]
+        except Exception as exc:
+            print_ts(f"Ollama client.embed() call failed (model={model}): {exc}")
+
+    return None
+
+
+def get_ollama_embeddings_batch(
+    client: Client,
+    texts: list[str],
+    model: str = SELF_RAG_EMBED_MODEL,
+) -> list[Optional[list[float]]]:
+    """
+    Embed multiple texts via Ollama. Ollama's embeddings API embeds one
+    prompt per call, so this loops rather than sending a true batch request;
+    fine for the indexing path, which only runs occasionally (crawl/reindex),
+    not on the hot conversational turn path.
+    """
+    return [get_ollama_embedding(client, text, model=model) for text in texts]
+
+
+def init_self_rag_store(client: Client) -> SelfRAGStore:
     if not SELF_RAG_ENABLED:
         print_ts("Self-RAG disabled by SELF_RAG_ENABLED=0.")
         return SelfRAGStore(enabled=False, error="Self-RAG disabled.")
 
     try:
         import chromadb
-        from sentence_transformers import SentenceTransformer
     except Exception as exc:
         print_ts(
             "Self-RAG dependencies missing. Install with: "
-            "pip install chromadb sentence-transformers pypdf"
+            "pip install chromadb pypdf"
         )
         return SelfRAGStore(enabled=False, error=str(exc))
 
@@ -3049,8 +3148,26 @@ def init_self_rag_store() -> SelfRAGStore:
             name=SELF_RAG_COLLECTION,
             metadata={"hnsw:space": "cosine"},
         )
-        embedder = SentenceTransformer(SELF_RAG_EMBED_MODEL)
-        store = SelfRAGStore(enabled=True, collection=collection, embedder=embedder)
+
+        # Sanity-check the embedding model once at startup rather than
+        # discovering a bad/unpulled model name only on the first user
+        # query. Ollama returns an error (not a segfault) if the model
+        # hasn't been pulled, which get_ollama_embedding turns into None.
+        probe_embedding = get_ollama_embedding(client, "self-rag startup check", model=SELF_RAG_EMBED_MODEL)
+        if probe_embedding is None:
+            error_msg = (
+                f"Could not get a test embedding from Ollama model '{SELF_RAG_EMBED_MODEL}'. "
+                f"Make sure it is pulled, e.g.: ollama pull {SELF_RAG_EMBED_MODEL}"
+            )
+            print_ts(f"Self-RAG initialization failed: {error_msg}")
+            return SelfRAGStore(enabled=False, error=error_msg)
+
+        store = SelfRAGStore(
+            enabled=True,
+            collection=collection,
+            ollama_client=client,
+            embed_model=SELF_RAG_EMBED_MODEL,
+        )
 
         if SELF_RAG_REINDEX_ON_START:
             index_self_rag_knowledge(store)
@@ -3076,7 +3193,7 @@ def init_self_rag_store() -> SelfRAGStore:
 
 
 def index_self_rag_knowledge(store: SelfRAGStore) -> None:
-    if not store.enabled or store.collection is None or store.embedder is None:
+    if not store.enabled or store.collection is None or store.ollama_client is None:
         return
 
     paths = iter_knowledge_files(SELF_RAG_KB_DIR)
@@ -3113,9 +3230,32 @@ def index_self_rag_knowledge(store: SelfRAGStore) -> None:
         print_ts("Self-RAG found knowledge files, but no usable text chunks were extracted.")
         return
 
-    embeddings = store.embedder.encode(docs, normalize_embeddings=True).tolist()
-    store.collection.upsert(ids=ids, documents=docs, metadatas=metas, embeddings=embeddings)
-    print_ts(f"Self-RAG indexed/updated {len(docs)} chunks from {len(paths)} files.")
+    raw_embeddings = get_ollama_embeddings_batch(store.ollama_client, docs, model=store.embed_model)
+
+    kept_ids: list[str] = []
+    kept_docs: list[str] = []
+    kept_metas: list[dict] = []
+    kept_embeddings: list[list[float]] = []
+    failed_count = 0
+
+    for chunk_id, doc, meta, embedding in zip(ids, docs, metas, raw_embeddings):
+        if embedding is None:
+            failed_count += 1
+            continue
+        kept_ids.append(chunk_id)
+        kept_docs.append(doc)
+        kept_metas.append(meta)
+        kept_embeddings.append(embedding)
+
+    if failed_count:
+        print_ts(f"Self-RAG: {failed_count} chunk(s) could not be embedded via Ollama and were skipped.")
+
+    if not kept_docs:
+        print_ts("Self-RAG: no chunks could be embedded; nothing was indexed.")
+        return
+
+    store.collection.upsert(ids=kept_ids, documents=kept_docs, metadatas=kept_metas, embeddings=kept_embeddings)
+    print_ts(f"Self-RAG indexed/updated {len(kept_docs)} chunks from {len(paths)} files.")
 
 
 def normalize_self_rag_query_text(text: str) -> str:
@@ -3301,7 +3441,7 @@ def self_rag_hybrid_score(candidate: dict[str, Any], inferred_category: Optional
 
 
 def retrieve_self_rag_candidates(store: SelfRAGStore, query: str, top_k: int = SELF_RAG_TOP_K) -> list[dict[str, Any]]:
-    if not store.enabled or store.collection is None or store.embedder is None:
+    if not store.enabled or store.collection is None or store.ollama_client is None:
         return []
     if not query.strip():
         return []
@@ -3313,7 +3453,10 @@ def retrieve_self_rag_candidates(store: SelfRAGStore, query: str, top_k: int = S
     force_rag = force_self_rag_for_entity(normalized_query)
 
     try:
-        query_embedding = store.embedder.encode([rewritten_query], normalize_embeddings=True).tolist()[0]
+        query_embedding = get_ollama_embedding(store.ollama_client, rewritten_query, model=store.embed_model)
+        if query_embedding is None:
+            print_ts(f"Self-RAG: could not embed query via Ollama model '{store.embed_model}'; skipping retrieval.")
+            return []
 
         def run_query(where_filter: Optional[dict] = None) -> list[dict[str, Any]]:
             kwargs = {
@@ -4542,7 +4685,6 @@ def parse_robot_args() -> argparse.Namespace:
 
     parser.add_argument("--tts_url", default=os.environ.get("TTS_URL", "http://emah/tritium/text_to_speech/say?voice=Lucy"))
     parser.add_argument("--speaking_cooldown", type=float, default=0.3, help="Seconds of echo-guard cooldown after TTS finishes speaking.")
-    parser.add_argument("--tts_token", default="ZWNFuNQVIPyztWCfPPM5VLPslpj8rR")
 
     parser.add_argument("--google_stt_language", default=os.environ.get("GOOGLE_STT_LANGUAGE", "en-US"))
     parser.add_argument("--disable_google_fallback", action="store_true", help="Disable Google STT fallback; faster-whisper only.")
@@ -4585,15 +4727,29 @@ def main() -> None:
     print_ts(f"Ollama chat model: {MODEL_NAME}")
     print_ts(f"Ollama vision model (facial emotion): {VISION_MODEL_NAME}")
     print_ts(f"Ollama vision model (ZED general queries): {ZED_VISION_MODEL_NAME}")
+    print_ts(f"Ollama embedding model (Self-RAG): {SELF_RAG_EMBED_MODEL}")
     print_ts(f"Tritium TTS URL: {args.tts_url}")
 
     # zed_vision_module is now the SINGLE owner of the ZED camera handle, used
     # both for Qwen2.5-VL facial-emotion sampling and (optionally) general
     # "what do you see" queries, so it is required rather than optional.
-    # Note: the patched zed_vision_module.py no longer imports
-    # tensorflow/deepface unless emotion_analysis is explicitly enabled (it
-    # is not, here), so this import no longer carries the TF-in-process
-    # segfault risk it used to.
+    #
+    # CAUTION: despite enable_emotion_analysis=False being passed to
+    # ZedVisionModule below, a prior crash log showed TensorFlow's oneDNN /
+    # cudart_stub init messages printing immediately after this import call
+    # -- meaning zed_vision_module.py imports tensorflow/deepface
+    # unconditionally at module load time, not lazily gated on
+    # enable_emotion_analysis. If zed_vision_module.py can be edited, making
+    # that TF/DeepFace import lazy (only inside the code path that actually
+    # needs it) would remove TensorFlow from this process entirely when
+    # emotion_analysis is off, which is the more robust fix. Self-RAG's
+    # embeddings now go through Ollama instead of an in-process
+    # sentence-transformers/PyTorch model (see get_ollama_embedding()),
+    # which removes the specific PyTorch-computation-vs-TensorFlow
+    # collision that caused the segfault observed at this point in the
+    # startup sequence; it does not guarantee no other torch/TF collision
+    # is possible elsewhere in the process (e.g. Silero VAD's own torch
+    # usage later in startup).
     try_import_zed_vision_module()
     if not HAS_ZED_VISION:
         raise RuntimeError(
@@ -4611,10 +4767,12 @@ def main() -> None:
     ensure_model_available(VISION_MODEL_NAME)
     if ZED_VISION_MODEL_NAME != VISION_MODEL_NAME:
         ensure_model_available(ZED_VISION_MODEL_NAME)
+    if SELF_RAG_ENABLED:
+        ensure_model_available(SELF_RAG_EMBED_MODEL)
 
     client = Client(host=OLLAMA_HOST)
 
-    self_rag_store = init_self_rag_store()
+    self_rag_store = init_self_rag_store(client)
 
     list_input_devices()
 
@@ -4663,7 +4821,6 @@ def main() -> None:
     #   robot_speaker = RobotSpeaker(tts_url=args.tts_url, tts_token="<token>", speaking_cooldown_s=args.speaking_cooldown)
     robot_speaker = RobotSpeaker(
         tts_url=args.tts_url,
-        tts_token=args.tts_token,
         speaking_cooldown_s=args.speaking_cooldown,
     )
 

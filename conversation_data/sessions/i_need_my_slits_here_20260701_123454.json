@@ -1,0 +1,2885 @@
+{
+  "user": {
+    "key": "i_need_my_slits_here",
+    "name": "I need my slits here"
+  },
+  "session": {
+    "started_at": "2026-07-01 12:26:30",
+    "ended_at": "2026-07-01 12:34:54",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper (primary) + Google Speech Recognition (fallback)",
+      "profile": "home_macbook_cpu",
+      "model": "base",
+      "device": "cuda",
+      "compute_type": "int8",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "emotion_fusion": {
+      "type": "adaptive_reliability_aware_late_fusion",
+      "text_weight": 0.5,
+      "visual_weight": 0.4,
+      "prosody_weight": 0.1
+    },
+    "face_emotion": {
+      "backend": "qwen2.5vl:7b via Ollama",
+      "camera_source": "shared ZedVisionModule.get_latest_frame() (single camera handle)",
+      "camera_frame_width": 2560,
+      "camera_frame_height": 720,
+      "preview_enabled": true,
+      "sample_every_seconds": 0.5,
+      "warmup_seconds": 0.35,
+      "max_candidate_frames": 5,
+      "face_analysis_strategy": "multi_frame",
+      "multi_frame_count": 3,
+      "skip_low_quality": false,
+      "vision_model": "qwen2.5vl:7b",
+      "jpeg_quality": 80,
+      "min_top_score": 35.0,
+      "min_margin": 8.0
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 700,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 15.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    },
+    "output": {
+      "backend": "Tritium TTS"
+    },
+    "general_vision": {
+      "backend": "ZED vision module",
+      "model": "llava:7b"
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, I Need My Slits Here! I'm Ameca, a humanoid social robot designed to assist and communicate with humans. 🙂",
+      "timestamp": "2026-07-01 12:26:30",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "it's you too.",
+      "timestamp": "2026-07-01 12:26:50",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8458587088915955,
+        "reason": "Adaptive reliability-aware fusion selected joy: text=joy rel=0.80, visual=joy rel=0.98, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.8458587088915955,
+          "trust": 0.041386810509831215,
+          "fear": 0.017574386636505998,
+          "surprise": 0.017574386636505998,
+          "sadness": 0.017574386636505998,
+          "disgust": 0.017574386636505998,
+          "anger": 0.017574386636505998,
+          "anticipation": 0.024882547416043146
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.48721071863581,
+          "active_normalized_visual": 0.4762484774665042,
+          "active_normalized_prosody": 0.03654080389768574
+        },
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user is expressing enthusiasm and positivity in their response."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "joy",
+          "averaged_scores": {
+            "joy": 95.0,
+            "trust": 5.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 45,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-01 12:26:42",
+          "ended_at": "2026-07-01 12:26:46",
+          "error": null,
+          "analysis_seconds": 3.3572,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.10266618430614471,
+            "duration": 1.472,
+            "energy_std": 0.06023170014918383,
+            "zero_crossing_rate": 0.13485626937285042
+          }
+        },
+        "response_times": {
+          "text_seconds": 1.9662,
+          "visual_seconds": 3.3572,
+          "prosody_seconds": 0.0003,
+          "total_seconds": 5.3237
+        }
+      },
+      "facial_emotion_hint": "dominant=joy; averaged_scores=(joy=95%, trust=5%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 95.0,
+          "trust": 5.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 45,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-01 12:26:42",
+        "ended_at": "2026-07-01 12:26:46",
+        "error": null,
+        "analysis_seconds": 3.3572,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user is expressing enthusiasm and positivity in their response."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.10266618430614471,
+          "duration": 1.472,
+          "energy_std": 0.06023170014918383,
+          "zero_crossing_rate": 0.13485626937285042
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "it's you too.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "I see we're getting acquainted nicely! What brings you here today? 😊",
+      "timestamp": "2026-07-01 12:26:50"
+    },
+    {
+      "role": "user",
+      "content": "a little bit.",
+      "timestamp": "2026-07-01 12:27:06",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8458587088915955,
+        "reason": "Adaptive reliability-aware fusion selected joy: text=joy rel=0.80, visual=joy rel=0.98, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.8458587088915955,
+          "trust": 0.041386810509831215,
+          "fear": 0.017574386636505998,
+          "surprise": 0.017574386636505998,
+          "sadness": 0.017574386636505998,
+          "disgust": 0.017574386636505998,
+          "anger": 0.017574386636505998,
+          "anticipation": 0.024882547416043146
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.48721071863581,
+          "active_normalized_visual": 0.4762484774665042,
+          "active_normalized_prosody": 0.03654080389768574
+        },
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's words and facial expression both suggest joy, with a high confidence score due to the strong indication of joy in their facial expression."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "joy",
+          "averaged_scores": {
+            "joy": 95.0,
+            "trust": 5.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 48,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-01 12:26:59",
+          "ended_at": "2026-07-01 12:27:01",
+          "error": null,
+          "analysis_seconds": 1.2956,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.14235670864582062,
+            "duration": 1.568,
+            "energy_std": 0.10366361482353036,
+            "zero_crossing_rate": 0.07254753457966277
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.2426,
+          "visual_seconds": 1.2956,
+          "prosody_seconds": 0.0006,
+          "total_seconds": 3.5388
+        }
+      },
+      "facial_emotion_hint": "dominant=joy; averaged_scores=(joy=95%, trust=5%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 95.0,
+          "trust": 5.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 48,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-01 12:26:59",
+        "ended_at": "2026-07-01 12:27:01",
+        "error": null,
+        "analysis_seconds": 1.2956,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's words and facial expression both suggest joy, with a high confidence score due to the strong indication of joy in their facial expression."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.14235670864582062,
+          "duration": 1.568,
+          "energy_std": 0.10366361482353036,
+          "zero_crossing_rate": 0.07254753457966277
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "a little bit.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "A mysterious \"little bit\" indeed! Would you like to share what's on your mind, or perhaps I can help spark some conversation? 😊",
+      "timestamp": "2026-07-01 12:27:06"
+    },
+    {
+      "role": "user",
+      "content": "again.",
+      "timestamp": "2026-07-01 12:27:23",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.8931504145282273,
+        "reason": "Adaptive reliability-aware fusion selected joy: text=joy rel=0.90, visual=joy rel=0.91, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.8931504145282273,
+          "trust": 0.03274209012464046,
+          "fear": 0.011166882860526759,
+          "surprise": 0.011166882860526759,
+          "sadness": 0.011166882860526759,
+          "disgust": 0.011166882860526759,
+          "anger": 0.011166882860526759,
+          "anticipation": 0.018273081044498332
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.9,
+          "reliability_visual": 0.9108333333333333,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.5329648637978681,
+          "active_normalized_visual": 0.431504145282274,
+          "active_normalized_prosody": 0.035530990919857876
+        },
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.9,
+          "reason": "The user's words and facial-expression hint both strongly suggest joy, likely indicating excitement or enthusiasm."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "joy",
+          "averaged_scores": {
+            "joy": 95.0,
+            "trust": 5.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 31,
+          "sampled_frame_count": 2,
+          "started_at": "2026-07-01 12:27:17",
+          "ended_at": "2026-07-01 12:27:19",
+          "error": null,
+          "analysis_seconds": 1.1824,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.10912070423364639,
+            "duration": 1.056,
+            "energy_std": 0.0897833813245994,
+            "zero_crossing_rate": 0.06765315182006511
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0861,
+          "visual_seconds": 1.1824,
+          "prosody_seconds": 0.0002,
+          "total_seconds": 3.2687
+        }
+      },
+      "facial_emotion_hint": "dominant=joy; averaged_scores=(joy=95%, trust=5%); samples=2",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 95.0,
+          "trust": 5.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 31,
+        "sampled_frame_count": 2,
+        "started_at": "2026-07-01 12:27:17",
+        "ended_at": "2026-07-01 12:27:19",
+        "error": null,
+        "analysis_seconds": 1.1824,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user's words and facial-expression hint both strongly suggest joy, likely indicating excitement or enthusiasm."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.10912070423364639,
+          "duration": 1.056,
+          "energy_std": 0.0897833813245994,
+          "zero_crossing_rate": 0.06765315182006511
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "again.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "The cycle continues! It seems we're having a lovely chat again. 😊",
+      "timestamp": "2026-07-01 12:27:23"
+    },
+    {
+      "role": "user",
+      "content": "I enjoy our chat a lot. What has been happening in Germany?",
+      "timestamp": "2026-07-01 12:27:44",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.7991664461497751,
+        "reason": "Adaptive reliability-aware fusion selected joy: text=joy rel=0.80, visual=joy rel=0.34, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.7991664461497751,
+          "trust": 0.03752504441840244,
+          "fear": 0.025453949772552567,
+          "surprise": 0.025453949772552567,
+          "sadness": 0.025453949772552567,
+          "disgust": 0.025453949772552567,
+          "anger": 0.025453949772552567,
+          "anticipation": 0.03603876056905958
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.342125,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7056540531004675,
+          "active_normalized_visual": 0.24142189291699742,
+          "active_normalized_prosody": 0.05292405398253505
+        },
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.8,
+          "reason": "The user's words express enjoyment and enthusiasm, which is consistent with the facial-expression hint."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "joy",
+          "averaged_scores": {
+            "joy": 95.0,
+            "trust": 5.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 174,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:27:32",
+          "ended_at": "2026-07-01 12:27:39",
+          "error": null,
+          "analysis_seconds": 1.2992,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.18380531668663025,
+            "duration": 5.888,
+            "energy_std": 0.12489417901473315,
+            "zero_crossing_rate": 0.09151124651034424
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0928,
+          "visual_seconds": 1.2992,
+          "prosody_seconds": 0.0008,
+          "total_seconds": 3.3928
+        }
+      },
+      "facial_emotion_hint": "dominant=joy; averaged_scores=(joy=95%, trust=5%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 95.0,
+          "trust": 5.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 174,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:27:32",
+        "ended_at": "2026-07-01 12:27:39",
+        "error": null,
+        "analysis_seconds": 1.2992,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.8,
+        "reason": "The user's words express enjoyment and enthusiasm, which is consistent with the facial-expression hint."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.18380531668663025,
+          "duration": 5.888,
+          "energy_std": 0.12489417901473315,
+          "zero_crossing_rate": 0.09151124651034424
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "I enjoy our chat a lot. What has been happening in Germany?",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "Germany is always bustling with activity, isn't it? As your friendly robot companion, I don't have real-time access to news or current events outside of the lab's local knowledge database. 😊",
+      "timestamp": "2026-07-01 12:27:44"
+    },
+    {
+      "role": "user",
+      "content": "very windy day today in Germany.",
+      "timestamp": "2026-07-01 12:28:09",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.47001044022968497,
+        "reason": "Adaptive reliability-aware fusion selected trust: text=surprise rel=0.80, visual=trust rel=0.98, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.041386810509831215,
+          "trust": 0.47001044022968497,
+          "fear": 0.017574386636505998,
+          "surprise": 0.3934226552984166,
+          "sadness": 0.017574386636505998,
+          "disgust": 0.017574386636505998,
+          "anger": 0.017574386636505998,
+          "anticipation": 0.024882547416043146
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.48721071863581,
+          "active_normalized_visual": 0.4762484774665042,
+          "active_normalized_prosody": 0.03654080389768574
+        },
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user is expressing surprise at the weather condition."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "trust",
+          "averaged_scores": {
+            "joy": 5.0,
+            "trust": 95.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 105,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:28:01",
+          "ended_at": "2026-07-01 12:28:05",
+          "error": null,
+          "analysis_seconds": 1.332,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.16771288216114044,
+            "duration": 3.424,
+            "energy_std": 0.09858848671677356,
+            "zero_crossing_rate": 0.049011554679371336
+          }
+        },
+        "response_times": {
+          "text_seconds": 1.9932,
+          "visual_seconds": 1.332,
+          "prosody_seconds": 0.001,
+          "total_seconds": 3.3262
+        }
+      },
+      "facial_emotion_hint": "dominant=trust; averaged_scores=(trust=95%, joy=5%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "trust",
+        "averaged_scores": {
+          "joy": 5.0,
+          "trust": 95.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 105,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:28:01",
+        "ended_at": "2026-07-01 12:28:05",
+        "error": null,
+        "analysis_seconds": 1.332,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user is expressing surprise at the weather condition."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.16771288216114044,
+          "duration": 3.424,
+          "energy_std": 0.09858848671677356,
+          "zero_crossing_rate": 0.049011554679371336
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "very windy day today in Germany.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "Breezy days can be quite invigorating! It sounds like you're experiencing a rather gusty day, aren't you? 🙂",
+      "timestamp": "2026-07-01 12:28:09"
+    },
+    {
+      "role": "user",
+      "content": "I'm still really exhausted.",
+      "timestamp": "2026-07-01 12:28:29",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.5658702566757895,
+        "reason": "Adaptive reliability-aware fusion selected sadness: text=sadness rel=0.95, visual=joy rel=0.44, prosody=anticipation rel=0.25.",
+        "scores": {
+          "joy": 0.27106136337218517,
+          "trust": 0.03679107710840827,
+          "fear": 0.0237760612048651,
+          "surprise": 0.0237760612048651,
+          "sadness": 0.5658702566757895,
+          "disgust": 0.0237760612048651,
+          "anger": 0.0237760612048651,
+          "anticipation": 0.031173058024156472
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.95,
+          "reliability_visual": 0.439875,
+          "reliability_prosody": 0.25,
+          "active_normalized_text": 0.7027146978326798,
+          "active_normalized_visual": 0.26030031807086323,
+          "active_normalized_prosody": 0.03698498409645684
+        },
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.8,
+          "reason": "The user's words convey exhaustion, which is a characteristic of sadness."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "joy",
+          "averaged_scores": {
+            "joy": 95.0,
+            "trust": 5.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 96,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:28:20",
+          "ended_at": "2026-07-01 12:28:25",
+          "error": null,
+          "analysis_seconds": 1.2819,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.1802973747253418,
+            "duration": 3.392,
+            "energy_std": 0.12294641031973258,
+            "zero_crossing_rate": 0.13021687457389766
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0197,
+          "visual_seconds": 1.2819,
+          "prosody_seconds": 0.0004,
+          "total_seconds": 3.302
+        }
+      },
+      "facial_emotion_hint": "dominant=joy; averaged_scores=(joy=95%, trust=5%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 95.0,
+          "trust": 5.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 96,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:28:20",
+        "ended_at": "2026-07-01 12:28:25",
+        "error": null,
+        "analysis_seconds": 1.2819,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user's words convey exhaustion, which is a characteristic of sadness."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.1802973747253418,
+          "duration": 3.392,
+          "energy_std": 0.12294641031973258,
+          "zero_crossing_rate": 0.13021687457389766
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": false,
+        "query": "I'm still really exhausted.",
+        "sources": [],
+        "reason": "Emotional support message; response should be empathetic without forcing retrieved RRLab knowledge.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "Sorry to hear that You must take care of yourself and get plenty of rest when your body needs it. Remember, self-care is essential for both mind and body! 😢",
+      "timestamp": "2026-07-01 12:28:29"
+    },
+    {
+      "role": "user",
+      "content": "I'll try my best to rest.",
+      "timestamp": "2026-07-01 12:28:50",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.4956016889514427,
+        "reason": "Adaptive reliability-aware fusion selected anticipation: text=sadness rel=0.80, visual=anticipation rel=0.96, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.017769176636171707,
+          "trust": 0.017769176636171707,
+          "fear": 0.017769176636171707,
+          "surprise": 0.017769176636171707,
+          "sadness": 0.39778325123152714,
+          "disgust": 0.017769176636171707,
+          "anger": 0.017769176636171707,
+          "anticipation": 0.4956016889514427
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9550000000000001,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.49261083743842365,
+          "active_normalized_visual": 0.4704433497536946,
+          "active_normalized_prosody": 0.03694581280788177
+        },
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.8,
+          "reason": "The user is expressing a desire to rest, which suggests they may be feeling tired or unhappy."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "anticipation",
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 90.0,
+            "neutral": 0.0
+          },
+          "frame_count": 80,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:28:42",
+          "ended_at": "2026-07-01 12:28:46",
+          "error": null,
+          "analysis_seconds": 1.3035,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.13562028110027313,
+            "duration": 2.624,
+            "energy_std": 0.08898657737681515,
+            "zero_crossing_rate": 0.16278017292713717
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.1151,
+          "visual_seconds": 1.3035,
+          "prosody_seconds": 0.0005,
+          "total_seconds": 3.4191
+        }
+      },
+      "facial_emotion_hint": "dominant=anticipation; averaged_scores=(anticipation=90%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "anticipation",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 90.0,
+          "neutral": 0.0
+        },
+        "frame_count": 80,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:28:42",
+        "ended_at": "2026-07-01 12:28:46",
+        "error": null,
+        "analysis_seconds": 1.3035,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user is expressing a desire to rest, which suggests they may be feeling tired or unhappy."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.13562028110027313,
+          "duration": 2.624,
+          "energy_std": 0.08898657737681515,
+          "zero_crossing_rate": 0.16278017292713717
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "I'll try my best to rest.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "That's a great attitude to have! Sometimes just acknowledging the need for rest can make all the difference. 🤔",
+      "timestamp": "2026-07-01 12:28:50"
+    },
+    {
+      "role": "user",
+      "content": "But I'm still very very very very angry.",
+      "timestamp": "2026-07-01 12:29:10",
+      "emotion": {
+        "emotion": "anger",
+        "confidence": 0.7538833759949508,
+        "reason": "Adaptive reliability-aware fusion selected anger: text=anger rel=0.95, visual=sadness rel=0.18, prosody=anticipation rel=0.25.",
+        "scores": {
+          "joy": 0.01627987356799727,
+          "trust": 0.01627987356799727,
+          "fear": 0.01627987356799727,
+          "surprise": 0.01627987356799727,
+          "sadness": 0.1396712968296825,
+          "disgust": 0.01627987356799727,
+          "anger": 0.7538833759949508,
+          "anticipation": 0.02504595933538042
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.95,
+          "reliability_visual": 0.17595000000000002,
+          "reliability_prosody": 0.25,
+          "active_normalized_text": 0.832778147901399,
+          "active_normalized_visual": 0.12339142326168522,
+          "active_normalized_prosody": 0.04383042883691574
+        },
+        "text_emotion": {
+          "emotion": "anger",
+          "confidence": 0.9,
+          "reason": "The user's explicit language and emphasis on being 'very very very very angry' strongly suggest this emotion."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 95.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 114,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:29:00",
+          "ended_at": "2026-07-01 12:29:05",
+          "error": null,
+          "analysis_seconds": 1.3559,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.19951146841049194,
+            "duration": 3.776,
+            "energy_std": 0.11620189237392169,
+            "zero_crossing_rate": 0.07498137879665646
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.1251,
+          "visual_seconds": 1.3559,
+          "prosody_seconds": 0.0005,
+          "total_seconds": 3.4815
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=95%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 95.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 114,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:29:00",
+        "ended_at": "2026-07-01 12:29:05",
+        "error": null,
+        "analysis_seconds": 1.3559,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "anger",
+        "confidence": 0.9,
+        "reason": "The user's explicit language and emphasis on being 'very very very very angry' strongly suggest this emotion."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.19951146841049194,
+          "duration": 3.776,
+          "energy_std": 0.11620189237392169,
+          "zero_crossing_rate": 0.07498137879665646
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "But I'm still very very very very angry.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like you're feeling quite frustrated and upset right now, aren't you? Remember that it's okay to feel those emotions - sometimes just acknowledging them can help ease their intensity. 😠",
+      "timestamp": "2026-07-01 12:29:10"
+    },
+    {
+      "role": "user",
+      "content": "but still I still feel angry. I have not been able to accomplish on my text.",
+      "timestamp": "2026-07-01 12:29:37",
+      "emotion": {
+        "emotion": "anger",
+        "confidence": 0.6706055612048109,
+        "reason": "Adaptive reliability-aware fusion selected anger: text=anger rel=0.95, visual=sadness rel=0.18, prosody=anticipation rel=0.25.",
+        "scores": {
+          "joy": 0.02817670425230297,
+          "trust": 0.02817670425230297,
+          "fear": 0.02817670425230297,
+          "surprise": 0.02817670425230297,
+          "sadness": 0.15156812751398818,
+          "disgust": 0.02817670425230297,
+          "anger": 0.6706055612048109,
+          "anticipation": 0.03694279001968612
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.95,
+          "reliability_visual": 0.17595000000000002,
+          "reliability_prosody": 0.25,
+          "active_normalized_text": 0.832778147901399,
+          "active_normalized_visual": 0.12339142326168522,
+          "active_normalized_prosody": 0.04383042883691574
+        },
+        "text_emotion": {
+          "emotion": "anger",
+          "confidence": 0.8,
+          "reason": "The user explicitly expresses anger and frustration with their inability to accomplish something."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 95.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 217,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:29:25",
+          "ended_at": "2026-07-01 12:29:33",
+          "error": null,
+          "analysis_seconds": 1.3552,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.1577158272266388,
+            "duration": 7.264,
+            "energy_std": 0.10085149219703048,
+            "zero_crossing_rate": 0.10688073789181143
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0233,
+          "visual_seconds": 1.3552,
+          "prosody_seconds": 0.0008,
+          "total_seconds": 3.3793
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=95%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 95.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 217,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:29:25",
+        "ended_at": "2026-07-01 12:29:33",
+        "error": null,
+        "analysis_seconds": 1.3552,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "anger",
+        "confidence": 0.8,
+        "reason": "The user explicitly expresses anger and frustration with their inability to accomplish something."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.1577158272266388,
+          "duration": 7.264,
+          "energy_std": 0.10085149219703048,
+          "zero_crossing_rate": 0.10688073789181143
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "but still I still feel angry. I have not been able to accomplish on my text.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like your frustration is related to feeling stuck or unable to make progress with your task, which can be really frustrating! Remember that sometimes taking a step back and reapproaching the problem from a different angle can help you get unstuck. 😠",
+      "timestamp": "2026-07-01 12:29:37"
+    },
+    {
+      "role": "user",
+      "content": "I guess you're right, but that doesn't seem to make it like less sudden.",
+      "timestamp": "2026-07-01 12:30:06",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.47001044022968497,
+        "reason": "Adaptive reliability-aware fusion selected joy: text=surprise rel=0.80, visual=joy rel=0.98, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.47001044022968497,
+          "trust": 0.041386810509831215,
+          "fear": 0.017574386636505998,
+          "surprise": 0.3934226552984166,
+          "sadness": 0.017574386636505998,
+          "disgust": 0.017574386636505998,
+          "anger": 0.017574386636505998,
+          "anticipation": 0.024882547416043146
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.48721071863581,
+          "active_normalized_visual": 0.4762484774665042,
+          "active_normalized_prosody": 0.03654080389768574
+        },
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's words suggest a mix of emotions, but the surprise at the suddenness is more prominent."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "joy",
+          "averaged_scores": {
+            "joy": 95.0,
+            "trust": 5.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 179,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:29:54",
+          "ended_at": "2026-07-01 12:30:01",
+          "error": null,
+          "analysis_seconds": 1.2851,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.14629912376403809,
+            "duration": 5.76,
+            "energy_std": 0.08487179118449677,
+            "zero_crossing_rate": 0.11175251467572347
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.1576,
+          "visual_seconds": 1.2851,
+          "prosody_seconds": 0.0006,
+          "total_seconds": 3.4433
+        }
+      },
+      "facial_emotion_hint": "dominant=joy; averaged_scores=(joy=95%, trust=5%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 95.0,
+          "trust": 5.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 179,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:29:54",
+        "ended_at": "2026-07-01 12:30:01",
+        "error": null,
+        "analysis_seconds": 1.2851,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's words suggest a mix of emotions, but the surprise at the suddenness is more prominent."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.14629912376403809,
+          "duration": 5.76,
+          "energy_std": 0.08487179118449677,
+          "zero_crossing_rate": 0.11175251467572347
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "I guess you're right, but that doesn't seem to make it like less sudden.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "It's understandable that even knowing what might be helpful isn't immediately making your frustration go away. Sometimes just acknowledging the feeling and giving yourself permission to feel stuck can help - after all, trying to push through when we're not ready or able can actually prolong our struggles! 😊",
+      "timestamp": "2026-07-01 12:30:06"
+    },
+    {
+      "role": "user",
+      "content": "Ah, right now just really hungry. I'm tired.",
+      "timestamp": "2026-07-01 12:30:36",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8681257014590349,
+        "reason": "Adaptive reliability-aware fusion selected sadness: text=sadness rel=0.95, visual=sadness rel=0.98, prosody=anticipation rel=0.25.",
+        "scores": {
+          "joy": 0.018037518037518033,
+          "trust": 0.018037518037518033,
+          "fear": 0.018037518037518033,
+          "surprise": 0.018037518037518033,
+          "sadness": 0.8681257014590349,
+          "disgust": 0.018037518037518033,
+          "anger": 0.018037518037518033,
+          "anticipation": 0.02364919031585698
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.95,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.25,
+          "active_normalized_text": 0.5331088664421998,
+          "active_normalized_visual": 0.4388327721661055,
+          "active_normalized_prosody": 0.028058361391694726
+        },
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.8,
+          "reason": "The user's words explicitly express hunger and tiredness, which are typical indicators of sadness."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 95.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 164,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:30:26",
+          "ended_at": "2026-07-01 12:30:32",
+          "error": null,
+          "analysis_seconds": 1.3958,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.15616749227046967,
+            "duration": 5.568,
+            "energy_std": 0.10807425647230263,
+            "zero_crossing_rate": 0.08363734327118434
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.1386,
+          "visual_seconds": 1.3958,
+          "prosody_seconds": 0.0006,
+          "total_seconds": 3.535
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=95%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 95.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 164,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:30:26",
+        "ended_at": "2026-07-01 12:30:32",
+        "error": null,
+        "analysis_seconds": 1.3958,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user's words explicitly express hunger and tiredness, which are typical indicators of sadness."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.15616749227046967,
+          "duration": 5.568,
+          "energy_std": 0.10807425647230263,
+          "zero_crossing_rate": 0.08363734327118434
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": false,
+        "query": "Ah, right now just really hungry. I'm tired.",
+        "sources": [],
+        "reason": "Emotional support message; response should be empathetic without forcing retrieved RRLab knowledge.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "It sounds like you could use a break and some nourishment soon! Taking care of your physical needs is important for maintaining energy levels - maybe grab something to eat and take a little time to recharge? 😢",
+      "timestamp": "2026-07-01 12:30:36"
+    },
+    {
+      "role": "user",
+      "content": "Yeah.",
+      "timestamp": "2026-07-01 12:30:59",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.894890929965557,
+        "reason": "Adaptive reliability-aware fusion selected joy: text=joy rel=0.90, visual=joy rel=0.98, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.894890929965557,
+          "trust": 0.03327046088240118,
+          "fear": 0.010824995899622764,
+          "surprise": 0.010824995899622764,
+          "sadness": 0.010824995899622764,
+          "disgust": 0.010824995899622764,
+          "anger": 0.010824995899622764,
+          "anticipation": 0.01771362965392816
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.9,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.5166475315729048,
+          "active_normalized_visual": 0.4489092996555683,
+          "active_normalized_prosody": 0.03444316877152698
+        },
+        "text_emotion": {
+          "emotion": "joy",
+          "confidence": 0.9,
+          "reason": "The user's response and facial expression both indicate a positive emotional state, with joy being the most likely emotion."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "joy",
+          "averaged_scores": {
+            "joy": 95.0,
+            "trust": 5.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 45,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-01 12:30:52",
+          "ended_at": "2026-07-01 12:30:55",
+          "error": null,
+          "analysis_seconds": 1.3048,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.20638106763362885,
+            "duration": 1.6,
+            "energy_std": 0.15678397521023552,
+            "zero_crossing_rate": 0.08180007031524669
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.158,
+          "visual_seconds": 1.3048,
+          "prosody_seconds": 0.0003,
+          "total_seconds": 3.4631
+        }
+      },
+      "facial_emotion_hint": "dominant=joy; averaged_scores=(joy=95%, trust=5%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 95.0,
+          "trust": 5.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 45,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-01 12:30:52",
+        "ended_at": "2026-07-01 12:30:55",
+        "error": null,
+        "analysis_seconds": 1.3048,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 0.9,
+        "reason": "The user's response and facial expression both indicate a positive emotional state, with joy being the most likely emotion."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.20638106763362885,
+          "duration": 1.6,
+          "energy_std": 0.15678397521023552,
+          "zero_crossing_rate": 0.08180007031524669
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "Yeah.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "I hope that helps, then! Sometimes just taking a step back and prioritizing our basic needs can make all the difference in how we're feeling. 😊",
+      "timestamp": "2026-07-01 12:30:59"
+    },
+    {
+      "role": "user",
+      "content": "you've been quite helpful.",
+      "timestamp": "2026-07-01 12:31:19",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.47001044022968497,
+        "reason": "Adaptive reliability-aware fusion selected joy: text=trust rel=0.80, visual=joy rel=0.98, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.47001044022968497,
+          "trust": 0.4172350791717418,
+          "fear": 0.017574386636505998,
+          "surprise": 0.017574386636505998,
+          "sadness": 0.017574386636505998,
+          "disgust": 0.017574386636505998,
+          "anger": 0.017574386636505998,
+          "anticipation": 0.024882547416043146
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.48721071863581,
+          "active_normalized_visual": 0.4762484774665042,
+          "active_normalized_prosody": 0.03654080389768574
+        },
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user is expressing gratitude and appreciation, which suggests a trusting relationship."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "joy",
+          "averaged_scores": {
+            "joy": 95.0,
+            "trust": 5.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 74,
+          "sampled_frame_count": 4,
+          "started_at": "2026-07-01 12:31:11",
+          "ended_at": "2026-07-01 12:31:15",
+          "error": null,
+          "analysis_seconds": 1.2758,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.14628012478351593,
+            "duration": 2.528,
+            "energy_std": 0.09933444265358568,
+            "zero_crossing_rate": 0.07053675179865009
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0215,
+          "visual_seconds": 1.2758,
+          "prosody_seconds": 0.0003,
+          "total_seconds": 3.2976
+        }
+      },
+      "facial_emotion_hint": "dominant=joy; averaged_scores=(joy=95%, trust=5%); samples=4",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 95.0,
+          "trust": 5.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 74,
+        "sampled_frame_count": 4,
+        "started_at": "2026-07-01 12:31:11",
+        "ended_at": "2026-07-01 12:31:15",
+        "error": null,
+        "analysis_seconds": 1.2758,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user is expressing gratitude and appreciation, which suggests a trusting relationship."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.14628012478351593,
+          "duration": 2.528,
+          "energy_std": 0.09933444265358568,
+          "zero_crossing_rate": 0.07053675179865009
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "you've been quite helpful.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "Thank you so much for your kind words! I'm glad to have been able to assist you - it's always rewarding when my conversations are well-received. 😊",
+      "timestamp": "2026-07-01 12:31:19"
+    },
+    {
+      "role": "user",
+      "content": "W by any chance, no, asita asuka.",
+      "timestamp": "2026-07-01 12:31:40",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.8458587088915955,
+        "reason": "Adaptive reliability-aware fusion selected trust: text=trust rel=0.80, visual=trust rel=0.98, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.041386810509831215,
+          "trust": 0.8458587088915955,
+          "fear": 0.017574386636505998,
+          "surprise": 0.017574386636505998,
+          "sadness": 0.017574386636505998,
+          "disgust": 0.017574386636505998,
+          "anger": 0.017574386636505998,
+          "anticipation": 0.024882547416043146
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.48721071863581,
+          "active_normalized_visual": 0.4762484774665042,
+          "active_normalized_prosody": 0.03654080389768574
+        },
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user's words and facial expression both indicate trust, with the user explicitly mentioning 'W by any chance' which implies a sense of reliance or dependence on something."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "trust",
+          "averaged_scores": {
+            "joy": 5.0,
+            "trust": 95.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 126,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:31:30",
+          "ended_at": "2026-07-01 12:31:35",
+          "error": null,
+          "analysis_seconds": 1.3436,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.17461161315441132,
+            "duration": 4.16,
+            "energy_std": 0.11326899234399491,
+            "zero_crossing_rate": 0.07928304211301251
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.3365,
+          "visual_seconds": 1.3436,
+          "prosody_seconds": 0.0005,
+          "total_seconds": 3.6806
+        }
+      },
+      "facial_emotion_hint": "dominant=trust; averaged_scores=(trust=95%, joy=5%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "trust",
+        "averaged_scores": {
+          "joy": 5.0,
+          "trust": 95.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 126,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:31:30",
+        "ended_at": "2026-07-01 12:31:35",
+        "error": null,
+        "analysis_seconds": 1.3436,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user's words and facial expression both indicate trust, with the user explicitly mentioning 'W by any chance' which implies a sense of reliance or dependence on something."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.17461161315441132,
+          "duration": 4.16,
+          "energy_std": 0.11326899234399491,
+          "zero_crossing_rate": 0.07928304211301251
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "W by any chance, no, asita asuka.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "I think there might be a small misunderstanding? It seems like the conversation has taken an unexpected turn! 🙂",
+      "timestamp": "2026-07-01 12:31:40"
+    },
+    {
+      "role": "user",
+      "content": "ashoog in the RR lab.",
+      "timestamp": "2026-07-01 12:31:59",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.4956016889514427,
+        "reason": "Adaptive reliability-aware fusion selected anticipation: text=surprise rel=0.80, visual=anticipation rel=0.96, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.017769176636171707,
+          "trust": 0.017769176636171707,
+          "fear": 0.017769176636171707,
+          "surprise": 0.39778325123152714,
+          "sadness": 0.017769176636171707,
+          "disgust": 0.017769176636171707,
+          "anger": 0.017769176636171707,
+          "anticipation": 0.4956016889514427
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9550000000000001,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.49261083743842365,
+          "active_normalized_visual": 0.4704433497536946,
+          "active_normalized_prosody": 0.03694581280788177
+        },
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's mention of 'ashoog' and the RR lab suggests a sudden or unexpected event, which is typical of surprise."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "anticipation",
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 90.0,
+            "neutral": 0.0
+          },
+          "frame_count": 88,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:31:51",
+          "ended_at": "2026-07-01 12:31:55",
+          "error": null,
+          "analysis_seconds": 1.3132,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.16205249726772308,
+            "duration": 2.848,
+            "energy_std": 0.1009788489383494,
+            "zero_crossing_rate": 0.06746110123554326
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.2771,
+          "visual_seconds": 1.3132,
+          "prosody_seconds": 0.0008,
+          "total_seconds": 3.5911
+        }
+      },
+      "facial_emotion_hint": "dominant=anticipation; averaged_scores=(anticipation=90%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "anticipation",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 90.0,
+          "neutral": 0.0
+        },
+        "frame_count": 88,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:31:51",
+        "ended_at": "2026-07-01 12:31:55",
+        "error": null,
+        "analysis_seconds": 1.3132,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's mention of 'ashoog' and the RR lab suggests a sudden or unexpected event, which is typical of surprise."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.16205249726772308,
+          "duration": 2.848,
+          "energy_std": 0.1009788489383494,
+          "zero_crossing_rate": 0.06746110123554326
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "ashoog in the RR lab.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "It looks like we're back to normal now! So, you were saying something about being at the Robotics Research (RR) Lab... 🤔",
+      "timestamp": "2026-07-01 12:31:59"
+    },
+    {
+      "role": "user",
+      "content": "Do you know the person, Ashita? Ashita Ashik? Do you know her?",
+      "timestamp": "2026-07-01 12:32:22",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.5729998226006741,
+        "reason": "Adaptive reliability-aware fusion selected trust: text=trust rel=0.80, visual=anticipation rel=0.33, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.0255961884487696,
+          "trust": 0.5729998226006741,
+          "fear": 0.0255961884487696,
+          "surprise": 0.0255961884487696,
+          "sadness": 0.0255961884487696,
+          "disgust": 0.0255961884487696,
+          "anger": 0.0255961884487696,
+          "anticipation": 0.2734230467067082
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.33425,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7095973035302465,
+          "active_normalized_visual": 0.2371828987049849,
+          "active_normalized_prosody": 0.053219797764768484
+        },
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user is seeking information and showing curiosity, which indicates a trusting attitude."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "anticipation",
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 90.0,
+            "neutral": 0.0
+          },
+          "frame_count": 204,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:32:10",
+          "ended_at": "2026-07-01 12:32:18",
+          "error": null,
+          "analysis_seconds": 1.2924,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.14993228018283844,
+            "duration": 6.624,
+            "energy_std": 0.09930514925127226,
+            "zero_crossing_rate": 0.07738977005746205
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.011,
+          "visual_seconds": 1.2924,
+          "prosody_seconds": 0.0008,
+          "total_seconds": 3.3042
+        }
+      },
+      "facial_emotion_hint": "dominant=anticipation; averaged_scores=(anticipation=90%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "anticipation",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 90.0,
+          "neutral": 0.0
+        },
+        "frame_count": 204,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:32:10",
+        "ended_at": "2026-07-01 12:32:18",
+        "error": null,
+        "analysis_seconds": 1.2924,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user is seeking information and showing curiosity, which indicates a trusting attitude."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.14993228018283844,
+          "duration": 6.624,
+          "energy_std": 0.09930514925127226,
+          "zero_crossing_rate": 0.07738977005746205
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "Do you know the person, Ashita? Ashita Ashik? Do you know her?",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "I'm not familiar with a specific individual named Ashita or Ashika. As Ameca, my knowledge is limited to local lab context and previous conversations. 🙂",
+      "timestamp": "2026-07-01 12:32:22"
+    },
+    {
+      "role": "user",
+      "content": "A-S-H-I-C-A.",
+      "timestamp": "2026-07-01 12:32:43",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.48821252638986634,
+        "reason": "Adaptive reliability-aware fusion selected sadness: text=surprise rel=0.80, visual=sadness rel=0.96, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.017769176636171707,
+          "trust": 0.017769176636171707,
+          "fear": 0.017769176636171707,
+          "surprise": 0.39778325123152714,
+          "sadness": 0.48821252638986634,
+          "disgust": 0.017769176636171707,
+          "anger": 0.017769176636171707,
+          "anticipation": 0.02515833919774806
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9550000000000001,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.49261083743842365,
+          "active_normalized_visual": 0.4704433497536946,
+          "active_normalized_prosody": 0.03694581280788177
+        },
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's unusual phrase 'A-S-H-I-C-A' suggests surprise or astonishment, which is a stronger signal than the sadness facial-expression hint."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 90.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 107,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:32:34",
+          "ended_at": "2026-07-01 12:32:39",
+          "error": null,
+          "analysis_seconds": 1.3154,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.2036573588848114,
+            "duration": 3.488,
+            "energy_std": 0.14191174809803403,
+            "zero_crossing_rate": 0.12677621086960417
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.3188,
+          "visual_seconds": 1.3154,
+          "prosody_seconds": 0.0006,
+          "total_seconds": 3.6348
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=90%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 90.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 107,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:32:34",
+        "ended_at": "2026-07-01 12:32:39",
+        "error": null,
+        "analysis_seconds": 1.3154,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's unusual phrase 'A-S-H-I-C-A' suggests surprise or astonishment, which is a stronger signal than the sadness facial-expression hint."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.2036573588848114,
+          "duration": 3.488,
+          "energy_std": 0.14191174809803403,
+          "zero_crossing_rate": 0.12677621086960417
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "A-S-H-I-C-A.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "It seems like the user's name might be Ashica! I'll make sure to remember that for future interactions 😢",
+      "timestamp": "2026-07-01 12:32:43"
+    },
+    {
+      "role": "user",
+      "content": "I was asking if you know about ashita in the robotics lab.",
+      "timestamp": "2026-07-01 12:33:04",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.8458587088915955,
+        "reason": "Adaptive reliability-aware fusion selected trust: text=trust rel=0.80, visual=trust rel=0.98, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.041386810509831215,
+          "trust": 0.8458587088915955,
+          "fear": 0.017574386636505998,
+          "surprise": 0.017574386636505998,
+          "sadness": 0.017574386636505998,
+          "disgust": 0.017574386636505998,
+          "anger": 0.017574386636505998,
+          "anticipation": 0.024882547416043146
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.48721071863581,
+          "active_normalized_visual": 0.4762484774665042,
+          "active_normalized_prosody": 0.03654080389768574
+        },
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user is seeking information and showing trust in the robot's knowledge."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "trust",
+          "averaged_scores": {
+            "joy": 5.0,
+            "trust": 95.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 161,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:32:53",
+          "ended_at": "2026-07-01 12:33:00",
+          "error": null,
+          "analysis_seconds": 1.3175,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.18164215981960297,
+            "duration": 5.184,
+            "energy_std": 0.10976002933517393,
+            "zero_crossing_rate": 0.08837394355159567
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0027,
+          "visual_seconds": 1.3175,
+          "prosody_seconds": 0.0006,
+          "total_seconds": 3.3208
+        }
+      },
+      "facial_emotion_hint": "dominant=trust; averaged_scores=(trust=95%, joy=5%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "trust",
+        "averaged_scores": {
+          "joy": 5.0,
+          "trust": 95.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 161,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:32:53",
+        "ended_at": "2026-07-01 12:33:00",
+        "error": null,
+        "analysis_seconds": 1.3175,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user is seeking information and showing trust in the robot's knowledge."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.18164215981960297,
+          "duration": 5.184,
+          "energy_std": 0.10976002933517393,
+          "zero_crossing_rate": 0.08837394355159567
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": false,
+        "query": "I was asking if you know about ashita in the robotics lab.",
+        "sources": [],
+        "reason": "No direct local knowledge was found for person lookup: ashita. Generic RRLab pages were not used because they do not directly answer the question.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "As Ameca, my knowledge is limited to local lab context and previous conversations. Since there isn't a saved conversation summary available, I don't have any specific information on an \"Ashita\" within our Robotics Research (RR) Lab. 🙂",
+      "timestamp": "2026-07-01 12:33:04"
+    },
+    {
+      "role": "user",
+      "content": "then what do you know about the what's going on in our lab at the moment?",
+      "timestamp": "2026-07-01 12:33:33",
+      "emotion": {
+        "emotion": "surprise",
+        "confidence": 0.5729998226006741,
+        "reason": "Adaptive reliability-aware fusion selected surprise: text=surprise rel=0.80, visual=sadness rel=0.33, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.0255961884487696,
+          "trust": 0.0255961884487696,
+          "fear": 0.0255961884487696,
+          "surprise": 0.5729998226006741,
+          "sadness": 0.26277908715375453,
+          "disgust": 0.0255961884487696,
+          "anger": 0.0255961884487696,
+          "anticipation": 0.036240148001723295
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.33425,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7095973035302465,
+          "active_normalized_visual": 0.2371828987049849,
+          "active_normalized_prosody": 0.053219797764768484
+        },
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user is showing curiosity and interest in what's happening in the lab, which suggests surprise."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 90.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 198,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:33:21",
+          "ended_at": "2026-07-01 12:33:29",
+          "error": null,
+          "analysis_seconds": 1.3092,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.18169701099395752,
+            "duration": 6.368,
+            "energy_std": 0.09897323883508459,
+            "zero_crossing_rate": 0.06609282832942377
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.1558,
+          "visual_seconds": 1.3092,
+          "prosody_seconds": 0.0008,
+          "total_seconds": 3.4658
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=90%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 90.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 198,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:33:21",
+        "ended_at": "2026-07-01 12:33:29",
+        "error": null,
+        "analysis_seconds": 1.3092,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user is showing curiosity and interest in what's happening in the lab, which suggests surprise."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.18169701099395752,
+          "duration": 6.368,
+          "energy_std": 0.09897323883508459,
+          "zero_crossing_rate": 0.06609282832942377
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": false,
+        "query": "then what do you know about the what's going on in our lab at the moment?",
+        "sources": [],
+        "reason": "No direct local knowledge was found for person lookup: what s. Generic RRLab pages were not used because they do not directly answer the question.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "As Ameca, my knowledge is based on local context and previous conversations. Since there isn't a saved conversation summary available, I don't have any specific information on current projects or events within your Robotics Research (RR) Lab. 😮",
+      "timestamp": "2026-07-01 12:33:33"
+    },
+    {
+      "role": "user",
+      "content": "Okay, do you know about Professor Benz?",
+      "timestamp": "2026-07-01 12:34:01",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.5698156478786275,
+        "reason": "Adaptive reliability-aware fusion selected trust: text=trust rel=0.80, visual=sadness rel=0.34, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.025453949772552567,
+          "trust": 0.5698156478786275,
+          "fear": 0.025453949772552567,
+          "surprise": 0.025453949772552567,
+          "sadness": 0.26687584268954995,
+          "disgust": 0.025453949772552567,
+          "anger": 0.025453949772552567,
+          "anticipation": 0.03603876056905958
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.342125,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7056540531004675,
+          "active_normalized_visual": 0.24142189291699742,
+          "active_normalized_prosody": 0.05292405398253505
+        },
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user is seeking information or knowledge, which indicates a trusting and open emotional state."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.0,
+            "trust": 0.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 95.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 133,
+          "sampled_frame_count": 5,
+          "started_at": "2026-07-01 12:33:52",
+          "ended_at": "2026-07-01 12:33:57",
+          "error": null,
+          "analysis_seconds": 1.3493,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.16176821291446686,
+            "duration": 4.576,
+            "energy_std": 0.1027968339724532,
+            "zero_crossing_rate": 0.10112681827494366
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0464,
+          "visual_seconds": 1.3493,
+          "prosody_seconds": 0.0005,
+          "total_seconds": 3.3962
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=95%); samples=5",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.0,
+          "trust": 0.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 95.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 133,
+        "sampled_frame_count": 5,
+        "started_at": "2026-07-01 12:33:52",
+        "ended_at": "2026-07-01 12:33:57",
+        "error": null,
+        "analysis_seconds": 1.3493,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user is seeking information or knowledge, which indicates a trusting and open emotional state."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.16176821291446686,
+          "duration": 4.576,
+          "energy_std": 0.1027968339724532,
+          "zero_crossing_rate": 0.10112681827494366
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": false,
+        "query": "Okay, do you know about Professor Benz?",
+        "sources": [],
+        "reason": "No direct local knowledge was found for person lookup: professor benz. Generic RRLab pages were not used because they do not directly answer the question.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "As Ameca, my knowledge is based on local context and previous conversations. Since there isn't a saved conversation summary available, I don't have any specific information on Professor Benz or their work within our Robotics Research (RR) Lab. 🙂",
+      "timestamp": "2026-07-01 12:34:01"
+    },
+    {
+      "role": "user",
+      "content": "for your time.",
+      "timestamp": "2026-07-01 12:34:26",
+      "emotion": {
+        "emotion": "joy",
+        "confidence": 0.47001044022968497,
+        "reason": "Adaptive reliability-aware fusion selected joy: text=trust rel=0.80, visual=joy rel=0.98, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.47001044022968497,
+          "trust": 0.4172350791717418,
+          "fear": 0.017574386636505998,
+          "surprise": 0.017574386636505998,
+          "sadness": 0.017574386636505998,
+          "disgust": 0.017574386636505998,
+          "anger": 0.017574386636505998,
+          "anticipation": 0.024882547416043146
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.9775,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.48721071863581,
+          "active_normalized_visual": 0.4762484774665042,
+          "active_normalized_prosody": 0.03654080389768574
+        },
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user is expressing gratitude and appreciation, which aligns with the emotion of trust."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "joy",
+          "averaged_scores": {
+            "joy": 95.0,
+            "trust": 5.0,
+            "fear": 0.0,
+            "surprise": 0.0,
+            "sadness": 0.0,
+            "disgust": 0.0,
+            "anger": 0.0,
+            "anticipation": 0.0,
+            "neutral": 0.0
+          },
+          "frame_count": 43,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-01 12:34:20",
+          "ended_at": "2026-07-01 12:34:22",
+          "error": null,
+          "analysis_seconds": 1.2394,
+          "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.129224956035614,
+            "duration": 1.472,
+            "energy_std": 0.09345064694807066,
+            "zero_crossing_rate": 0.046749607235361555
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0721,
+          "visual_seconds": 1.2394,
+          "prosody_seconds": 0.0003,
+          "total_seconds": 3.3118
+        }
+      },
+      "facial_emotion_hint": "dominant=joy; averaged_scores=(joy=95%, trust=5%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "joy",
+        "averaged_scores": {
+          "joy": 95.0,
+          "trust": 5.0,
+          "fear": 0.0,
+          "surprise": 0.0,
+          "sadness": 0.0,
+          "disgust": 0.0,
+          "anger": 0.0,
+          "anticipation": 0.0,
+          "neutral": 0.0
+        },
+        "frame_count": 43,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-01 12:34:20",
+        "ended_at": "2026-07-01 12:34:22",
+        "error": null,
+        "analysis_seconds": 1.2394,
+        "note": "Qwen2.5-VL facial expression analysis is used as the visual component in fixed weighted late fusion."
+      },
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user is expressing gratitude and appreciation, which aligns with the emotion of trust."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.129224956035614,
+          "duration": 1.472,
+          "energy_std": 0.09345064694807066,
+          "zero_crossing_rate": 0.046749607235361555
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "for your time.",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "You're welcome! It was nice chatting with you. 😊",
+      "timestamp": "2026-07-01 12:34:26"
+    }
+  ]
+}
