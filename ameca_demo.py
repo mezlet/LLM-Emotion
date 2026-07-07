@@ -29,6 +29,12 @@ Integration choices (per user requirements):
   ZedVisionModule.save_latest_frame(). DeepFace emotion analysis inside
   ZedVisionModule is explicitly disabled (enable_emotion_analysis=False):
   Qwen2.5-VL is the sole source of truth for facial-expression recognition.
+- Expression: the robot's PHYSICAL facial expression is now driven from
+  the fused emotion result via Tritium's sequence_player endpoint (the
+  same mechanism AmecaRobotChat.play_sequence() used for the
+  "exercise_routine" gesture sequence). This runs every turn as soon as
+  fusion resolves an emotion, independent of TTS/speech timing. See
+  RobotExpression / EMOTION_SEQUENCE_MAP below.
 
 HARDWARE NOTE:
 Earlier versions of this script opened two independent OpenCV capture
@@ -378,6 +384,42 @@ FUSION_EXPLICIT_TEXT_CONFIDENCE = float(os.environ.get("FUSION_EXPLICIT_TEXT_CON
 MAX_REPLY_SENTENCES = int(os.environ.get("MAX_REPLY_SENTENCES", "2"))
 
 
+# =========================
+# Facial expression (Tritium sequence player) configuration
+# =========================
+# The robot's PHYSICAL facial expression is driven separately from TTS.
+# AmecaRobotChat.play_sequence() showed the mechanism: a PUT to Tritium's
+# sequence_player endpoint with a named sequence
+# (http://emah/tritium/sequence_player/play/{sequence_name}), previously
+# only used for a movement routine ("exercise_routine"). The same
+# endpoint is reused here to trigger facial-expression sequences, driven
+# by the fused emotion result instead of being left unset.
+#
+# Confirmed working sequence names on the emah Tritium build, verified via
+# test_robot_output.py's "emotion"/"cycle" commands (all returned HTTP 200).
+# Still overridable via env vars if the Tritium profile changes.
+EMOTION_SEQUENCE_MAP = {
+    "joy": os.environ.get("SEQ_EMOTION_JOY", "Smile"),
+    "trust": os.environ.get("SEQ_EMOTION_TRUST", "hopeful_"),
+    "fear": os.environ.get("SEQ_EMOTION_FEAR", "Ameca_BasicEmo_Fear"),
+    "surprise": os.environ.get("SEQ_EMOTION_SURPRISE", "bsurprised"),
+    "sadness": os.environ.get("SEQ_EMOTION_SADNESS", "ausadness"),
+    "disgust": os.environ.get("SEQ_EMOTION_DISGUST", "disgustedrepulsion"),
+    "anger": os.environ.get("SEQ_EMOTION_ANGER", "Ameca_BasicEmo_Anger"),
+    "anticipation": os.environ.get("SEQ_EMOTION_ANTICIPATION", "anticipate"),
+}
+
+# If the fused emotion's confidence is below this, RobotExpression.set_emotion
+# falls back to a neutral expression instead of playing a weakly-supported
+# emotion sequence. Default 0.0 means "always trust the fused label."
+EXPRESSION_MIN_CONFIDENCE = float(os.environ.get("EXPRESSION_MIN_CONFIDENCE", "0.0"))
+
+# If True, resend the same expression sequence even if it matches the last
+# one played. Left False by default so the face doesn't replay/restart the
+# same animation every single turn when the mood hasn't changed.
+EXPRESSION_FORCE_REPLAY_SAME = os.environ.get("EXPRESSION_FORCE_REPLAY_SAME", "0") == "1"
+
+
 @dataclass
 class EmotionResult:
     emotion: str
@@ -712,6 +754,82 @@ class RobotSpeaker:
             print_ts(f"[TTS] urllib fallback HTTP error {exc2.code}: {body!r}")
         except Exception as exc2:
             print_ts(f"[TTS] urllib fallback failed: {exc2}")
+
+
+class RobotExpression:
+    """
+    Thin wrapper around the Tritium sequence_player PUT API, used to drive
+    Ameca's PHYSICAL facial expression from the fused emotion result.
+
+    Mirrors AmecaRobotChat.play_sequence() (which used this same endpoint
+    for a movement/gesture sequence, "exercise_routine") but targets
+    facial-expression sequences instead, keyed by Plutchik emotion via
+    EMOTION_SEQUENCE_MAP.
+
+    Runs every turn as soon as fusion resolves a dominant emotion,
+    independent of TTS/speech timing (per requirement: continuous,
+    turn-by-turn expression updates, not tied to when the robot speaks).
+    """
+
+    def __init__(self, host: str = "http://emah", tts_token: str = "", timeout: float = 3.0) -> None:
+        self.host = host.rstrip("/")
+        self.token = tts_token
+        self.timeout = timeout
+        self.last_emotion: Optional[str] = None
+
+    def _play_sequence(self, sequence_name: str) -> bool:
+        uri = f"{self.host}/tritium/sequence_player/play/{sequence_name}"
+        headers = {"Accept": "application/json"}
+        if self.token:
+            headers["X-Tritium-Auth-Token"] = self.token
+
+        try:
+            response = requests.put(uri, headers=headers, timeout=self.timeout)
+            ok = 200 <= response.status_code < 300
+            print_ts(
+                f"[EXPRESSION] PUT {uri} -> status={response.status_code} "
+                f"{'OK' if ok else 'FAILED'}: {response.text[:200]!r}"
+            )
+            return ok
+        except Exception as exc:
+            print_ts(f"[EXPRESSION] Failed to play sequence '{sequence_name}': {exc}")
+            return False
+
+    def set_emotion(
+        self,
+        emotion: str,
+        confidence: float = 1.0,
+        force: Optional[bool] = None,
+    ) -> None:
+        """
+        Update the robot's facial expression to match `emotion`.
+
+        - Falls back to the "trust"/neutral sequence if `emotion` is
+          unrecognized or if `confidence` is below EXPRESSION_MIN_CONFIDENCE.
+        - By default (force=None -> uses EXPRESSION_FORCE_REPLAY_SAME),
+          skips re-sending the same sequence back-to-back so the face
+          doesn't restart the same animation every single turn when the
+          mood hasn't changed. Pass force=True to always resend.
+        """
+        if force is None:
+            force = EXPRESSION_FORCE_REPLAY_SAME
+
+        resolved_emotion = emotion if emotion in EMOTION_SEQUENCE_MAP else "trust"
+
+        if confidence < EXPRESSION_MIN_CONFIDENCE:
+            resolved_emotion = "trust"
+
+        if not force and resolved_emotion == self.last_emotion:
+            print_ts(
+                f"[EXPRESSION] Emotion unchanged ({resolved_emotion}); skipping redundant sequence replay."
+            )
+            return
+
+        sequence_name = EMOTION_SEQUENCE_MAP.get(resolved_emotion, EMOTION_SEQUENCE_MAP["trust"])
+        success = self._play_sequence(sequence_name)
+
+        if success:
+            self.last_emotion = resolved_emotion
 
 
 # =========================
@@ -1166,6 +1284,12 @@ def save_session_transcript(
             },
             "output": {
                 "backend": "Tritium TTS",
+            },
+            "expression": {
+                "backend": "Tritium sequence_player",
+                "emotion_sequence_map": EMOTION_SEQUENCE_MAP,
+                "min_confidence": EXPRESSION_MIN_CONFIDENCE,
+                "force_replay_same": EXPRESSION_FORCE_REPLAY_SAME,
             },
             "general_vision": {
                 "backend": "ZED vision module" if HAS_ZED_VISION else "unavailable",
@@ -3127,6 +3251,60 @@ def get_ollama_embeddings_batch(
     return [get_ollama_embedding(client, text, model=model) for text in texts]
 
 
+def rebuild_self_rag_collection(store: SelfRAGStore) -> SelfRAGStore:
+    """
+    Manually delete and recreate the Self-RAG ChromaDB collection, then
+    reindex it. This is the on-demand equivalent of the automatic
+    dimension-mismatch repair in init_self_rag_store() -- use it if you
+    change SELF_RAG_EMBED_MODEL mid-project, or if a dimension error shows
+    up again without a full restart.
+    """
+    if not store.enabled or store.ollama_client is None:
+        print_ts("Self-RAG is not enabled; nothing to rebuild.")
+        return store
+
+    try:
+        import chromadb
+    except Exception as exc:
+        print_ts(f"Cannot rebuild Self-RAG collection; chromadb import failed: {exc}")
+        return store
+
+    try:
+        chroma_client = chromadb.PersistentClient(path=SELF_RAG_DB_DIR)
+        try:
+            chroma_client.delete_collection(name=SELF_RAG_COLLECTION)
+            print_ts(f"Deleted existing Self-RAG collection '{SELF_RAG_COLLECTION}'.")
+        except Exception as delete_exc:
+            print_ts(f"No existing collection to delete (or delete failed): {delete_exc}")
+
+        collection = chroma_client.get_or_create_collection(
+            name=SELF_RAG_COLLECTION,
+            metadata={"hnsw:space": "cosine"},
+        )
+
+        new_store = SelfRAGStore(
+            enabled=True,
+            collection=collection,
+            ollama_client=store.ollama_client,
+            embed_model=store.embed_model,
+        )
+
+        if resolve_scrape_script_path():
+            print_ts("Rebuilding Self-RAG index via scrape.py...")
+            if not run_rrlab_scraper():
+                print_ts("scrape.py failed; falling back to local knowledge_base indexing.")
+                index_self_rag_knowledge(new_store)
+        else:
+            index_self_rag_knowledge(new_store)
+
+        print_ts(f"Self-RAG collection rebuilt. chunks={collection.count()}.")
+        return new_store
+
+    except Exception as exc:
+        print_ts(f"Self-RAG rebuild failed: {exc}")
+        return store
+
+
 def init_self_rag_store(client: Client) -> SelfRAGStore:
     if not SELF_RAG_ENABLED:
         print_ts("Self-RAG disabled by SELF_RAG_ENABLED=0.")
@@ -3157,10 +3335,59 @@ def init_self_rag_store(client: Client) -> SelfRAGStore:
         if probe_embedding is None:
             error_msg = (
                 f"Could not get a test embedding from Ollama model '{SELF_RAG_EMBED_MODEL}'. "
-                f"Make sure it is pulled, e.g.: ollama pull {SELF_RAG_EMBED_MODEL}"
+                f"Make sure it is pulled, e.g.: ollama pull {SELF_RAG_EMBED_MODEL}", "a", "an", 
             )
             print_ts(f"Self-RAG initialization failed: {error_msg}")
             return SelfRAGStore(enabled=False, error=error_msg)
+
+        # Detect a stale collection whose stored vectors were created with a
+        # DIFFERENT embedding dimension than SELF_RAG_EMBED_MODEL currently
+        # produces (e.g. an old run indexed with a 384-dim sentence-
+        # transformers model, and this run embeds queries with 768-dim
+        # nomic-embed-text). ChromaDB fixes a collection's vector dimension
+        # from whatever was first inserted into it and cannot resize it in
+        # place, so every retrieve_self_rag_candidates() query would
+        # otherwise fail silently, every single turn, with:
+        #   "Collection expecting embedding with dimension of 384, got 768"
+        # The only real fix is to detect the mismatch and rebuild the
+        # collection fresh, then reindex.
+        existing_count = collection.count()
+        needs_reindex = SELF_RAG_REINDEX_ON_START
+
+        if existing_count > 0:
+            try:
+                collection.query(query_embeddings=[probe_embedding], n_results=1)
+            except Exception as dim_exc:
+                dim_exc_text = str(dim_exc)
+                if "dimension" in dim_exc_text.lower():
+                    print_ts(
+                        f"Self-RAG collection '{SELF_RAG_COLLECTION}' was built with a "
+                        f"different embedding dimension than '{SELF_RAG_EMBED_MODEL}' "
+                        f"currently produces ({dim_exc_text}). This would otherwise fail "
+                        f"on every single retrieval this session. Recreating the "
+                        f"collection from scratch."
+                    )
+                    try:
+                        chroma_client.delete_collection(name=SELF_RAG_COLLECTION)
+                    except Exception as delete_exc:
+                        print_ts(f"Could not delete the stale Self-RAG collection: {delete_exc}")
+                    collection = chroma_client.get_or_create_collection(
+                        name=SELF_RAG_COLLECTION,
+                        metadata={"hnsw:space": "cosine"},
+                    )
+                    existing_count = 0
+                    needs_reindex = True
+                    print_ts(
+                        "Stale Self-RAG collection recreated empty at the correct "
+                        f"dimension for '{SELF_RAG_EMBED_MODEL}'. It will be reindexed "
+                        "now (scrape.py if available, otherwise the local "
+                        f"'{SELF_RAG_KB_DIR}' folder)."
+                    )
+                else:
+                    print_ts(
+                        f"Self-RAG startup sanity query failed for an unrelated reason "
+                        f"(collection left as-is): {dim_exc_text}"
+                    )
 
         store = SelfRAGStore(
             enabled=True,
@@ -3169,8 +3396,19 @@ def init_self_rag_store(client: Client) -> SelfRAGStore:
             embed_model=SELF_RAG_EMBED_MODEL,
         )
 
-        if SELF_RAG_REINDEX_ON_START:
-            index_self_rag_knowledge(store)
+        # existing_count == 0 covers both "was already empty" and "just got
+        # wiped due to a dimension mismatch above" -- either way there is no
+        # usable data in the collection right now, so try scrape.py first
+        # (matches the manual '/rrlab crawl' command) and fall back to the
+        # local knowledge_base folder.
+        if needs_reindex or existing_count == 0:
+            if resolve_scrape_script_path():
+                print_ts("Self-RAG collection needs (re)indexing; attempting scrape.py first...")
+                if not run_rrlab_scraper():
+                    print_ts("scrape.py failed or unavailable; falling back to local knowledge_base indexing.")
+                    index_self_rag_knowledge(store)
+            else:
+                index_self_rag_knowledge(store)
 
         count = collection.count()
 
@@ -4668,7 +4906,7 @@ def generate_response(
 
 def parse_robot_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ameca demo: Silero VAD + faster-whisper/Google STT + emotion fusion + Self-RAG, with Tritium TTS output and ZED vision."
+        description="Ameca demo: Silero VAD + faster-whisper/Google STT + emotion fusion + Self-RAG, with Tritium TTS output, Tritium facial expression, and ZED vision."
     )
 
     parser.add_argument(
@@ -4684,8 +4922,22 @@ def parse_robot_args() -> argparse.Namespace:
     parser.add_argument("--vision_model", default="llava:7b", help="Ollama vision-language model used for general ZED 'what do you see' queries (default: llava:7b).")
 
     parser.add_argument("--tts_url", default=os.environ.get("TTS_URL", "http://emah/tritium/text_to_speech/say?voice=Lucy"))
-    parser.add_argument("--tts_token", default="")
     parser.add_argument("--speaking_cooldown", type=float, default=0.3, help="Seconds of echo-guard cooldown after TTS finishes speaking.")
+    parser.add_argument(
+        "--tts_token",
+        default="",
+        help="X-Tritium-Auth-Token used for both the TTS 'say' endpoint and the sequence_player expression endpoint.",
+    )
+    parser.add_argument(
+        "--expression_host",
+        default=os.environ.get("EXPRESSION_HOST", "http://emah"),
+        help="Base host for the Tritium sequence_player facial-expression endpoint (default: http://emah, same host as tts_url).",
+    )
+    parser.add_argument(
+        "--disable_expression",
+        action="store_true",
+        help="Disable driving Ameca's physical facial expression from the fused emotion result.",
+    )
 
     parser.add_argument("--google_stt_language", default=os.environ.get("GOOGLE_STT_LANGUAGE", "en-US"))
     parser.add_argument("--disable_google_fallback", action="store_true", help="Disable Google STT fallback; faster-whisper only.")
@@ -4722,7 +4974,7 @@ def main() -> None:
     VISION_MODEL_NAME = args.face_vision_model
     ZED_VISION_MODEL_NAME = args.vision_model
 
-    print_ts("Starting integrated Ameca demo: Silero VAD + faster-whisper/Google STT + persistent memory + Self-RAG + adaptive fusion + Tritium TTS + ZED vision.")
+    print_ts("Starting integrated Ameca demo: Silero VAD + faster-whisper/Google STT + persistent memory + Self-RAG + adaptive fusion + Tritium TTS + Tritium facial expression + ZED vision.")
     print_ts(f"Python: {sys.version.split()[0]}")
     print_ts(f"Ollama host: {OLLAMA_HOST}")
     print_ts(f"Ollama chat model: {MODEL_NAME}")
@@ -4730,6 +4982,7 @@ def main() -> None:
     print_ts(f"Ollama vision model (ZED general queries): {ZED_VISION_MODEL_NAME}")
     print_ts(f"Ollama embedding model (Self-RAG): {SELF_RAG_EMBED_MODEL}")
     print_ts(f"Tritium TTS URL: {args.tts_url}")
+    print_ts(f"Tritium expression host: {args.expression_host} (disabled={args.disable_expression})")
 
     # zed_vision_module is now the SINGLE owner of the ZED camera handle, used
     # both for Qwen2.5-VL facial-emotion sampling and (optionally) general
@@ -4816,14 +5069,22 @@ def main() -> None:
         print_ts("Google STT fallback disabled (--disable_google_fallback).")
 
     # ---- Robot output: Tritium TTS ----
-    # NOTE: tts_token is intentionally not sourced from a CLI/env value here.
-    # If you need to send an auth token to Tritium, set it explicitly before
-    # this call (do not commit real tokens into this file):
-    #   robot_speaker = RobotSpeaker(tts_url=args.tts_url, tts_token="<token>", speaking_cooldown_s=args.speaking_cooldown)
     robot_speaker = RobotSpeaker(
         tts_url=args.tts_url,
         tts_token=args.tts_token,
         speaking_cooldown_s=args.speaking_cooldown,
+    )
+
+    # ---- Robot output: Tritium facial expression (sequence_player) ----
+    # This is the piece that was previously missing entirely: the fused
+    # emotion result was computed every turn but nothing ever pushed it to
+    # the robot's face. RobotExpression reuses the same PUT-based
+    # sequence_player mechanism AmecaRobotChat.play_sequence() used for the
+    # "exercise_routine" gesture, but targets facial-expression sequences
+    # keyed by Plutchik emotion (see EMOTION_SEQUENCE_MAP).
+    robot_expression = RobotExpression(
+        host=args.expression_host,
+        tts_token=args.tts_token,
     )
 
     # Optional TTS-activity monitor (avoids the robot hearing its own voice),
@@ -4883,6 +5144,10 @@ def main() -> None:
     )
 
     robot_speaker.say(intro_reply)
+    # Neutral/trust expression on introduction (before any fused emotion
+    # has been computed for this session).
+    if not args.disable_expression:
+        robot_expression.set_emotion("trust", confidence=1.0, force=True)
 
     print()
 
@@ -4899,8 +5164,9 @@ def main() -> None:
     print(
         "Speak naturally. Silero VAD will detect speech, Qwen2.5-VL will analyze one cleaned facial "
         "snapshot after speech ends, faster-whisper will transcribe it (falling back to Google STT if "
-        "needed), adaptive reliability-aware fusion will combine text/visual/prosody, and Ameca will "
-        "respond out loud via Tritium TTS."
+        "needed), adaptive reliability-aware fusion will combine text/visual/prosody, Ameca's face will "
+        "update to match the fused emotion via Tritium sequence_player, and Ameca will respond out loud "
+        "via Tritium TTS."
     )
     print("Say '/exit' or press Ctrl+C to save the transcript and quit.")
     print()
@@ -4970,6 +5236,8 @@ def main() -> None:
 
                 print_ts(f"Assistant: {reply}")
                 robot_speaker.say(reply)
+                if not args.disable_expression:
+                    robot_expression.set_emotion("trust", confidence=1.0)
                 print()
 
                 history.append({"role": "user", "content": user_text})
@@ -5022,6 +5290,16 @@ def main() -> None:
                 else:
                     index_self_rag_knowledge(self_rag_store)
                     print_ts("Self-RAG local knowledge base reindexed.")
+                continue
+
+            if command in {"rag rebuild", "rebuild rag", "selfrag rebuild", "self-rag rebuild"}:
+                # Unlike "rag reindex" (which adds/updates chunks in the
+                # EXISTING collection), this deletes and recreates the
+                # collection first. Use this if you see a
+                # "Collection expecting embedding with dimension of X, got Y"
+                # error, or after changing SELF_RAG_EMBED_MODEL -- reindexing
+                # into a stale-dimension collection alone will not fix it.
+                self_rag_store = rebuild_self_rag_collection(self_rag_store)
                 continue
 
             # ---------- General ZED vision queries ----------
@@ -5081,6 +5359,19 @@ def main() -> None:
                 )
 
                 emotion_result = fused_emotion_result.to_emotion_result()
+
+                # ---- Drive the physical face from the fused emotion ----
+                # This runs as soon as fusion resolves, independent of TTS
+                # timing (per requirement: continuous, turn-by-turn
+                # expression updates, not tied to when the robot speaks).
+                # This is the call that was missing entirely before: the
+                # fused emotion was computed but never sent anywhere that
+                # could change Ameca's face.
+                if not args.disable_expression:
+                    robot_expression.set_emotion(
+                        emotion_result.emotion,
+                        confidence=emotion_result.confidence,
+                    )
 
                 text_emotion_json = {
                     "emotion": text_emotion_result.emotion,

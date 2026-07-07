@@ -16,17 +16,37 @@ Run:
     python scrape2.py
 
 Install:
-    pip install chromadb sentence-transformers requests beautifulsoup4 lxml
+    pip install chromadb requests beautifulsoup4 lxml ollama
 
 If lxml is not available, the script automatically falls back to html.parser.
 
 Important:
-    The ChromaDB path and collection below must match your main Ameca script.
+    The ChromaDB path, collection name, AND EMBEDDING MODEL below must match
+    your main Ameca script (ameca_demo.py's SELF_RAG_DB_DIR / SELF_RAG_COLLECTION
+    / SELF_RAG_EMBED_MODEL). A mismatch in embedding model/dimension between
+    this script and ameca_demo.py is what previously caused:
+        "Collection expecting embedding with dimension of 384, got 768"
+    on every single retrieval, every turn, silently.
+
+EMBEDDING PIPELINE (IMPORTANT):
+    This script embeds chunks using Ollama's 'nomic-embed-text' model (via
+    the same get_ollama_embedding()/get_ollama_embeddings_batch() approach
+    used in ameca_demo.py), NOT sentence-transformers/MiniLM. Embeddings are
+    computed here and passed explicitly to collection.add()/query() rather
+    than relying on ChromaDB's embedding_function machinery. This keeps the
+    indexing pipeline (this script) and the query pipeline (ameca_demo.py)
+    using the exact same embedding model, so the collection's vector
+    dimension can never silently drift between the two again.
+
+    Do NOT switch this back to sentence-transformers/MiniLM without also
+    changing ameca_demo.py's SELF_RAG_EMBED_MODEL to match, and rebuilding
+    the collection (delete chroma_db/ or use the in-app '/rag rebuild'
+    command) -- otherwise the dimension mismatch WILL return.
 
 Main improvements in this version:
     - stronger TYPO3 content-block isolation
     - removes repeated navigation/header/footer phrases from chunks
-    - smaller, more specific chunks for MiniLM retrieval
+    - smaller, more specific chunks for retrieval
     - category metadata: staff, project, robot, publication, teaching, conference
     - priority metadata for authoritative pages
     - category-aware verification
@@ -38,12 +58,16 @@ Main improvements in this version:
     - stronger archive/former-staff/publication-stub exclusion
     - /en/seite homepage canonicalization
     - category caps for balanced retrieval
+    - embeddings computed via Ollama (nomic-embed-text) instead of
+      sentence-transformers, to match ameca_demo.py's query-time embeddings
+      and prevent the 384-vs-768 dimension mismatch
 """
 
 from __future__ import annotations
 
 import hashlib
 import math
+import os
 import re
 import sys
 import time
@@ -61,17 +85,23 @@ from bs4 import BeautifulSoup, FeatureNotFound
 
 BASE_URL = "https://rrlab.cs.rptu.de/en"
 
-# Must match your main Self-RAG script.
-CHROMA_PERSIST_DIR = "chroma_db"
-CHROMA_COLLECTION = "emah_knowledge"
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+# Must match your main Self-RAG script (ameca_demo.py: SELF_RAG_DB_DIR /
+# SELF_RAG_COLLECTION / SELF_RAG_EMBED_MODEL).
+CHROMA_PERSIST_DIR = os.environ.get("SELF_RAG_DB_DIR", "chroma_db")
+CHROMA_COLLECTION = os.environ.get("SELF_RAG_COLLECTION", "emah_knowledge")
+
+# Embedding model, served via Ollama -- MUST match ameca_demo.py's
+# SELF_RAG_EMBED_MODEL. This is a 768-dim model; if you ever change this,
+# ameca_demo.py's SELF_RAG_EMBED_MODEL must change too, and the collection
+# must be rebuilt (delete chroma_db/, or use the in-app '/rag rebuild').
+EMBEDDING_MODEL = os.environ.get("SELF_RAG_EMBED_MODEL", "nomic-embed-text")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
 MAX_PAGES = 320
 REQUEST_TIMEOUT = 15
 DELAY_SECONDS = 0.35
 
-# Smaller chunks improve precision with MiniLM-style embedding models.
-# This is especially useful for staff, project, and robot pages.
+# Smaller chunks improve precision.
 CHUNK_SIZE = 180
 CHUNK_OVERLAP = 40
 
@@ -249,6 +279,65 @@ class ChunkRecord:
 
 def log(message: str) -> None:
     print(message, flush=True)
+
+
+# =============================================================================
+# Ollama embedding helpers (mirrors ameca_demo.py's
+# get_ollama_embedding()/get_ollama_embeddings_batch() so this script's
+# indexing embeddings and the main script's query-time embeddings are
+# produced by the exact same code path/model).
+# =============================================================================
+
+def get_ollama_embedding(client, text: str, model: str = EMBEDDING_MODEL):
+    """
+    Get a single embedding vector from Ollama's embeddings API.
+    Handles both the older client.embeddings(...) and newer client.embed(...)
+    method shapes, since the ollama-python client's API changed across
+    versions. Returns None on any failure.
+    """
+    text = (text or "").strip()
+    if not text:
+        return None
+
+    if hasattr(client, "embeddings"):
+        try:
+            response = client.embeddings(model=model, prompt=text)
+            embedding = response.get("embedding") if isinstance(response, dict) else getattr(response, "embedding", None)
+            if embedding:
+                return [float(value) for value in embedding]
+        except Exception as exc:
+            log(f"  [WARN] Ollama client.embeddings() failed (model={model}): {exc}")
+
+    if hasattr(client, "embed"):
+        try:
+            response = client.embed(model=model, input=text)
+            embeddings = response.get("embeddings") if isinstance(response, dict) else getattr(response, "embeddings", None)
+            if embeddings:
+                return [float(value) for value in embeddings[0]]
+        except Exception as exc:
+            log(f"  [WARN] Ollama client.embed() failed (model={model}): {exc}")
+
+    return None
+
+
+def get_ollama_embeddings_batch(client, texts: list[str], model: str = EMBEDDING_MODEL):
+    """
+    Embed multiple texts via Ollama. Ollama's embeddings API embeds one
+    prompt per call, so this loops rather than sending a true batch request.
+    Returns a list the same length as `texts`, with None for any that failed.
+    """
+    return [get_ollama_embedding(client, text, model=model) for text in texts]
+
+
+def make_ollama_client():
+    try:
+        from ollama import Client
+    except ImportError:
+        log("\nERROR: the 'ollama' python package is not installed.")
+        log("Run: pip install ollama")
+        sys.exit(1)
+
+    return Client(host=OLLAMA_HOST)
 
 
 # =============================================================================
@@ -970,7 +1059,7 @@ def build_chunks(pages: list[PageRecord]) -> list[ChunkRecord]:
 
 
 # =============================================================================
-# ChromaDB indexing
+# ChromaDB indexing (embeddings computed via Ollama, NOT sentence-transformers)
 # =============================================================================
 
 def build_knowledge_base(chunks: list[ChunkRecord]) -> None:
@@ -980,40 +1069,66 @@ def build_knowledge_base(chunks: list[ChunkRecord]) -> None:
 
     try:
         import chromadb
-        from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
     except ImportError:
-        log("\nERROR: chromadb / sentence-transformers not installed.")
-        log("Run: pip install chromadb sentence-transformers")
+        log("\nERROR: chromadb not installed.")
+        log("Run: pip install chromadb")
         sys.exit(1)
+
+    ollama_client = make_ollama_client()
 
     log(f"\nBuilding ChromaDB index at '{CHROMA_PERSIST_DIR}'...")
     log(f"Collection: {CHROMA_COLLECTION}")
-    log(f"Embedding model: {EMBEDDING_MODEL}")
+    log(f"Embedding model: {EMBEDDING_MODEL} (via Ollama at {OLLAMA_HOST})")
     log(f"Chunks to index: {len(chunks)}\n")
 
-    embedding_function = SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
-    client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+    # Sanity-check the embedding model once before committing to a full crawl
+    # index, so a bad/unpulled model name fails fast with a clear message
+    # instead of silently producing zero usable chunks.
+    probe = get_ollama_embedding(ollama_client, "self-rag scraper startup check", model=EMBEDDING_MODEL)
+    if probe is None:
+        log(
+            f"\nERROR: could not get a test embedding from Ollama model '{EMBEDDING_MODEL}'. "
+            f"Make sure it is pulled, e.g.: ollama pull {EMBEDDING_MODEL}"
+        )
+        sys.exit(1)
+    log(f"Embedding sanity check OK (dimension={len(probe)}).")
+
+    chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
 
     try:
-        client.delete_collection(CHROMA_COLLECTION)
+        chroma_client.delete_collection(CHROMA_COLLECTION)
         log(f"Deleted existing collection '{CHROMA_COLLECTION}'.")
     except Exception:
         pass
 
-    collection = client.create_collection(
+    # No embedding_function is attached here: embeddings are computed
+    # explicitly below and passed to collection.add()/query() directly, so
+    # this collection's vector dimension is determined purely by
+    # EMBEDDING_MODEL above, matching ameca_demo.py's SELF_RAG_EMBED_MODEL.
+    collection = chroma_client.create_collection(
         name=CHROMA_COLLECTION,
-        embedding_function=embedding_function,
         metadata={"hnsw:space": "cosine"},
     )
 
     batch_size = 64
+    total_failed = 0
 
     for start in range(0, len(chunks), batch_size):
         batch = chunks[start : start + batch_size]
 
-        collection.add(
-            documents=[item.text for item in batch],
-            metadatas=[
+        batch_embeddings = get_ollama_embeddings_batch(
+            ollama_client,
+            [item.text for item in batch],
+            model=EMBEDDING_MODEL,
+        )
+
+        kept_docs, kept_metas, kept_ids, kept_embeddings = [], [], [], []
+        for item, embedding in zip(batch, batch_embeddings):
+            if embedding is None:
+                total_failed += 1
+                continue
+            kept_docs.append(item.text)
+            kept_metas.append(
                 {
                     "source": item.source,
                     "title": item.title,
@@ -1022,14 +1137,24 @@ def build_knowledge_base(chunks: list[ChunkRecord]) -> None:
                     "chunk_index": item.chunk_index,
                     "kind": "rrlab_website",
                 }
-                for item in batch
-            ],
-            ids=[item.chunk_id for item in batch],
-        )
+            )
+            kept_ids.append(item.chunk_id)
+            kept_embeddings.append(embedding)
+
+        if kept_docs:
+            collection.add(
+                documents=kept_docs,
+                metadatas=kept_metas,
+                ids=kept_ids,
+                embeddings=kept_embeddings,
+            )
 
         indexed = start + len(batch)
         pct = int(indexed / len(chunks) * 100)
         log(f"  Indexed {indexed:>5} / {len(chunks)} chunks ({pct}%)")
+
+    if total_failed:
+        log(f"\n{total_failed} chunk(s) could not be embedded via Ollama and were skipped.")
 
     log(f"\nDone. Collection '{CHROMA_COLLECTION}' contains {collection.count()} documents.")
 
@@ -1083,9 +1208,14 @@ def rewrite_query_for_verification(query: str) -> str:
     return query
 
 
-def query_collection(collection, query: str, category: str | None = None, top_k: int = VERIFY_TOP_K):
+def query_collection(collection, ollama_client, query: str, category: str | None = None, top_k: int = VERIFY_TOP_K):
+    query_embedding = get_ollama_embedding(ollama_client, query, model=EMBEDDING_MODEL)
+    if query_embedding is None:
+        log(f"  [WARN] Could not embed verification query '{query}'; skipping.")
+        return {"documents": [[]], "distances": [[]], "metadatas": [[]]}
+
     kwargs = {
-        "query_texts": [query],
+        "query_embeddings": [query_embedding],
         "n_results": top_k,
         "include": ["documents", "distances", "metadatas"],
     }
@@ -1264,18 +1394,16 @@ def print_hybrid_results(label: str, rows: list[dict], query: str, inferred_cate
 def verify_kb() -> None:
     try:
         import chromadb
-        from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
     except ImportError:
         return
 
-    embedding_function = SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
-    client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+    ollama_client = make_ollama_client()
+    chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
 
     try:
-        collection = client.get_collection(
-            CHROMA_COLLECTION,
-            embedding_function=embedding_function,
-        )
+        # No embedding_function here either -- query_collection() below
+        # supplies query_embeddings explicitly via Ollama.
+        collection = chroma_client.get_collection(CHROMA_COLLECTION)
     except Exception as exc:
         log(f"Verification failed: could not open collection: {exc}")
         return
@@ -1304,7 +1432,7 @@ def verify_kb() -> None:
             all_rows = []
 
             if inferred_category:
-                filtered = query_collection(collection, rewritten_query, inferred_category, top_k=VERIFY_TOP_K)
+                filtered = query_collection(collection, ollama_client, rewritten_query, inferred_category, top_k=VERIFY_TOP_K)
                 all_rows.extend(flatten_results(filtered))
                 print_hybrid_results(
                     f"Filtered + hybrid reranked where category='{inferred_category}'",
@@ -1313,7 +1441,7 @@ def verify_kb() -> None:
                     inferred_category,
                 )
 
-            broad = query_collection(collection, rewritten_query, None, top_k=VERIFY_TOP_K)
+            broad = query_collection(collection, ollama_client, rewritten_query, None, top_k=VERIFY_TOP_K)
             all_rows.extend(flatten_results(broad))
             print_hybrid_results("Broad + hybrid reranked", flatten_results(broad), rewritten_query, inferred_category)
 
@@ -1354,8 +1482,9 @@ def main() -> None:
 
     log("Knowledge base ready.")
     log("Start your main Ameca/VLM script and make sure it uses:")
-    log(f"  CHROMA_PERSIST_DIR = '{CHROMA_PERSIST_DIR}'")
-    log(f"  CHROMA_COLLECTION  = '{CHROMA_COLLECTION}'")
+    log(f"  SELF_RAG_DB_DIR     = '{CHROMA_PERSIST_DIR}'")
+    log(f"  SELF_RAG_COLLECTION = '{CHROMA_COLLECTION}'")
+    log(f"  SELF_RAG_EMBED_MODEL = '{EMBEDDING_MODEL}'  <-- must match ameca_demo.py exactly")
     log("")
     log("Recommended main-system retrieval settings:")
     log("  MAX_DISTANCE = 0.58")

@@ -702,7 +702,7 @@ def main():
 
     parser.add_argument("--logdir", default=str(Path.home() / "libraries/demo/logs/transcription"))
     parser.add_argument("--tts_url", default="http://emah/tritium/text_to_speech/say?voice=Lucy")
-    parser.add_argument("--tts_token", default="ZWNFuNQVIPyztWCfPPM5VLPslpj8rR")
+
 
     parser.add_argument("--videoIndex", type=int, default=0)
     parser.add_argument("--resolution", default="HD2K")

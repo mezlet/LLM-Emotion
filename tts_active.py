@@ -7,7 +7,6 @@ import requests
 import websockets
 
 # ================== CONFIG ==================
-AUTH_TOKEN = "ZWNFuNQVIPyztWCfPPM5VLPslpj8rR"
 
 AUDIO_DEVICES_URL = "http://emah/tritium/audio/devices"
 LEVELS_WS_URL     = "ws://emah/tritium/ws/audio/levels"  # change if different
