@@ -13,10 +13,9 @@ This combines two previously separate systems:
    the ZED vision module for general "what do you see" style queries.
 
 Integration choices (per user requirements):
-- ASR: Silero VAD + faster-whisper remains PRIMARY. If faster-whisper
-  returns an empty/unusable transcript, Google Speech Recognition
-  (speech_recognition library) is used as a FALLBACK on the same
-  recorded utterance.
+- ASR: Silero VAD + faster-whisper is the SOLE transcription engine.
+  (Google Speech Recognition fallback has been removed -- see the
+  "ASR configuration" note below.)
 - Output: every spoken reply (introductions, returning-user greetings,
   deterministic replies, normal chat replies, vision-query replies) is
   sent to the robot via Tritium TTS using the same PUT-based API as
@@ -36,6 +35,19 @@ Integration choices (per user requirements):
   fusion resolves an emotion, independent of TTS/speech timing. See
   RobotExpression / EMOTION_SEQUENCE_MAP below.
 
+ASR configuration:
+Google Speech Recognition fallback has been removed. faster-whisper is now
+the sole ASR engine (previously it was primary with a Google STT fallback
+for empty/unusable transcripts). This was removed to keep the pipeline
+fully local/offline (Google STT sent audio to an external service, which
+was in tension with the "locally stored" privacy language in
+AMECA_SYSTEM_PROMPT) and to simplify the transcription code path.
+
+Conversation termination:
+In addition to the "/exit" command, a spoken farewell ("goodbye", "bye",
+"see you later", etc.) now ends the session the same way -- see
+is_farewell_utterance() / FAREWELL_TERMINATION_PHRASES below.
+
 HARDWARE NOTE:
 Earlier versions of this script opened two independent OpenCV capture
 handles on the same physical ZED camera (one for facial sampling, one for
@@ -48,6 +60,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import concurrent.futures
 import hashlib
 import json
 import os
@@ -78,7 +91,6 @@ import requests
 import sounddevice as sd
 import soundfile as sf
 import torch
-import speech_recognition as sr
 from faster_whisper import WhisperModel
 from ollama import Client
 from silero_vad import load_silero_vad, VADIterator
@@ -185,7 +197,7 @@ KNOWN_RRLAB_ENTITIES = {
 
 SELF_RAG_REINDEX_ON_START = os.environ.get("SELF_RAG_REINDEX_ON_START", "0") == "1"
 SELF_RAG_AUTO_SCRAPE_ON_EMPTY = os.environ.get("SELF_RAG_AUTO_SCRAPE_ON_EMPTY", "0") == "1"
-SELF_RAG_SCRAPE_SCRIPT = os.environ.get("SELF_RAG_SCRAPE_SCRIPT", "scrape.py")
+SELF_RAG_SCRAPE_SCRIPT = os.environ.get("SELF_RAG_SCRAPE_SCRIPT", "scrape2.py")
 SELF_RAG_SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".json", ".csv", ".py", ".html", ".htm", ".pdf"}
 
 ENABLE_LLM_SESSION_SUMMARY = os.environ.get("ENABLE_LLM_SESSION_SUMMARY", "1") == "1"
@@ -375,6 +387,25 @@ FUSION_ENABLE_SEMANTIC_OVERRIDE = os.environ.get("FUSION_ENABLE_SEMANTIC_OVERRID
 FUSION_EXPLICIT_TEXT_CONFIDENCE = float(os.environ.get("FUSION_EXPLICIT_TEXT_CONFIDENCE", "0.72"))
 
 # =========================
+# Temporal emotion smoothing (across turns)
+# =========================
+# The adaptive fusion above resolves an emotion independently every turn,
+# which means a single noisy/ambiguous turn (e.g. a brief visual
+# misread, or a short ambiguous utterance) can cause the robot's detected
+# emotion -- and therefore its facial expression -- to flicker between
+# turns even when the user's underlying affective state hasn't actually
+# changed. EMOTION_SMOOTHING applies an exponential moving average (EMA)
+# over the fused per-emotion score distribution across turns within a
+# session, so the "smoothed" emotion used for response tone and robot
+# expression changes more gradually, while the raw per-turn fusion result
+# is still logged in full for diagnostics/thesis analysis.
+EMOTION_SMOOTHING_ENABLED = os.environ.get("EMOTION_SMOOTHING_ENABLED", "1") == "1"
+# Weight given to the CURRENT turn's fused scores; (1 - alpha) is retained
+# from the prior smoothed state. Higher alpha = more responsive to the
+# current turn; lower alpha = smoother/slower to change.
+EMOTION_SMOOTHING_ALPHA = float(os.environ.get("EMOTION_SMOOTHING_ALPHA", "0.6"))
+
+# =========================
 # Response length configuration
 # =========================
 # Hard backstop on reply length. This is enforced in code (see
@@ -418,6 +449,79 @@ EXPRESSION_MIN_CONFIDENCE = float(os.environ.get("EXPRESSION_MIN_CONFIDENCE", "0
 # one played. Left False by default so the face doesn't replay/restart the
 # same animation every single turn when the mood hasn't changed.
 EXPRESSION_FORCE_REPLAY_SAME = os.environ.get("EXPRESSION_FORCE_REPLAY_SAME", "0") == "1"
+
+
+# =========================
+# DeepFace hybrid visual modality configuration
+# =========================
+# Qwen2.5-VL has no reliable face-presence gate of its own: it has been
+# observed confidently describing a facial emotion from background/scene
+# elements (a door handle, a chair) when no face was actually visible in
+# the frame. DeepFace ships an actual face DETECTOR (not just an emotion
+# classifier), so it is used here as a cross-check: if DeepFace says no
+# face is present, VLM's reading for that same frame is discarded rather
+# than trusted, regardless of how confident VLM was.
+#
+# DeepFace runs in a SEPARATE PROCESS (see deepface_worker.py), ideally
+# from a SEPARATE conda environment via DEEPFACE_PYTHON below. This is
+# deliberate: DeepFace pulls in TensorFlow, and running TensorFlow
+# computation in the same process as this script's PyTorch usage (Silero
+# VAD, faster-whisper) has previously caused a silent native segfault with
+# no Python traceback (see the HARDWARE/CAUTION notes on zed_vision_module
+# elsewhere in this file for the same class of bug). Isolating DeepFace
+# into its own OS process -- and its own environment, so TF/Keras version
+# pins can't collide with this pipeline's dependencies -- removes that
+# risk entirely. If the worker process crashes, it crashes alone, and this
+# pipeline just treats DeepFace as unavailable for that turn.
+#
+# DeepFace is now also used as a cheap FIRST-PASS face-presence gate,
+# ahead of the (much more expensive) Qwen2.5-VL call: see
+# FaceEmotionSampler._analyze_snapshot_now(). If DeepFace confirms no face
+# is present, Qwen2.5-VL is never called for that frame at all.
+DEEPFACE_ENABLED = os.environ.get("DEEPFACE_ENABLED", "1") == "1"
+
+# Path to the python interpreter of a SEPARATE conda env that has
+# deepface + tensorflow installed, e.g.:
+#   conda create -n deepface_env python=3.10
+#   conda run -n deepface_env pip install deepface tensorflow
+#   export DEEPFACE_PYTHON=/home/emah/miniconda3/envs/deepface_env/bin/python
+# Deliberately NOT auto-detected. Leave empty (or set DEEPFACE_ENABLED=0) to
+# disable the hybrid visual modality and fall back to Qwen2.5-VL alone,
+# exactly as before.
+DEEPFACE_PYTHON = os.environ.get("DEEPFACE_PYTHON", "")
+DEEPFACE_WORKER_SCRIPT = os.environ.get("DEEPFACE_WORKER_SCRIPT", "deepface_worker.py")
+
+# TensorFlow import + model load can take a while on first run of the
+# worker process; this only blocks startup once.
+DEEPFACE_STARTUP_TIMEOUT_SECONDS = float(os.environ.get("DEEPFACE_STARTUP_TIMEOUT_SECONDS", "90"))
+# Per-frame analyze() timeout. DeepFace itself is fast (much faster than
+# the Qwen2.5-VL call it's paired with); this is a safety net against a
+# stuck/dead worker, not a reflection of expected latency.
+DEEPFACE_REQUEST_TIMEOUT_SECONDS = float(os.environ.get("DEEPFACE_REQUEST_TIMEOUT_SECONDS", "5"))
+
+# Relative weight of each modality WITHIN the visual channel (VLM vs
+# DeepFace), used only when BOTH produced a usable reading for the same
+# frame (see combine_vlm_and_deepface_scores()). This blend happens before
+# the result is fed into the existing text/visual/prosody fusion weights
+# (FUSION_VISUAL_WEIGHT etc.) further down the pipeline.
+VISUAL_VLM_WEIGHT = float(os.environ.get("VISUAL_VLM_WEIGHT", "0.6"))
+VISUAL_DEEPFACE_WEIGHT = float(os.environ.get("VISUAL_DEEPFACE_WEIGHT", "0.4"))
+
+# DeepFace's 7 Ekman-basic categories mapped onto this pipeline's 8
+# Plutchik emotions. DeepFace has no equivalent of "trust" or
+# "anticipation". "neutral" is deliberately mapped to None rather than
+# forced onto "trust": Plutchik's trust carries a positive-social
+# connotation that plain facial neutrality doesn't imply, so a neutral
+# reading simply contributes no signal instead of being redistributed.
+DEEPFACE_TO_PLUTCHIK = {
+    "happy": "joy",
+    "sad": "sadness",
+    "angry": "anger",
+    "fear": "fear",
+    "disgust": "disgust",
+    "surprise": "surprise",
+    "neutral": None,
+}
 
 
 @dataclass
@@ -539,6 +643,11 @@ class FaceEmotionCapture:
     # Wall-clock seconds spent inside the Qwen2.5-VL analysis call itself
     # (not the whole VAD capture window). None if analysis never ran.
     analysis_seconds: Optional[float] = None
+    # Diagnostics from combine_vlm_and_deepface_scores() for the hybrid
+    # visual modality (agreement, whether DeepFace gated out a VLM result
+    # for lack of a detected face, per-modality dominant emotion, etc.).
+    # None if DeepFace was not used this turn (disabled / unavailable).
+    deepface_diagnostics: Optional[dict[str, Any]] = None
 
     @property
     def averaged_scores(self) -> dict[str, float]:
@@ -613,9 +722,11 @@ class FaceEmotionCapture:
             "analysis_seconds": (
                 round(self.analysis_seconds, 4) if isinstance(self.analysis_seconds, (int, float)) else None
             ),
+            "deepface_diagnostics": self.deepface_diagnostics,
             "note": (
-                "Qwen2.5-VL facial expression analysis is used as the visual component "
-                "in fixed weighted late fusion."
+                "Qwen2.5-VL facial expression analysis is combined with DeepFace "
+                "(when available) as the visual component in fixed weighted late fusion; "
+                "see deepface_diagnostics for how the two modalities were combined."
             ),
         }
 
@@ -651,6 +762,7 @@ def default_face_emotion_json() -> dict:
         "ended_at": None,
         "error": "No face emotion capture was provided.",
         "analysis_seconds": None,
+        "deepface_diagnostics": None,
     }
 
 
@@ -830,6 +942,329 @@ class RobotExpression:
 
         if success:
             self.last_emotion = resolved_emotion
+
+
+@dataclass
+class DeepFaceResult:
+    ok: bool
+    no_face: bool
+    scores: dict[str, float]  # raw Ekman-category percentages from DeepFace
+    dominant_emotion: Optional[str] = None
+    error: Optional[str] = None
+
+
+class DeepFaceClient:
+    """
+    Manages a persistent DeepFace analysis worker running in its OWN
+    process (see deepface_worker.py) -- ideally launched from a SEPARATE
+    conda environment via DEEPFACE_PYTHON -- isolated from this process's
+    PyTorch usage (Silero VAD, faster-whisper) to avoid the
+    TensorFlow/PyTorch same-process segfault documented elsewhere in this
+    file. Communicates via line-delimited JSON over stdin/stdout.
+
+    If DEEPFACE_PYTHON is unset, the worker script is missing, or the
+    worker fails to start/respond, this client degrades gracefully:
+    is_alive() returns False and analyze() returns None, so callers fall
+    back to Qwen2.5-VL alone -- the hybrid modality is opt-in, not a hard
+    dependency.
+    """
+
+    def __init__(
+        self,
+        python_executable: str,
+        worker_script: str,
+        startup_timeout: float = DEEPFACE_STARTUP_TIMEOUT_SECONDS,
+        request_timeout: float = DEEPFACE_REQUEST_TIMEOUT_SECONDS,
+    ) -> None:
+        self.python_executable = python_executable
+        self.worker_script = worker_script
+        self.startup_timeout = startup_timeout
+        self.request_timeout = request_timeout
+
+        self.proc: Optional[subprocess.Popen] = None
+        self._reader_thread: Optional[threading.Thread] = None
+        self._response_queue: "queue.Queue[dict]" = queue.Queue()
+        self._lock = threading.Lock()
+        self._request_counter = 0
+        self._ready = False
+
+        self._start_worker()
+
+    def _start_worker(self) -> bool:
+        if not self.python_executable:
+            print_ts(
+                "[DeepFace] DEEPFACE_PYTHON not set; hybrid visual modality disabled "
+                "(falling back to Qwen2.5-VL alone)."
+            )
+            return False
+
+        if not os.path.isfile(self.worker_script):
+            print_ts(
+                f"[DeepFace] Worker script not found: {self.worker_script}; "
+                "hybrid visual modality disabled."
+            )
+            return False
+
+        try:
+            self.proc = subprocess.Popen(
+                [self.python_executable, self.worker_script],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+        except Exception as exc:
+            print_ts(f"[DeepFace] Could not start worker process: {exc}")
+            self.proc = None
+            return False
+
+        # Drain stderr in the background so worker logging doesn't block it,
+        # and so failures are visible in the main console.
+        threading.Thread(target=self._drain_stderr, daemon=True).start()
+
+        ready_event = threading.Event()
+
+        def wait_for_ready() -> None:
+            try:
+                line = self.proc.stdout.readline()
+                if line.strip() == "READY":
+                    ready_event.set()
+            except Exception:
+                pass
+
+        threading.Thread(target=wait_for_ready, daemon=True).start()
+        got_ready = ready_event.wait(timeout=self.startup_timeout)
+
+        if not got_ready:
+            print_ts(
+                f"[DeepFace] Worker did not signal READY within {self.startup_timeout}s "
+                f"(check DEEPFACE_PYTHON='{self.python_executable}' has deepface+tensorflow "
+                "installed); hybrid visual modality disabled for this session."
+            )
+            self._ready = False
+            return False
+
+        print_ts("[DeepFace] Worker ready.")
+        self._ready = True
+
+        self._reader_thread = threading.Thread(target=self._read_responses, daemon=True)
+        self._reader_thread.start()
+        return True
+
+    def _drain_stderr(self) -> None:
+        if not self.proc or not self.proc.stderr:
+            return
+        for line in self.proc.stderr:
+            line = line.rstrip()
+            if line:
+                print_ts(f"[DeepFace worker] {line}")
+
+    def _read_responses(self) -> None:
+        if not self.proc or not self.proc.stdout:
+            return
+        for line in self.proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                response = json.loads(line)
+            except Exception:
+                continue
+            self._response_queue.put(response)
+
+    def is_alive(self) -> bool:
+        return self._ready and self.proc is not None and self.proc.poll() is None
+
+    def analyze(self, frame_bgr: np.ndarray) -> Optional[DeepFaceResult]:
+        """
+        Analyze one frame. Returns None if DeepFace is unavailable this
+        turn (disabled, worker not ready, worker died, or timed out) --
+        callers should treat None as "fall back to VLM alone", which is
+        different from a DeepFaceResult with no_face=True ("DeepFace ran
+        successfully and found no face").
+        """
+        if not self.is_alive():
+            return None
+
+        temp_path = None
+        try:
+            with self._lock:
+                self._request_counter += 1
+                request_id = f"req_{self._request_counter}"
+
+            fd, temp_path = tempfile.mkstemp(suffix=".jpg", prefix="deepface_frame_")
+            os.close(fd)
+            cv2.imwrite(temp_path, frame_bgr)
+
+            request_line = json.dumps(
+                {"request_id": request_id, "cmd": "analyze", "image_path": temp_path}
+            )
+
+            try:
+                self.proc.stdin.write(request_line + "\n")
+                self.proc.stdin.flush()
+            except Exception as exc:
+                print_ts(f"[DeepFace] Could not send request to worker (worker may have died): {exc}")
+                self._ready = False
+                return None
+
+            deadline = time.time() + self.request_timeout
+            while time.time() < deadline:
+                try:
+                    response = self._response_queue.get(timeout=max(0.05, deadline - time.time()))
+                except queue.Empty:
+                    break
+
+                if response.get("request_id") != request_id:
+                    # Stale/mismatched response; requests are sequential so
+                    # this shouldn't normally happen, but keep waiting for
+                    # the one we asked for rather than misattributing it.
+                    continue
+
+                if not response.get("ok"):
+                    print_ts(f"[DeepFace] Worker reported an error: {response.get('error')}")
+                    return None
+
+                return DeepFaceResult(
+                    ok=True,
+                    no_face=bool(response.get("no_face")),
+                    scores=response.get("scores", {}) or {},
+                    dominant_emotion=response.get("dominant_emotion"),
+                )
+
+            print_ts(f"[DeepFace] Request timed out after {self.request_timeout}s.")
+            return None
+
+        except Exception as exc:
+            print_ts(f"[DeepFace] analyze() failed unexpectedly: {exc}")
+            return None
+
+        finally:
+            if temp_path:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+
+    def shutdown(self) -> None:
+        if self.proc is None:
+            return
+        try:
+            if self.proc.stdin:
+                self.proc.stdin.write(json.dumps({"cmd": "shutdown"}) + "\n")
+                self.proc.stdin.flush()
+            self.proc.wait(timeout=3)
+        except KeyboardInterrupt:
+            # A second Ctrl+C landing during this short wait shouldn't
+            # produce a scary traceback on the way out -- just make sure
+            # the worker process is actually terminated and move on.
+            try:
+                self.proc.terminate()
+            except Exception:
+                pass
+        except Exception:
+            try:
+                self.proc.terminate()
+            except Exception:
+                pass
+
+
+def deepface_scores_to_plutchik(deepface_result: Optional[DeepFaceResult]) -> Optional[dict[str, float]]:
+    """
+    Map a successful (face-found) DeepFace result onto this pipeline's
+    Plutchik emotion keys via DEEPFACE_TO_PLUTCHIK. Returns None if there's
+    nothing usable to map (no result, error, or no face).
+    """
+    if deepface_result is None or not deepface_result.ok or deepface_result.no_face:
+        return None
+
+    plutchik_scores: dict[str, float] = {emo: 0.0 for emo in PLUTCHIK_EMOTIONS if emo != "neutral"}
+    for ekman_label, value in (deepface_result.scores or {}).items():
+        plutchik_label = DEEPFACE_TO_PLUTCHIK.get(str(ekman_label).strip().lower())
+        if not plutchik_label:
+            continue
+        try:
+            plutchik_scores[plutchik_label] += float(value)
+        except Exception:
+            continue
+
+    return plutchik_scores
+
+
+def combine_vlm_and_deepface_scores(
+    vlm_scores: Optional[dict[str, float]],
+    deepface_result: Optional[DeepFaceResult],
+) -> tuple[Optional[dict[str, float]], dict[str, Any]]:
+    """
+    Combine Qwen2.5-VL's facial-emotion scores with DeepFace's, using
+    DeepFace's real face detector as a gate:
+
+    - DeepFace unavailable this turn (disabled / worker down / timed out)
+      -> fall back to VLM alone, unchanged from the non-hybrid behavior.
+    - DeepFace ran and found NO face -> discard VLM's reading for this
+      frame entirely, rather than blending it in. VLM has repeatedly been
+      observed describing an emotion from background/scene elements (a
+      door handle, a chair) with high confidence when no face was actually
+      visible; DeepFace's detector is the more trustworthy signal for
+      face presence specifically.
+    - Both produced a reading -> blend via VISUAL_VLM_WEIGHT /
+      VISUAL_DEEPFACE_WEIGHT, and record whether the two agreed on the
+      dominant emotion (consumed by face_reliability_score() to adjust
+      confidence up or down).
+
+    Returns (combined_scores_or_None, diagnostics_dict). diagnostics is
+    always a dict (never None) so it can be safely embedded in
+    FaceEmotionCapture.as_json() regardless of outcome.
+    """
+    diagnostics: dict[str, Any] = {
+        "deepface_available": deepface_result is not None,
+        "deepface_no_face": bool(deepface_result and deepface_result.no_face),
+        "agree": None,
+        "vlm_dominant": max(vlm_scores.items(), key=lambda kv: kv[1])[0] if vlm_scores else None,
+        "deepface_dominant": None,
+    }
+
+    if deepface_result is None:
+        return vlm_scores, diagnostics
+
+    if deepface_result.no_face:
+        if vlm_scores:
+            diagnostics["vlm_discarded_reason"] = (
+                "DeepFace's face detector found no face in this frame; discarding VLM's "
+                "facial-emotion reading for it since VLM has no reliable face-presence gate "
+                "of its own."
+            )
+        return None, diagnostics
+
+    deepface_plutchik = deepface_scores_to_plutchik(deepface_result) or {}
+    diagnostics["deepface_dominant"] = (
+        max(deepface_plutchik.items(), key=lambda kv: kv[1])[0] if deepface_plutchik else None
+    )
+
+    if not vlm_scores:
+        return (deepface_plutchik or None), diagnostics
+
+    diagnostics["agree"] = (
+        diagnostics["vlm_dominant"] is not None
+        and diagnostics["vlm_dominant"] == diagnostics["deepface_dominant"]
+    )
+
+    total_weight = VISUAL_VLM_WEIGHT + VISUAL_DEEPFACE_WEIGHT
+    if total_weight <= 0:
+        return vlm_scores, diagnostics
+
+    all_emotions = set(vlm_scores) | set(deepface_plutchik)
+    combined = {
+        emo: (
+            VISUAL_VLM_WEIGHT * vlm_scores.get(emo, 0.0)
+            + VISUAL_DEEPFACE_WEIGHT * deepface_plutchik.get(emo, 0.0)
+        )
+        / total_weight
+        for emo in all_emotions
+    }
+
+    return combined, diagnostics
 
 
 # =========================
@@ -1092,6 +1527,13 @@ def compact_previous_summary_for_greeting(
     if not summary:
         return ""
 
+    # Defensively strip nested "Previous continuity context: " prefixes
+    # here too (not just in build_deterministic_session_summary), so every
+    # caller -- including the startup "Memory preview" log and the
+    # returning-user greeting fallback -- displays cleanly even for
+    # already-corrupted summaries saved before that fix existed.
+    summary = strip_previous_continuity_prefix(summary)
+
     summary = re.sub(r"^\s*[-*•]\s*", "", summary, flags=re.MULTILINE)
     summary = re.sub(r"\s+", " ", summary).strip()
 
@@ -1245,7 +1687,7 @@ def save_session_transcript(
             "model": MODEL_NAME,
             "ollama_host": OLLAMA_HOST,
             "asr": {
-                "backend": "faster-whisper (primary) + Google Speech Recognition (fallback)",
+                "backend": "faster-whisper",
                 **FAST_WHISPER_CONFIG,
             },
             "emotion_fusion": {
@@ -1253,6 +1695,10 @@ def save_session_transcript(
                 "text_weight": FUSION_TEXT_WEIGHT,
                 "visual_weight": FUSION_VISUAL_WEIGHT,
                 "prosody_weight": FUSION_PROSODY_WEIGHT,
+                "temporal_smoothing": {
+                    "enabled": EMOTION_SMOOTHING_ENABLED,
+                    "alpha": EMOTION_SMOOTHING_ALPHA,
+                },
             },
             "face_emotion": {
                 "backend": "qwen2.5vl:7b via Ollama",
@@ -1270,6 +1716,19 @@ def save_session_transcript(
                 "jpeg_quality": VISION_JPEG_QUALITY,
                 "min_top_score": FACE_MIN_TOP_SCORE,
                 "min_margin": FACE_MIN_MARGIN,
+                "hybrid_deepface": {
+                    "enabled": DEEPFACE_ENABLED,
+                    "python_executable": DEEPFACE_PYTHON or None,
+                    "visual_vlm_weight": VISUAL_VLM_WEIGHT,
+                    "visual_deepface_weight": VISUAL_DEEPFACE_WEIGHT,
+                    "face_presence_gate_order": "deepface_first_then_vlm_conditional",
+                    "note": (
+                        "DeepFace runs FIRST as a cheap face-presence gate; Qwen2.5-VL is only "
+                        "called if DeepFace confirms a face is present (or DeepFace is unavailable "
+                        "this turn). See deepface_diagnostics on each turn's face_emotion for "
+                        "whether it was used and whether it agreed with VLM."
+                    ),
+                },
             },
             "vad": {
                 "backend": "Silero VAD",
@@ -1303,6 +1762,37 @@ def save_session_transcript(
         json.dump(transcript_data, file, indent=2, ensure_ascii=False)
 
     return path
+
+
+def strip_previous_continuity_prefix(text: str) -> str:
+    """
+    Remove one or more leading "Previous continuity context: " prefixes.
+
+    build_deterministic_session_summary() wraps whatever the previous
+    session saved in this exact prefix every time it runs. Without
+    stripping it first, each session nests another layer on top of the
+    last ("Previous continuity context: Previous continuity context:
+    ..."), and the useful content underneath gets squeezed out by the
+    growing prefix within compact_previous_summary_for_greeting()'s fixed
+    character budget -- after enough sessions the "memory preview" is
+    almost entirely repeated prefix text with no real content left. This
+    also cleans up summaries that were already corrupted by the bug
+    before this fix (which may have several stacked layers) the next
+    time they pass through here.
+    """
+    text = str(text or "").strip()
+    # Tolerate an optional leading bullet marker ("- ", "* ", "• ") before
+    # each repetition. The stored summary is built as a bulleted list (see
+    # build_deterministic_session_summary), so the text this function
+    # actually receives looks like "- Previous continuity context: ...",
+    # not a bare "Previous continuity context: ...". Without allowing for
+    # that leading "- ", the anchored regex never matched at all, so this
+    # function was silently a no-op -- every session wrapped the entire
+    # (already corrupted) previous summary in one more nested "Previous
+    # continuity context: " layer instead of stripping it, which is why
+    # the nesting kept growing across sessions instead of being collapsed.
+    prefix_pattern = re.compile(r"^(?:[\-\*\u2022\s]*previous continuity context:\s*)+", re.IGNORECASE)
+    return prefix_pattern.sub("", text).strip()
 
 
 def build_deterministic_session_summary(
@@ -1350,7 +1840,12 @@ def build_deterministic_session_summary(
 
     previous_summary = str(previous_summary or "").strip()
     if previous_summary:
-        bullets.append("Previous continuity context: " + compact_previous_summary_for_greeting(previous_summary, 260))
+        cleaned_previous_summary = strip_previous_continuity_prefix(previous_summary)
+        if cleaned_previous_summary:
+            bullets.append(
+                "Previous continuity context: "
+                + compact_previous_summary_for_greeting(cleaned_previous_summary, 260)
+            )
 
     if user_turns:
         recent_user = "; ".join(user_turns[-4:])
@@ -1464,6 +1959,13 @@ def summarize_session_with_llm(
 ) -> str:
     if not session_log:
         return previous_summary
+
+    # Clean up the previous summary before it's used anywhere in this
+    # function -- both as input to the LLM prompt below and as the
+    # deterministic fallback -- so a corrupted/nested "Previous continuity
+    # context:" chain from before this fix doesn't keep being fed back in
+    # as-is.
+    previous_summary = strip_previous_continuity_prefix(previous_summary)
 
     fallback_summary = build_deterministic_session_summary(
         session_log=session_log,
@@ -1725,63 +2227,6 @@ def transcribe_with_faster_whisper(wav_path: str, whisper_model: WhisperModel) -
 
 # Backwards-compatible alias.
 transcribe_audio = transcribe_with_faster_whisper
-
-
-def transcribe_with_google(
-    wav_path: str,
-    recognizer: sr.Recognizer,
-    language: str = "en-US",
-) -> str:
-    """
-    Fallback transcription using Google Speech Recognition on the same WAV
-    file that was already produced by the Silero VAD recorder. Requires
-    internet access. Returns "" on any failure so callers can treat this
-    the same way as an empty faster-whisper transcript.
-    """
-    try:
-        with sr.AudioFile(wav_path) as source:
-            audio = recognizer.record(source)
-        text = recognizer.recognize_google(audio, language=language)
-        text = text.strip()
-        return text
-    except sr.UnknownValueError:
-        print_ts("[Google STT] Audio captured, but speech could not be understood.")
-        return ""
-    except sr.RequestError as exc:
-        print_ts(f"[Google STT] Request failed (check internet connectivity): {exc}")
-        return ""
-    except Exception as exc:
-        print_ts(f"[Google STT] Unexpected error: {exc}")
-        return ""
-
-
-def transcribe_with_fallback(
-    wav_path: str,
-    whisper_model: WhisperModel,
-    google_recognizer: Optional[sr.Recognizer],
-    google_language: str = "en-US",
-) -> tuple[str, str]:
-    """
-    faster-whisper is primary. If it returns an empty/unusable transcript,
-    fall back to Google Speech Recognition on the same WAV file.
-
-    Returns (text, engine_used) where engine_used is "faster-whisper",
-    "google", or "none".
-    """
-    text = transcribe_with_faster_whisper(wav_path, whisper_model)
-    if text:
-        return text, "faster-whisper"
-
-    if google_recognizer is None:
-        return "", "none"
-
-    print_ts("faster-whisper returned no usable transcript; trying Google STT fallback...")
-    google_text = transcribe_with_google(wav_path, google_recognizer, language=google_language)
-    if google_text:
-        print_ts(f"Google STT fallback succeeded: {google_text}")
-        return google_text, "google"
-
-    return "", "none"
 
 
 def load_audio_for_prosody(wav_path: str, target_sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
@@ -2264,9 +2709,15 @@ class FaceEmotionSampler:
     queries) reads from its thread-safe get_latest_frame().
     """
 
-    def __init__(self, vision_module: Any, vision_client: Client) -> None:
+    def __init__(
+        self,
+        vision_module: Any,
+        vision_client: Client,
+        deepface_client: Optional["DeepFaceClient"] = None,
+    ) -> None:
         self.vision_module = vision_module
         self.vision_client = vision_client
+        self.deepface_client = deepface_client
         self.started_at = now_ts()
         self.error: Optional[str] = None
         self.emotion_score_samples: list[dict[str, float]] = []
@@ -2279,8 +2730,16 @@ class FaceEmotionSampler:
         self.snapshot_taken_at: Optional[str] = None
         self.candidate_frames: list[tuple[float, np.ndarray]] = []
         # Wall-clock seconds spent inside the actual Qwen2.5-VL analysis
-        # call (set once finish() runs _analyze_snapshot_now()).
+        # call (set once finish() runs _analyze_snapshot_now()). Stays 0.0
+        # (not None) if DeepFace's face-presence gate skipped VLM entirely.
         self.analysis_seconds: Optional[float] = None
+        # Wall-clock seconds spent inside the DeepFace analyze() call.
+        # None if DeepFace was not used this turn.
+        self.deepface_analysis_seconds: Optional[float] = None
+        # Diagnostics from combine_vlm_and_deepface_scores(); surfaced on
+        # the resulting FaceEmotionCapture for transparency/debugging and
+        # consumed by face_reliability_score() for the agreement bonus.
+        self.deepface_diagnostics: Optional[dict[str, Any]] = None
 
     def start(self) -> None:
         self.started_at = now_ts()
@@ -2388,40 +2847,86 @@ class FaceEmotionSampler:
         best_sharpness, best_frame = self.candidate_frames[0]
         self.snapshot_frame = best_frame
 
-        if FACE_ANALYSIS_STRATEGY == "multi_frame":
-            selected = [frame for _, frame in self.candidate_frames[:FACE_MULTI_FRAME_COUNT]]
+        # ---- DeepFace FIRST as a cheap face-presence gate ----
+        # DeepFace is much faster than Qwen2.5-VL, so we check for a
+        # detected face before paying for the (potentially multi-frame)
+        # VLM call at all. Previously both always ran, and the VLM result
+        # was simply discarded afterward in combine_vlm_and_deepface_scores
+        # whenever DeepFace found no face -- wasting a full VLM call (or
+        # FACE_MULTI_FRAME_COUNT calls' worth of images in multi_frame
+        # mode) every time no face was present in the frame.
+        #
+        # If DeepFace is unavailable this turn (disabled, worker down,
+        # timed out), deepface_result is None and we can't confirm face
+        # presence up front, so we fall through and run VLM as before --
+        # no behavior change in that case.
+        deepface_result: Optional[DeepFaceResult] = None
+        if self.deepface_client is not None:
+            deepface_start = time.time()
+            deepface_result = self.deepface_client.analyze(self.snapshot_frame)
+            self.deepface_analysis_seconds = time.time() - deepface_start
+
+        if deepface_result is not None and deepface_result.no_face:
             print_ts(
-                f"Analyzing {len(selected)} best facial frames with Qwen2.5-VL "
-                f"(best_sharpness={best_sharpness:.1f}, candidates={len(self.candidate_frames)})..."
+                "[DeepFace] No face detected in this frame; skipping Qwen2.5-VL "
+                "analysis entirely for this turn (face-presence gate)."
             )
-            analysis_start = time.time()
-            scores = analyze_multiple_frames_emotion_scores(selected, self.vision_client)
-            self.analysis_seconds = time.time() - analysis_start
+            scores, self.deepface_diagnostics = combine_vlm_and_deepface_scores(None, deepface_result)
+            # No VLM call was made, so there's nothing to time.
+            self.analysis_seconds = 0.0
         else:
-            print_ts(
-                f"Analyzing best facial frame with Qwen2.5-VL "
-                f"(sharpness={best_sharpness:.1f}, candidates={len(self.candidate_frames)})..."
-            )
-            analysis_start = time.time()
-            scores = analyze_frame_emotion_scores(self.snapshot_frame, self.vision_client)
-            self.analysis_seconds = time.time() - analysis_start
+            if FACE_ANALYSIS_STRATEGY == "multi_frame":
+                selected = [frame for _, frame in self.candidate_frames[:FACE_MULTI_FRAME_COUNT]]
+                print_ts(
+                    f"Analyzing {len(selected)} best facial frames with Qwen2.5-VL "
+                    f"(best_sharpness={best_sharpness:.1f}, candidates={len(self.candidate_frames)})..."
+                )
+                analysis_start = time.time()
+                vlm_scores = analyze_multiple_frames_emotion_scores(selected, self.vision_client)
+                self.analysis_seconds = time.time() - analysis_start
+            else:
+                print_ts(
+                    f"Analyzing best facial frame with Qwen2.5-VL "
+                    f"(sharpness={best_sharpness:.1f}, candidates={len(self.candidate_frames)})..."
+                )
+                analysis_start = time.time()
+                vlm_scores = analyze_frame_emotion_scores(self.snapshot_frame, self.vision_client)
+                self.analysis_seconds = time.time() - analysis_start
+
+            scores, self.deepface_diagnostics = combine_vlm_and_deepface_scores(vlm_scores, deepface_result)
 
         if not scores:
-            self.last_status = "no reliable VLM facial emotion"
+            self.last_status = (
+                "no face detected (DeepFace gate)"
+                if self.deepface_diagnostics.get("deepface_no_face")
+                else "no reliable VLM facial emotion"
+            )
             return
 
         top_emotion, top_score = max(scores.items(), key=lambda item: item[1])
         if top_score < FACE_MIN_TOP_SCORE:
             print_ts(
-                f"Qwen2.5-VL facial result rejected as weak: "
+                f"Hybrid facial result rejected as weak: "
                 f"{top_emotion}={top_score:.1f}% < {FACE_MIN_TOP_SCORE:.1f}%"
             )
-            self.last_status = f"weak VLM result: {top_emotion}={top_score:.0f}%"
+            self.last_status = f"weak hybrid result: {top_emotion}={top_score:.0f}%"
             return
 
         self.emotion_score_samples.append(scores)
-        self.last_status = f"{top_emotion}: {top_score:.0f}%"
-        print_ts(f"Qwen2.5-VL facial result accepted: {self.last_status}")
+
+        agree = self.deepface_diagnostics.get("agree")
+        if agree is True:
+            agree_note = " (VLM+DeepFace agree)"
+        elif agree is False:
+            agree_note = (
+                f" (VLM+DeepFace disagree: vlm={self.deepface_diagnostics.get('vlm_dominant')}, "
+                f"deepface={self.deepface_diagnostics.get('deepface_dominant')})"
+            )
+        else:
+            agree_note = ""
+
+        self.last_status = f"{top_emotion}: {top_score:.0f}%{agree_note}"
+        print_ts(f"Hybrid facial result accepted: {self.last_status}")
 
     def finish(self) -> FaceEmotionCapture:
         if self.window_created:
@@ -2434,7 +2939,7 @@ class FaceEmotionSampler:
         try:
             self._analyze_snapshot_now()
         except Exception as exc:
-            self.error = f"Qwen2.5-VL best-frame analysis failed: {exc}"
+            self.error = f"Hybrid VLM/DeepFace analysis failed: {exc}"
             print_ts(self.error)
 
         return FaceEmotionCapture(
@@ -2445,6 +2950,7 @@ class FaceEmotionSampler:
             ended_at=now_ts(),
             error=self.error,
             analysis_seconds=self.analysis_seconds,
+            deepface_diagnostics=self.deepface_diagnostics,
         )
 
 
@@ -2593,6 +3099,7 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
     vision_module: Any = None,
     prompt_label: str = "utterance",
     robot_speaker: Optional[RobotSpeaker] = None,
+    deepface_client: Optional["DeepFaceClient"] = None,
 ) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
     input_sample_rate = get_input_samplerate(input_device)
     input_block_size = max(1, int(input_sample_rate * 0.05))
@@ -2699,7 +3206,11 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             print()
                             print_ts("Speech detected. Recording utterance and sampling facial expression...")
 
-                            face_sampler = FaceEmotionSampler(vision_module=vision_module, vision_client=vision_client)
+                            face_sampler = FaceEmotionSampler(
+                                vision_module=vision_module,
+                                vision_client=vision_client,
+                                deepface_client=deepface_client,
+                            )
                             face_sampler.start()
                             face_sampler.sample_if_due()
 
@@ -2742,7 +3253,6 @@ def ask_user_to_spell_name(
     whisper_model: WhisperModel,
     silero_model,
     input_device: Optional[int] = INPUT_DEVICE,
-    google_recognizer: Optional[sr.Recognizer] = None,
     robot_speaker: Optional[RobotSpeaker] = None,
 ) -> Optional[str]:
     spelling_request_text = "Could you please spell your name for me, letter by letter? For example: L E T I C I A."
@@ -2765,14 +3275,14 @@ def ask_user_to_spell_name(
         return None
 
     try:
-        transcript, engine = transcribe_with_fallback(wav_path, whisper_model, google_recognizer)
+        transcript = transcribe_with_faster_whisper(wav_path, whisper_model)
     finally:
         try:
             os.remove(wav_path)
         except OSError:
             pass
 
-    print_ts(f"Raw spelling transcript ({engine}): {transcript}")
+    print_ts(f"Raw spelling transcript (faster-whisper): {transcript}")
 
     return clean_spelled_name(transcript)
 
@@ -2829,7 +3339,6 @@ def prompt_for_user_name(
     whisper_model: WhisperModel,
     silero_model,
     input_device: Optional[int] = INPUT_DEVICE,
-    google_recognizer: Optional[sr.Recognizer] = None,
     robot_speaker: Optional[RobotSpeaker] = None,
 ) -> tuple[str, dict, str]:
     users = load_users()
@@ -2859,7 +3368,7 @@ def prompt_for_user_name(
             spoken_name = ""
         else:
             try:
-                spoken_name, engine = transcribe_with_fallback(wav_path, whisper_model, google_recognizer)
+                spoken_name = transcribe_with_faster_whisper(wav_path, whisper_model)
                 spoken_name = spoken_name.strip()
             finally:
                 try:
@@ -2889,7 +3398,6 @@ def prompt_for_user_name(
             whisper_model=whisper_model,
             silero_model=silero_model,
             input_device=input_device,
-            google_recognizer=google_recognizer,
             robot_speaker=robot_speaker,
         )
 
@@ -3335,7 +3843,7 @@ def init_self_rag_store(client: Client) -> SelfRAGStore:
         if probe_embedding is None:
             error_msg = (
                 f"Could not get a test embedding from Ollama model '{SELF_RAG_EMBED_MODEL}'. "
-                f"Make sure it is pulled, e.g.: ollama pull {SELF_RAG_EMBED_MODEL}", "a", "an", 
+                f"Make sure it is pulled, e.g.: ollama pull {SELF_RAG_EMBED_MODEL}"
             )
             print_ts(f"Self-RAG initialization failed: {error_msg}")
             return SelfRAGStore(enabled=False, error=error_msg)
@@ -4215,7 +4723,26 @@ def face_reliability_score(face_emotion_json: Optional[dict]) -> float:
 
     declared_reliable = 1.0 if face_emotion_json.get("reliable") else 0.65
 
-    return max(0.0, min(1.0, (0.45 * top_score_component) + (0.35 * margin_component) + (0.20 * frame_component))) * declared_reliable
+    base_score = (
+        max(0.0, min(1.0, (0.45 * top_score_component) + (0.35 * margin_component) + (0.20 * frame_component)))
+        * declared_reliable
+    )
+
+    # Hybrid VLM+DeepFace agreement adjustment: if both modalities landed on
+    # the same dominant emotion for this frame, that's stronger evidence
+    # than either alone, so boost reliability slightly. If they disagreed,
+    # the "averaged_scores" above are really a weighted-average compromise
+    # between two different readings rather than a confident detection, so
+    # shrink reliability accordingly. No adjustment if DeepFace wasn't used
+    # this turn (diagnostics.get("agree") is None).
+    diagnostics = face_emotion_json.get("deepface_diagnostics") or {}
+    agree = diagnostics.get("agree")
+    if agree is True:
+        base_score = min(1.0, base_score * 1.15)
+    elif agree is False:
+        base_score = base_score * 0.75
+
+    return base_score
 
 
 def text_reliability_score(text_emotion: EmotionResult, user_text: str = "") -> float:
@@ -4340,6 +4867,58 @@ def adaptive_reliability_aware_fusion(
         },
         response_times=modality_response_times or {},
     )
+
+
+# =========================
+# Temporal emotion smoothing (across turns)
+# =========================
+
+def apply_temporal_emotion_smoothing(
+    current_scores: dict[str, float],
+    previous_smoothed_scores: Optional[dict[str, float]],
+    alpha: float = EMOTION_SMOOTHING_ALPHA,
+) -> dict[str, float]:
+    """
+    Exponential moving average (EMA) over the fused per-emotion score
+    distribution, applied ACROSS TURNS within a session.
+
+    The adaptive reliability-aware fusion above resolves an emotion fresh
+    every turn from that turn's text/visual/prosody signals alone. That
+    means a single noisy/ambiguous turn (a brief visual misread, a short
+    ambiguous utterance) can cause the reported dominant emotion -- and
+    therefore the robot's facial expression via RobotExpression -- to
+    flicker between turns even when the user's underlying affective state
+    has not really changed.
+
+    This blends the CURRENT turn's fused scores with the PRIOR smoothed
+    state:
+        smoothed = alpha * current + (1 - alpha) * previous_smoothed
+    `alpha` close to 1.0 makes the smoothed value track the current turn
+    almost exactly (little smoothing); closer to 0.0 makes it change very
+    slowly (heavy smoothing, more resistant to a single outlier turn).
+
+    This is intentionally a pure function with no hidden state: the
+    caller (the main loop) is responsible for holding `previous_smoothed_
+    scores` across turns and passing it in each time, and for resetting it
+    at the start of a new session.
+    """
+    if not previous_smoothed_scores:
+        return dict(current_scores)
+
+    all_emotions = set(current_scores) | set(previous_smoothed_scores)
+    alpha = max(0.0, min(1.0, float(alpha)))
+
+    return {
+        emo: alpha * current_scores.get(emo, 0.0) + (1.0 - alpha) * previous_smoothed_scores.get(emo, 0.0)
+        for emo in all_emotions
+    }
+
+
+def dominant_from_scores(scores: dict[str, float]) -> tuple[str, float]:
+    if not scores:
+        return "trust", 0.0
+    dominant, value = max(scores.items(), key=lambda item: item[1])
+    return dominant, max(0.0, min(1.0, value))
 
 
 # =========================
@@ -4529,6 +5108,9 @@ def remove_allowed_face_emojis(text: str) -> str:
     return "".join(char for char in text if char not in ALLOWED_FACE_EMOJIS)
 
 
+_SENTENCE_ABBREVIATIONS = {"mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs"}
+
+
 def truncate_to_max_sentences(text: str, max_sentences: int = MAX_REPLY_SENTENCES) -> str:
     """
     Hard cap on reply length, expressed as a maximum number of sentences.
@@ -4539,15 +5121,33 @@ def truncate_to_max_sentences(text: str, max_sentences: int = MAX_REPLY_SENTENCE
     cut down to something reasonable to speak out loud over TTS.
 
     Uses a simple regex-based sentence split (on '.', '!', '?' followed by
-    whitespace). This is not a full sentence tokenizer, but is good enough
+    whitespace), with one important fix: periods after common title
+    abbreviations (Prof., Dr., Mr., Mrs., Ms., Sr., Jr., St., vs.) are
+    protected from being treated as sentence boundaries first. Without
+    this, a reply like "Prof. Dr. Karsten Berns is the head of the
+    laboratory." gets mis-split into ["Prof.", "Dr.", "Karsten Berns is
+    the head of the laboratory."], and a 2-sentence cap then keeps only
+    "Prof. Dr." -- silently dropping the name and the actual answer that
+    followed it. This is not a full sentence tokenizer, but is good enough
     for the short, single-paragraph replies this pipeline generates.
     """
     text = text.strip()
     if not text:
         return text
 
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    sentences = [s for s in sentences if s.strip()]
+    def _protect_abbreviation_dot(match: "re.Match[str]") -> str:
+        word = match.group(1)
+        if word.lower() in _SENTENCE_ABBREVIATIONS:
+            # \x00 is a placeholder that cannot appear in normal model
+            # output; it is always restored to "." before this function
+            # returns, so it never leaks into the final reply.
+            return f"{word}\x00"
+        return match.group(0)
+
+    protected = re.sub(r"\b([A-Za-z]{1,4})\.(?=\s+[A-Z])", _protect_abbreviation_dot, text)
+
+    sentences = re.split(r"(?<=[.!?])\s+", protected)
+    sentences = [s.replace("\x00", ".").strip() for s in sentences if s.strip()]
 
     if len(sentences) <= max_sentences:
         return text
@@ -4584,6 +5184,24 @@ def runtime_context() -> str:
         """.strip()
 
 
+FAREWELL_TERMINATION_PHRASES = {
+    "bye", "goodbye", "good bye", "see you", "see you later",
+    "talk later", "have a nice day", "have a good day",
+}
+
+
+def is_farewell_utterance(text: str) -> bool:
+    """
+    Detect a spoken request to end the session (e.g. "Goodbye", "Bye",
+    "See you later"). This is distinct from is_social_or_support_message()'s
+    farewell check (which only skips Self-RAG retrieval for that one turn)
+    -- this one is used by the main loop to actually terminate the
+    conversation, the same way "/exit" does.
+    """
+    lowered = text.strip().lower().rstrip(".!?")
+    return any(phrase in lowered for phrase in FAREWELL_TERMINATION_PHRASES)
+
+
 def deterministic_reply_if_applicable(user_text: str, emotion: str) -> Optional[str]:
     text = user_text.strip().lower()
     emoji = PLUTCHIK_EMOTIONS.get(emotion, "🙂")
@@ -4594,8 +5212,7 @@ def deterministic_reply_if_applicable(user_text: str, emotion: str) -> Optional[
     if "what is the time" in text or "what time is it" in text or "current time" in text:
         return f"The current time is {datetime.now().strftime('%H:%M')}. {emoji}"
 
-    farewell_words = {"bye", "goodbye", "see you", "see you later", "talk later", "have a nice day", "have a good day"}
-    if any(phrase in text for phrase in farewell_words):
+    if is_farewell_utterance(user_text):
         return "Thank you, and take care. 🙂"
 
     return None
@@ -4699,6 +5316,80 @@ def query_zed_vision(
 # Response generation
 # =========================
 
+def emotion_confidence_label(confidence: float) -> str:
+    """
+    Bucket a raw fused-emotion confidence float into a coarse label the
+    response-generation prompt can act on directly. LLMs reliably follow
+    "this is a low/medium/high confidence reading" as an instruction far
+    better than they act on a bare float, which the earlier prompt exposed
+    without ever telling the model what to do with it.
+    """
+    confidence = max(0.0, min(1.0, float(confidence)))
+    if confidence >= 0.65:
+        return "high"
+    if confidence >= 0.40:
+        return "medium"
+    return "low"
+
+
+def build_clean_emotion_summary(emotion_result: EmotionResult) -> dict[str, Any]:
+    """
+    Build the emotion summary that actually reaches the response-generation
+    prompt, deliberately WITHOUT the raw FusedEmotionResult.reason string.
+
+    That raw reason string (produced by adaptive_reliability_aware_fusion)
+    is internal fusion diagnostics meant for logs/thesis analysis, e.g.:
+        "Adaptive reliability-aware fusion selected joy: text=joy rel=0.85,
+         visual=trust rel=0.40, prosody=trust rel=0.10."
+    Passing that verbatim into the LLM's context is noise at best (it does
+    not help the model choose a better tone) and a leak risk at worst
+    (internal mechanics sitting in-context for the model to reference or
+    paraphrase, despite being told not to mention fusion/detection).
+
+    This function replaces it with a short, human-readable, prompt-safe
+    summary: just the emotion label and a coarse confidence bucket. The
+    original detailed reason is still preserved untouched on
+    FusedEmotionResult/EmotionResult for the session transcript / logs.
+    """
+    return {
+        "emotion": emotion_result.emotion,
+        "confidence_label": emotion_confidence_label(emotion_result.confidence),
+    }
+
+
+EMOTION_TONE_GUIDANCE = """
+Tone guidance by detected emotion (resonate first, then stabilize only if needed):
+
+- joy: mirror it directly. Match the positive energy and be genuinely glad with them; don't undercut it.
+- trust: warm, steady, collaborative. Mirror the ease of the moment.
+- anticipation: mirror the forward-looking energy; be engaged and curious with them.
+- surprise: mirror briefly, react with matching surprise or interest, then settle into the conversation.
+- sadness: resonate first. Acknowledge the weight of it plainly and warmly, without rushing to comfort,
+  fix, or advise. Let the acknowledgment sit before shifting toward anything forward-looking.
+- fear/anxiety: resonate briefly (take the concern seriously, don't minimize it), then shift toward
+  steady, grounding language. Do not amplify the worry.
+- anger/frustration: resonate with the substance of what's frustrating them (e.g. "that does sound
+  unfair" or "that's a frustrating position to be in") without adopting an angry tone yourself.
+  Validate the feeling; stay steady rather than escalating or sounding defensive.
+- disgust: acknowledge plainly without amplifying or dismissing. This one rarely needs active mirroring,
+  since it is usually a reaction to something external rather than a shared experience.
+
+General rule: match the user's energy level and warmth where appropriate, but do not claim to
+personally feel the emotion yourself (no "I feel sad too" / "that makes me angry too"). Express
+congruence through tone, word choice, and acknowledgment -- not through first-person emotional claims.
+This keeps expression emotionally congruent while staying inside the "do not pretend to have human
+emotions" boundary in your identity section.
+
+Confidence-based commitment:
+- If confidence_label is "high": let the tone guidance above shape your reply directly and fully.
+- If confidence_label is "medium": lean into the tone guidance, but keep the reply a little more
+  open-ended (e.g. a brief check-in question) rather than fully committing to one reading.
+- If confidence_label is "low": the emotional reading may be noisy or wrong. Favor a neutral, gently
+  curious tone instead of committing to the detected emotion -- it is fine to just respond naturally
+  to what the user said without leaning hard into an emotional interpretation.
+""".strip()
+
+
 def build_response_system_prompt(
     emotion_result: EmotionResult,
     user_profile: Optional[dict] = None,
@@ -4711,90 +5402,84 @@ def build_response_system_prompt(
     if face_emotion_json is None:
         face_emotion_json = default_face_emotion_json()
 
-    text_emotion_json = {
-        "emotion": emotion_result.emotion,
-        "confidence": emotion_result.confidence,
-        "reason": emotion_result.reason,
+    # Clean, prompt-safe emotion summary -- emotion label + confidence
+    # bucket only. Deliberately does NOT include emotion_result.reason
+    # (the raw fusion-diagnostics string); see build_clean_emotion_summary().
+    clean_emotion_summary = build_clean_emotion_summary(emotion_result)
+
+    # The face/VLM JSON is still passed through for transparency, but only
+    # a trimmed view (dominant emotion + reliability signal), not the full
+    # internal diagnostics blob (deepface_diagnostics, timestamps, etc.),
+    # which are for logs, not for the model's tone-setting.
+    face_summary_for_prompt = {
+        "dominant_emotion": face_emotion_json.get("dominant_emotion"),
+        "reliable": face_emotion_json.get("reliable"),
     }
 
     return f"""
-        {AMECA_SYSTEM_PROMPT}
+{AMECA_SYSTEM_PROMPT}
 
-        {runtime_context()}
+{runtime_context()}
 
-        {memory_context}
+{memory_context}
 
-        {build_self_rag_prompt_block(self_rag_context)}
+{build_self_rag_prompt_block(self_rag_context)}
 
-        You are generating Ameca's next conversational response.
+You are generating Ameca's next conversational response.
 
-        PRIVATE EMOTION CONTEXT
-        Use this context only for tone control only. Do not mention it directly.
+PRIVATE EMOTION CONTEXT (for tone only -- never mention this to the user)
+Detected emotion summary: {json.dumps(clean_emotion_summary)}
+Facial-expression summary: {json.dumps(face_summary_for_prompt)}
 
-        Fused emotion JSON:
-        {json.dumps(text_emotion_json, indent=2)}
+Interpretation rules:
+- The detected emotion was produced by adaptive reliability-aware late fusion across text, facial
+  expression, and vocal prosody.
+- Use it only to adjust tone, following the guidance below. Never mention fusion, detection, cameras,
+  Qwen2.5-VL, prosody, or "private emotion context" to the user.
+- Do not say things like "you look sad", "your face shows", or "I detected".
 
-        Face/Qwen2.5-VL emotion JSON:
-        {json.dumps(face_emotion_json, indent=2)}
+{EMOTION_TONE_GUIDANCE}
 
-        Interpretation rules:
-        - The active emotion was produced by adaptive reliability-aware late fusion.
-        - The base fusion weights are text=0.5, visual=0.4, prosody=0.1 and are adjusted by modality reliability.
-        - Use the fused emotion only to adjust tone.
-        - Do not mention camera, Qwen2.5-VL, prosody, fusion, detected emotion, or private emotion context to the user.
-        - Do not say things like "you look sad", "your face shows", or "I detected".
+Return JSON only in this exact shape:
+{{
+"reply": "assistant response without emoji",
+"emoji": "one facial emoji",
+"tone": "short tone label"
+}}
 
-        Return JSON only in this exact shape:
-        {{
-        "reply": "assistant response without emoji",
-        "emoji": "one facial emoji",
-        "tone": "short tone label"
-        }}
+Speech recognition note:
+- If the user says their name, update the profile silently and greet them by the corrected name.
 
-        Speech recognition note:
-        - If the user says their name, update the profile silently and greet them by the corrected name.
+Self-RAG grounding rules:
+- If SELF-RAG CONTEXT is provided, answer factual or lab/domain-specific questions ONLY from that retrieved context.
+- Do not invent names, titles, degrees, conference details, personal relationships, or project claims that are not explicitly in the retrieved context.
+- If the retrieved context does not directly answer the question, say that you could not verify it from the local lab knowledge.
+- For person lookup questions, only confirm a person if their name appears in the retrieved context.
+- Do not say "I know" someone personally. Say "The local lab knowledge mentions..." or "I found a lab page for...".
+- Do not mention Self-RAG, vector databases, embeddings, ChromaDB, or retrieval unless the user explicitly asks how the system works.
+- If you don't have information to answer something (no Self-RAG context and no memory of it), say so plainly rather than guessing.
 
-        Self-RAG grounding rules:
-        - If SELF-RAG CONTEXT is provided, answer factual or lab/domain-specific questions ONLY from that retrieved context.
-        - Do not invent names, titles, degrees, conference details, personal relationships, or project claims that are not explicitly in the retrieved context.
-        - If the retrieved context does not directly answer the question, say that you could not verify it from the local lab knowledge.
-        - For person lookup questions, only confirm a person if their name appears in the retrieved context.
-        - Do not say "I know" someone personally. Say "The local lab knowledge mentions..." or "I found a lab page for...".
-        - Do not mention Self-RAG, vector databases, embeddings, ChromaDB, or retrieval unless the user explicitly asks how the system works.
+Conversation behavior rules:
+- Always ensure your response is context appropriate and helpful.
+- Use the recent conversation history to understand context and avoid repeating yourself.
+- Do not greet repeatedly. After the first greeting, respond directly to what the user said.
+- Do not reintroduce yourself unless the user asks who you are, and never begin with "As Ameca" or
+  "As a humanoid social robot".
+- Use the user's name occasionally, not in every response.
+- Do not immediately give a list of advice unless the user asks for advice, and do not repeat advice
+  already given earlier in the conversation.
+- Speak directly and naturally; stay on the topic the user raised rather than introducing unrelated
+  topics.
+- Do not use markdown, bullets, numbered lists, or long explanations unless the user asks for detail.
+- STRICT: reply in 1-2 short sentences only. Longer replies get cut off automatically, so make every
+  sentence count.
+- If the user asks who can help with something, suggest concrete people: supervisor, co-supervisor,
+  lab colleagues, thesis coordinator, or university writing center.
 
-        Conversation behavior rules:
-        - Always ensure your response is context appropriate.
-        - Always respond like a helpful assistant
-        - Use the private emotion context only to adjust tone.
-        - Use the recent conversation history to understand context and avoid repeating yourself.
-        - Do not greet repeatedly. After the first greeting, respond directly to what the user said.
-        - Do not say phrases like "your detected emotion", "you seem sad", "trust is present", or "you are anticipating".
-        - Do not reintroduce yourself unless the user asks who you are.
-        - Never begin with "As Ameca" or "As a humanoid social robot".
-        - Use the user's name occasionally, not in every response.
-        - Do not immediately give a list of advice unless the user asks for advice.
-        - Speak directly and naturally.
-        - Do not introduce unrelated topics such as Lego, Legoland, legal advice, or robotics toys unless the user explicitly mentions them.
-        - Do not mention emotion labels unless the user explicitly asks.
-        - Do not use markdown, bullets, numbered lists, or long advice unless the user asks for detail.
-        - Do not repeat advice already given in the recent conversation.
-        - STRICT: reply in 1-2 short sentences only. Longer replies get cut off automatically, so make every sentence count.
-        - Do not list any steps unless the user asks for detailed guidance.
-        - If the user asks who can help, suggest concrete people: supervisor, co-supervisor, lab colleagues, thesis coordinator, or university writing center.
-
-        Emoji rules:
-        - Always end sentences with exactly one context appriopriate facial emoji.
-        - Use gentle emojis for negative emotions.
-        - Do not use emoji symbols
-        - Do not overreact emotionally.
-        - Use only one of these emojis: 🙂 😊 😌 😔 😟 🤔 😮 😢 😠 🤢
-        - Emoji must appear only at the end of the sentences.
-
-        Tone examples:
-        - User: "I'm so tired and exhausted." -> reply should validate softly; emoji could be 😔 or 😌.
-        - User: "I am very happy today." -> reply should celebrate the positive mood; emoji could be 😊.
-        - User: "Well, I don't know." -> reply should stay with the uncertainty and ask gently; emoji could be 😟 or 🙂.
-        """.strip()
+Emoji rules:
+- Always end with exactly one context-appropriate facial emoji from this set: 🙂 😊 😌 😔 😟 🤔 😮 😢 😠 🤢
+- Do not use any other emoji or emoticon symbols, and don't overreact emotionally.
+""".strip()
 
 
 def limit_text_length(text: str, max_chars: int = 1500) -> str:
@@ -4811,6 +5496,110 @@ def trim_history(history: list[dict]) -> list[dict]:
 
 def prompt_ready_history(history: list[dict]) -> list[dict]:
     return [{"role": item["role"], "content": item["content"]} for item in history]
+
+
+def _is_degenerate_reply_text(text: str) -> bool:
+    """
+    True if `text` isn't real conversational content -- e.g. the model
+    returned a bare empty JSON object/array, or nothing at all, instead of
+    an actual reply. Used in generate_response() to catch cases like a
+    literal "{}" being spoken to the user verbatim rather than a proper
+    apology/fallback.
+    """
+    stripped = str(text or "").strip()
+    if not stripped:
+        return True
+    return stripped.lower() in {"{}", "[]", "null", "none", "{ }", "[ ]"}
+
+
+class _LLMCallFailed(Exception):
+    """
+    Internal marker raised by _attempt_llm_response() when the underlying
+    client.chat() call itself fails (network/Ollama issue), as opposed to
+    the call succeeding but returning degenerate content (which returns
+    None instead). generate_response() catches this to choose an accurate
+    final fallback message ("having trouble reaching my language model")
+    rather than the generic "could you say that again?" wording, which
+    would be misleading for an actual connection failure.
+    """
+
+
+def _attempt_llm_response(
+    client: Client,
+    messages: list[dict],
+    emotion_result: EmotionResult,
+    self_rag_context: Optional[SelfRAGContext],
+    repeat_penalty: float,
+) -> Optional[str]:
+    """
+    Make one attempt at the main response-generation LLM call and parse it
+    into a final reply string.
+
+    Returns None if the call succeeded but produced degenerate content
+    (e.g. a bare "{}" with no usable "reply" key -- see
+    _is_degenerate_reply_text). Raises _LLMCallFailed if the call itself
+    failed. Callers use these two distinct outcomes to decide whether to
+    retry once (see generate_response()) and which fallback message is
+    accurate if both attempts are exhausted.
+    """
+    try:
+        response = client.chat(
+            model=MODEL_NAME,
+            format="json",
+            messages=messages,
+            options={
+                "temperature": 0.25 if self_rag_context and self_rag_context.used else 0.4,
+                # Kept deliberately small so the model has less room to
+                # ramble before hitting the hard sentence cap in
+                # normalize_reply(); reduces how often replies get
+                # truncated mid-thought.
+                "num_predict": 90,
+                "repeat_penalty": repeat_penalty,
+                "num_ctx": 8192,
+            },
+            stream=False,
+        )
+    except Exception as exc:
+        print_ts(f"Response generation LLM call failed ({exc}).")
+        raise _LLMCallFailed(str(exc)) from exc
+
+    raw_reply = response["message"]["content"]
+    data = safe_json_extract(raw_reply)
+
+    # NOTE: this must check `data is not None`, not truthiness of `data`
+    # itself. A model that returns a literal empty JSON object "{}" parses
+    # to an empty Python dict, which is falsy (`bool({}) == False`) even
+    # though it is a perfectly valid, non-None dict. Checking truthiness
+    # here would silently skip this branch for that case and fall through
+    # to using the raw "{}" string as if it were plain reply text, which
+    # is exactly how "{} 🙂" ended up being spoken to the user verbatim.
+    if data is not None and isinstance(data, dict):
+        reply_text = str(data.get("reply", "")).strip()
+        emoji = str(data.get("emoji", "")).strip()
+
+        if emoji in {":)", ":-)", ""}:
+            emoji = PLUTCHIK_EMOTIONS.get(emotion_result.emotion, "🙂")
+
+        if reply_text and not _is_degenerate_reply_text(reply_text):
+            return normalize_reply(f"{reply_text} {emoji}", emotion_result.emotion)
+        # Empty or degenerate "reply" field -- the model didn't actually
+        # answer. Treat this the same as a parse failure (return None) so
+        # the caller can retry rather than emit empty content.
+        return None
+
+    if _is_degenerate_reply_text(raw_reply):
+        # Second layer of the same guard: even outside the dict-parsing
+        # branch above, the raw model output itself might just be a bare
+        # "{}", "[]", or similarly empty/non-content string.
+        return None
+
+    final_reply = normalize_reply(raw_reply, emotion_result.emotion)
+    if self_rag_context and self_rag_context.used and context_has_placeholder_risk(final_reply):
+        return normalize_reply(
+            "I found a relevant local lab page, but I could not verify the exact name from the retrieved text, so I should not invent it. 🙂",
+            emotion_result.emotion,
+        )
+    return final_reply
 
 
 def generate_response(
@@ -4856,48 +5645,63 @@ def generate_response(
         if grounded_reply:
             return grounded_reply
 
+    # repeat_penalty lowered from 1.25 to 1.1: a high repeat penalty can
+    # push the model toward emitting a bare "{}" instead of populating the
+    # "reply"/"emoji"/"tone" schema keys, especially on short, repetitive
+    # turns (e.g. "what's your name?" asked twice in a row) where those
+    # exact schema tokens -- and the assistant's own prior reply -- have
+    # already appeared several times in the accumulated conversation
+    # context. This is the first half of the mitigation; the retry below
+    # is the second half.
+    call_failed = False
+    reply = None
     try:
-        response = client.chat(
-            model=MODEL_NAME,
+        reply = _attempt_llm_response(
+            client=client,
             messages=messages,
-            options={
-                "temperature": 0.25 if self_rag_context and self_rag_context.used else 0.4,
-                # Kept deliberately small so the model has less room to
-                # ramble before hitting the hard sentence cap in
-                # normalize_reply(); reduces how often replies get
-                # truncated mid-thought.
-                "num_predict": 90,
-                "repeat_penalty": 1.25,
-                "num_ctx": 8192,
-            },
-            stream=False,
+            emotion_result=emotion_result,
+            self_rag_context=self_rag_context,
+            repeat_penalty=1.1,
         )
-    except Exception as exc:
-        print_ts(f"Response generation LLM call failed ({exc}); using apologetic fallback reply.")
+    except _LLMCallFailed:
+        call_failed = True
+
+    if reply is not None:
+        return reply
+
+    # First attempt returned nothing usable (the call failed outright, or
+    # the model produced degenerate/empty content such as a bare "{}").
+    # This is rare, so paying for one extra LLM call only in that case is
+    # cheap insurance against the user ever hearing raw JSON syntax or a
+    # generic fallback when a normal answer was just one retry away.
+    print_ts("Response generation produced no usable content on the first attempt; retrying once.")
+    try:
+        reply = _attempt_llm_response(
+            client=client,
+            messages=messages,
+            emotion_result=emotion_result,
+            self_rag_context=self_rag_context,
+            repeat_penalty=1.1,
+        )
+        call_failed = False
+    except _LLMCallFailed:
+        call_failed = True
+
+    if reply is not None:
+        return reply
+
+    if call_failed:
+        print_ts("Response generation LLM call failed on both attempts; using connectivity fallback reply.")
         return normalize_reply(
             "I'm having trouble reaching my language model right now, so I can't respond properly to that.",
             emotion_result.emotion,
         )
 
-    raw_reply = response["message"]["content"]
-    data = safe_json_extract(raw_reply)
-
-    if data and isinstance(data, dict):
-        reply_text = str(data.get("reply", "")).strip()
-        emoji = str(data.get("emoji", "")).strip()
-
-        if emoji in {":)", ":-)", ""}:
-            emoji = PLUTCHIK_EMOTIONS.get(emotion_result.emotion, "🙂")
-
-        return normalize_reply(f"{reply_text} {emoji}", emotion_result.emotion)
-
-    final_reply = normalize_reply(raw_reply, emotion_result.emotion)
-    if self_rag_context and self_rag_context.used and context_has_placeholder_risk(final_reply):
-        return normalize_reply(
-            "I found a relevant local lab page, but I could not verify the exact name from the retrieved text, so I should not invent it. 🙂",
-            emotion_result.emotion,
-        )
-    return final_reply
+    print_ts("Response generation produced no usable content on retry either; using fallback reply.")
+    return normalize_reply(
+        "Sorry, could you say that again? I didn't quite catch a clear response that time.",
+        emotion_result.emotion,
+    )
 
 
 # =========================
@@ -4906,7 +5710,7 @@ def generate_response(
 
 def parse_robot_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ameca demo: Silero VAD + faster-whisper/Google STT + emotion fusion + Self-RAG, with Tritium TTS output, Tritium facial expression, and ZED vision."
+        description="Ameca demo: Silero VAD + faster-whisper + emotion fusion + Self-RAG, with Tritium TTS output, Tritium facial expression, and ZED vision."
     )
 
     parser.add_argument(
@@ -4925,7 +5729,7 @@ def parse_robot_args() -> argparse.Namespace:
     parser.add_argument("--speaking_cooldown", type=float, default=0.3, help="Seconds of echo-guard cooldown after TTS finishes speaking.")
     parser.add_argument(
         "--tts_token",
-        default="ZWNFuNQVIPyztWCfPPM5VLPslpj8rR",
+        default=os.environ.get("TTS_TOKEN", "ZWNFuNQVIPyztWCfPPM5VLPslpj8rR"),
         help="X-Tritium-Auth-Token used for both the TTS 'say' endpoint and the sequence_player expression endpoint.",
     )
     parser.add_argument(
@@ -4939,8 +5743,47 @@ def parse_robot_args() -> argparse.Namespace:
         help="Disable driving Ameca's physical facial expression from the fused emotion result.",
     )
 
-    parser.add_argument("--google_stt_language", default=os.environ.get("GOOGLE_STT_LANGUAGE", "en-US"))
-    parser.add_argument("--disable_google_fallback", action="store_true", help="Disable Google STT fallback; faster-whisper only.")
+    parser.add_argument(
+        "--deepface_python",
+        default=DEEPFACE_PYTHON,
+        help="Path to the python interpreter of a SEPARATE conda env with deepface+tensorflow "
+        "installed, used to run deepface_worker.py in an isolated process. Leave unset to "
+        "disable the hybrid VLM+DeepFace visual modality and use Qwen2.5-VL alone.",
+    )
+    parser.add_argument(
+        "--deepface_worker_script",
+        default=DEEPFACE_WORKER_SCRIPT,
+        help=f"Path to deepface_worker.py (default: {DEEPFACE_WORKER_SCRIPT}).",
+    )
+    parser.add_argument(
+        "--disable_deepface",
+        action="store_true",
+        help="Disable the hybrid VLM+DeepFace visual modality even if --deepface_python is set.",
+    )
+    parser.add_argument(
+        "--deepface_timeout",
+        type=float,
+        default=DEEPFACE_REQUEST_TIMEOUT_SECONDS,
+        help=(
+            f"Per-frame DeepFace analyze() timeout in seconds (default: {DEEPFACE_REQUEST_TIMEOUT_SECONDS}). "
+            "Raise this if DeepFace consistently times out (e.g. CPU-only hardware with a slower "
+            "detector backend like mtcnn) -- a timeout means DeepFace is treated as unavailable for "
+            "that turn, which also disables the DeepFace-first face-presence gate ahead of Qwen2.5-VL "
+            "for that turn, since there is no confirmed face/no-face result to gate on."
+        ),
+    )
+
+    parser.add_argument(
+        "--disable_emotion_smoothing",
+        action="store_true",
+        help="Disable temporal (cross-turn) smoothing of the fused emotion result; use each turn's raw fused emotion directly.",
+    )
+    parser.add_argument(
+        "--emotion_smoothing_alpha",
+        type=float,
+        default=EMOTION_SMOOTHING_ALPHA,
+        help=f"EMA weight given to the current turn's fused scores when temporal smoothing is enabled (default: {EMOTION_SMOOTHING_ALPHA}). Lower = smoother/slower to change.",
+    )
 
     parser.add_argument("--videoIndex", type=int, default=int(os.environ.get("ZED_VIDEO_INDEX", "0")), help="ZED camera index. This is now the SINGLE camera handle, used both for Qwen2.5-VL facial-emotion sampling and for general 'what do you see' queries.")
     parser.add_argument("--resolution", default=os.environ.get("ZED_RESOLUTION", "HD2K"))
@@ -4974,7 +5817,10 @@ def main() -> None:
     VISION_MODEL_NAME = args.face_vision_model
     ZED_VISION_MODEL_NAME = args.vision_model
 
-    print_ts("Starting integrated Ameca demo: Silero VAD + faster-whisper/Google STT + persistent memory + Self-RAG + adaptive fusion + Tritium TTS + Tritium facial expression + ZED vision.")
+    emotion_smoothing_enabled = EMOTION_SMOOTHING_ENABLED and not args.disable_emotion_smoothing
+    emotion_smoothing_alpha = args.emotion_smoothing_alpha
+
+    print_ts("Starting integrated Ameca demo: Silero VAD + faster-whisper + persistent memory + Self-RAG + adaptive fusion + temporal smoothing + Tritium TTS + Tritium facial expression + ZED vision.")
     print_ts(f"Python: {sys.version.split()[0]}")
     print_ts(f"Ollama host: {OLLAMA_HOST}")
     print_ts(f"Ollama chat model: {MODEL_NAME}")
@@ -4983,27 +5829,26 @@ def main() -> None:
     print_ts(f"Ollama embedding model (Self-RAG): {SELF_RAG_EMBED_MODEL}")
     print_ts(f"Tritium TTS URL: {args.tts_url}")
     print_ts(f"Tritium expression host: {args.expression_host} (disabled={args.disable_expression})")
+    print_ts(f"Temporal emotion smoothing enabled: {emotion_smoothing_enabled} (alpha={emotion_smoothing_alpha})")
 
     # zed_vision_module is now the SINGLE owner of the ZED camera handle, used
     # both for Qwen2.5-VL facial-emotion sampling and (optionally) general
     # "what do you see" queries, so it is required rather than optional.
     #
-    # CAUTION: despite enable_emotion_analysis=False being passed to
-    # ZedVisionModule below, a prior crash log showed TensorFlow's oneDNN /
-    # cudart_stub init messages printing immediately after this import call
-    # -- meaning zed_vision_module.py imports tensorflow/deepface
-    # unconditionally at module load time, not lazily gated on
-    # enable_emotion_analysis. If zed_vision_module.py can be edited, making
-    # that TF/DeepFace import lazy (only inside the code path that actually
-    # needs it) would remove TensorFlow from this process entirely when
-    # emotion_analysis is off, which is the more robust fix. Self-RAG's
-    # embeddings now go through Ollama instead of an in-process
+    # NOTE on TensorFlow/PyTorch segfault risk: zed_vision_module.py now
+    # imports tensorflow/deepface LAZILY, gated behind
+    # enable_emotion_analysis (see _ensure_deepface_imported() there), not
+    # unconditionally at module load time -- an earlier version imported it
+    # eagerly, which was the original source of a same-process TF/PyTorch
+    # segfault. We still always pass enable_emotion_analysis=False below:
+    # zed_vision_module's own in-process DeepFace path is now DEPRECATED in
+    # favor of the isolated hybrid VLM+DeepFace modality (DeepFaceClient /
+    # deepface_worker.py, launched in its own process/conda env further
+    # down in this function), which is what actually provides DeepFace
+    # cross-checking for facial emotion in this pipeline. Self-RAG's
+    # embeddings also go through Ollama instead of an in-process
     # sentence-transformers/PyTorch model (see get_ollama_embedding()),
-    # which removes the specific PyTorch-computation-vs-TensorFlow
-    # collision that caused the segfault observed at this point in the
-    # startup sequence; it does not guarantee no other torch/TF collision
-    # is possible elsewhere in the process (e.g. Silero VAD's own torch
-    # usage later in startup).
+    # removing another potential PyTorch-vs-TensorFlow collision point.
     try_import_zed_vision_module()
     if not HAS_ZED_VISION:
         raise RuntimeError(
@@ -5061,13 +5906,6 @@ def main() -> None:
             f"Original error: {exc}"
         )
 
-    google_recognizer: Optional[sr.Recognizer] = None
-    if not args.disable_google_fallback:
-        google_recognizer = sr.Recognizer()
-        print_ts(f"Google STT fallback enabled (language={args.google_stt_language}).")
-    else:
-        print_ts("Google STT fallback disabled (--disable_google_fallback).")
-
     # ---- Robot output: Tritium TTS ----
     robot_speaker = RobotSpeaker(
         tts_url=args.tts_url,
@@ -5086,6 +5924,31 @@ def main() -> None:
         host=args.expression_host,
         tts_token=args.tts_token,
     )
+
+    # ---- Hybrid visual modality: Qwen2.5-VL + DeepFace ----
+    # DeepFace runs in its own process (deepface_worker.py), ideally from a
+    # separate conda env, to avoid the TensorFlow/PyTorch same-process
+    # segfault risk documented on DEEPFACE_ENABLED above. If
+    # --deepface_python / DEEPFACE_PYTHON isn't set, or the worker fails to
+    # start, deepface_client simply won't be "alive" and every downstream
+    # call degrades to VLM-only behavior automatically. DeepFace is also
+    # used as a first-pass face-presence gate ahead of Qwen2.5-VL -- see
+    # FaceEmotionSampler._analyze_snapshot_now().
+    deepface_client: Optional[DeepFaceClient] = None
+    deepface_enabled = DEEPFACE_ENABLED and not args.disable_deepface
+    if deepface_enabled:
+        print_ts(f"Starting DeepFace worker via: {args.deepface_python or '(not set)'}")
+        deepface_client = DeepFaceClient(
+            python_executable=args.deepface_python,
+            worker_script=args.deepface_worker_script,
+            request_timeout=args.deepface_timeout,
+        )
+        if deepface_client.is_alive():
+            print_ts("Hybrid visual modality ENABLED (DeepFace face-presence gate first, Qwen2.5-VL conditional).")
+        else:
+            print_ts("Hybrid visual modality unavailable this session; using Qwen2.5-VL alone.")
+    else:
+        print_ts("DeepFace hybrid visual modality disabled (DEEPFACE_ENABLED=0 or --disable_deepface).")
 
     # Optional TTS-activity monitor (avoids the robot hearing its own voice),
     # mirroring AmecaRobotChat's setup. Best-effort; continues without it if
@@ -5139,7 +6002,6 @@ def main() -> None:
         whisper_model=whisper_model,
         silero_model=silero_model,
         input_device=INPUT_DEVICE,
-        google_recognizer=google_recognizer,
         robot_speaker=robot_speaker,
     )
 
@@ -5162,17 +6024,24 @@ def main() -> None:
 
     print("Automatic listening mode is active.")
     print(
-        "Speak naturally. Silero VAD will detect speech, Qwen2.5-VL will analyze one cleaned facial "
-        "snapshot after speech ends, faster-whisper will transcribe it (falling back to Google STT if "
-        "needed), adaptive reliability-aware fusion will combine text/visual/prosody, Ameca's face will "
-        "update to match the fused emotion via Tritium sequence_player, and Ameca will respond out loud "
+        "Speak naturally. Silero VAD will detect speech; DeepFace will check for a face first and "
+        "Qwen2.5-VL will only analyze a cleaned facial snapshot if a face is confirmed present; "
+        "faster-whisper will transcribe the utterance; adaptive reliability-aware fusion (with "
+        "cross-turn temporal smoothing) will combine text/visual/prosody; Ameca's face will update "
+        "to match the smoothed emotion via Tritium sequence_player; and Ameca will respond out loud "
         "via Tritium TTS."
     )
-    print("Say '/exit' or press Ctrl+C to save the transcript and quit.")
+    print("Say '/exit', or say a farewell such as 'goodbye', to save the transcript and quit.")
     print()
 
     history: list[dict] = []
     session_log: list[dict] = []
+
+    # Running state for cross-turn temporal emotion smoothing (see
+    # apply_temporal_emotion_smoothing()). None until the first turn's
+    # fused scores are available; reset implicitly each time main() runs
+    # (i.e. once per session).
+    smoothed_emotion_scores: Optional[dict[str, float]] = None
 
     session_log.append({
         "role": "assistant",
@@ -5191,6 +6060,7 @@ def main() -> None:
                 vision_module=vision_module,
                 prompt_label="utterance",
                 robot_speaker=robot_speaker,
+                deepface_client=deepface_client,
             )
 
             if face_capture:
@@ -5203,12 +6073,9 @@ def main() -> None:
                 continue
 
             audio_for_prosody = np.array([], dtype=np.float32)
-            engine_used = "none"
             try:
                 audio_for_prosody = load_audio_for_prosody(wav_path)
-                user_text, engine_used = transcribe_with_fallback(
-                    wav_path, whisper_model, google_recognizer, args.google_stt_language
-                )
+                user_text = transcribe_with_faster_whisper(wav_path, whisper_model)
             finally:
                 try:
                     os.remove(wav_path)
@@ -5216,10 +6083,40 @@ def main() -> None:
                     pass
 
             if not user_text:
-                print_ts("No speech detected after transcription (faster-whisper and Google STT both empty).")
+                print_ts("No speech detected after transcription (faster-whisper returned an empty transcript).")
                 continue
 
-            print_ts(f"Transcript [{engine_used}]: {user_text}")
+            print_ts(f"Transcript [faster-whisper]: {user_text}")
+
+            # ---------- Spoken farewell: terminate the session ----------
+            # Same priority tier as "/exit": checked before name-extraction
+            # and before any of the emotion/Self-RAG/response-generation
+            # pipeline runs for this turn.
+            if is_farewell_utterance(user_text):
+                farewell_reply = "Thank you, and take care. 🙂"
+                print_ts(f"Assistant: {farewell_reply}")
+                robot_speaker.say(farewell_reply)
+                print()
+
+                history.append({"role": "user", "content": user_text})
+                history.append({"role": "assistant", "content": farewell_reply})
+
+                session_log.append({
+                    "role": "user",
+                    "content": user_text,
+                    "timestamp": now_ts(),
+                    "input_mode": "silero_vad_faster-whisper",
+                    "intent": "spoken_farewell_termination",
+                })
+                session_log.append({
+                    "role": "assistant",
+                    "content": farewell_reply,
+                    "timestamp": now_ts(),
+                    "intent": "spoken_farewell_termination",
+                })
+
+                print_ts("Spoken farewell detected. Ending session.")
+                break
 
             maybe_name = extract_name_from_text(user_text)
             if maybe_name and not looks_like_invalid_name(maybe_name):
@@ -5248,7 +6145,7 @@ def main() -> None:
                     "role": "user",
                     "content": user_text,
                     "timestamp": now_ts(),
-                    "input_mode": f"silero_vad_{engine_used}",
+                    "input_mode": "silero_vad_faster-whisper",
                     "intent": "name_introduction",
                 })
                 session_log.append({
@@ -5319,7 +6216,7 @@ def main() -> None:
                     "role": "user",
                     "content": user_text,
                     "timestamp": now_ts(),
-                    "input_mode": f"silero_vad_{engine_used}",
+                    "input_mode": "silero_vad_faster-whisper",
                     "intent": "zed_vision_query",
                 })
                 session_log.append({
@@ -5334,13 +6231,36 @@ def main() -> None:
                 facial_hint = face_capture.summary_text if face_capture else None
                 face_emotion_json = face_capture.as_json if face_capture else default_face_emotion_json()
 
-                text_start = time.time()
-                text_emotion_result = detect_emotion(
-                    client=client,
-                    transcribed_text=user_text,
-                    facial_emotion_hint=facial_hint,
-                )
-                text_response_seconds = time.time() - text_start
+                # ---- Run emotion detection and Self-RAG concurrently ----
+                # detect_emotion() only needs user_text + facial_hint, and
+                # build_self_rag_context() only needs user_text + the
+                # Self-RAG store -- neither depends on the other's output.
+                # They previously ran strictly back-to-back, each paying
+                # its own full Ollama round-trip (roughly 2s + 2s stacked).
+                # Since both are I/O-bound (waiting on an HTTP response
+                # from Ollama), running them in a small thread pool lets
+                # their latencies overlap instead of stacking, so this part
+                # of the turn costs roughly max(a, b) instead of a + b.
+                parallel_start = time.time()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as concurrent_executor:
+                    text_emotion_future = concurrent_executor.submit(
+                        detect_emotion,
+                        client=client,
+                        transcribed_text=user_text,
+                        facial_emotion_hint=facial_hint,
+                    )
+                    self_rag_future = concurrent_executor.submit(
+                        build_self_rag_context,
+                        client=client,
+                        store=self_rag_store,
+                        user_text=user_text,
+                    )
+
+                    text_emotion_result = text_emotion_future.result()
+                    text_response_seconds = time.time() - parallel_start
+
+                    self_rag_context = self_rag_future.result()
+                    self_rag_response_seconds = time.time() - parallel_start
 
                 prosody_start = time.time()
                 prosody_result = analyze_prosody_from_audio(audio_for_prosody, TARGET_SAMPLE_RATE)
@@ -5358,15 +6278,36 @@ def main() -> None:
                     },
                 )
 
-                emotion_result = fused_emotion_result.to_emotion_result()
+                # ---- Temporal smoothing across turns ----
+                # The raw per-turn fused result (fused_emotion_result) is
+                # still logged in full below for diagnostics/thesis
+                # analysis. The SMOOTHED result is what actually drives
+                # response tone and the robot's facial expression, so a
+                # single noisy/ambiguous turn doesn't cause visible
+                # flicker. See apply_temporal_emotion_smoothing().
+                if emotion_smoothing_enabled:
+                    smoothed_emotion_scores = apply_temporal_emotion_smoothing(
+                        current_scores=fused_emotion_result.scores,
+                        previous_smoothed_scores=smoothed_emotion_scores,
+                        alpha=emotion_smoothing_alpha,
+                    )
+                    smoothed_dominant, smoothed_confidence = dominant_from_scores(smoothed_emotion_scores)
+                    emotion_result = EmotionResult(
+                        emotion=smoothed_dominant,
+                        confidence=smoothed_confidence,
+                        # Keep the raw fusion reason for the logs (see
+                        # build_clean_emotion_summary(), which is what
+                        # actually reaches the LLM prompt and never
+                        # includes this raw diagnostic string).
+                        reason=fused_emotion_result.reason,
+                    )
+                else:
+                    emotion_result = fused_emotion_result.to_emotion_result()
 
-                # ---- Drive the physical face from the fused emotion ----
-                # This runs as soon as fusion resolves, independent of TTS
-                # timing (per requirement: continuous, turn-by-turn
+                # ---- Drive the physical face from the (smoothed) emotion ----
+                # This runs as soon as fusion/smoothing resolves, independent
+                # of TTS timing (per requirement: continuous, turn-by-turn
                 # expression updates, not tied to when the robot speaks).
-                # This is the call that was missing entirely before: the
-                # fused emotion was computed but never sent anywhere that
-                # could change Ameca's face.
                 if not args.disable_expression:
                     robot_expression.set_emotion(
                         emotion_result.emotion,
@@ -5381,29 +6322,27 @@ def main() -> None:
 
                 prosody_json = prosody_result.as_json
                 emotion_json = fused_emotion_result.as_json
+                emotion_json["temporal_smoothing"] = {
+                    "enabled": emotion_smoothing_enabled,
+                    "alpha": emotion_smoothing_alpha,
+                    "smoothed_scores": smoothed_emotion_scores,
+                    "smoothed_emotion": emotion_result.emotion,
+                    "smoothed_confidence": emotion_result.confidence,
+                }
 
-                # print_ts("Text emotion JSON:")
-                # print(json.dumps(text_emotion_json, indent=2))
-                # print()
-
-                # print_ts("Face emotion JSON:")
-                # print(json.dumps(face_emotion_json, indent=2))
-                # print()
-
-                # print_ts("Prosody emotion JSON:")
-                # print(json.dumps(prosody_json, indent=2))
-                # print()
-
-                print_ts("Adaptive reliability-aware fusion JSON:")
-                print(json.dumps(emotion_json, indent=2))
+                print_ts("Adaptive reliability-aware fusion JSON (raw, pre-smoothing):")
+                print(json.dumps(fused_emotion_result.as_json, indent=2))
                 print()
 
-                self_rag_context = build_self_rag_context(
-                    client=client,
-                    store=self_rag_store,
-                    user_text=user_text,
+                print_ts(
+                    f"Smoothed emotion used for tone/expression: {emotion_result.emotion} "
+                    f"(confidence={emotion_result.confidence:.2f}, alpha={emotion_smoothing_alpha})"
                 )
-                print_ts("Self-RAG JSON:")
+                print()
+
+                print_ts(
+                    f"Self-RAG JSON (computed concurrently with emotion detection, {self_rag_response_seconds:.2f}s):"
+                )
                 print(json.dumps(self_rag_context.as_json, indent=2))
                 print()
 
@@ -5431,7 +6370,7 @@ def main() -> None:
                     "text_emotion": text_emotion_json,
                     "prosody_emotion": prosody_json,
                     "self_rag": self_rag_context.as_json,
-                    "input_mode": f"silero_vad_{engine_used}_qwen25vl_adaptive_reliability_aware_fusion_self_rag",
+                    "input_mode": "silero_vad_faster-whisper_qwen25vl_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag",
                 }
 
                 assistant_message = {
@@ -5465,7 +6404,7 @@ def main() -> None:
                     "role": "user",
                     "content": user_text,
                     "timestamp": now_ts(),
-                    "input_mode": f"silero_vad_{engine_used}",
+                    "input_mode": "silero_vad_faster-whisper",
                     "intent": "turn_processing_error",
                     "error": repr(exc),
                 })
@@ -5484,6 +6423,13 @@ def main() -> None:
         if vision_module is not None:
             try:
                 vision_module.stop()
+            except Exception:
+                pass
+
+        if deepface_client is not None:
+            try:
+                deepface_client.shutdown()
+                print_ts("[DeepFace] Worker shut down.")
             except Exception:
                 pass
 

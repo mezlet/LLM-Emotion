@@ -337,7 +337,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--tts_token",
-        default="",
+        default="ZWNFuNQVIPyztWCfPPM5VLPslpj8rR",
         help="X-Tritium-Auth-Token used for both TTS and sequence_player calls.",
     )
     parser.add_argument(

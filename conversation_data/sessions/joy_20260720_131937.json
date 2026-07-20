@@ -1,0 +1,1742 @@
+{
+  "user": {
+    "key": "joy",
+    "name": "Joy"
+  },
+  "session": {
+    "started_at": "2026-07-20 13:14:17",
+    "ended_at": "2026-07-20 13:19:37",
+    "model": "llama3:8b",
+    "ollama_host": "http://127.0.0.1:11434",
+    "asr": {
+      "backend": "faster-whisper",
+      "profile": "home_macbook_cpu",
+      "model": "base",
+      "device": "cuda",
+      "compute_type": "int8",
+      "language": "en",
+      "beam_size": 1,
+      "vad_filter": false
+    },
+    "emotion_fusion": {
+      "type": "adaptive_reliability_aware_late_fusion",
+      "text_weight": 0.5,
+      "visual_weight": 0.4,
+      "prosody_weight": 0.1,
+      "temporal_smoothing": {
+        "enabled": true,
+        "alpha": 0.6
+      }
+    },
+    "face_emotion": {
+      "backend": "DeepFace (isolated worker process)",
+      "camera_source": "shared ZedVisionModule.get_latest_frame() (single camera handle)",
+      "camera_frame_width": 2560,
+      "camera_frame_height": 720,
+      "preview_enabled": true,
+      "sample_every_seconds": 0.5,
+      "warmup_seconds": 0.35,
+      "max_candidate_frames": 3,
+      "face_analysis_strategy": "deepface_only_multi_frame_average",
+      "skip_low_quality": false,
+      "min_top_score": 35.0,
+      "min_margin": 8.0,
+      "deepface": {
+        "enabled": true,
+        "python_executable": null
+      }
+    },
+    "vad": {
+      "backend": "Silero VAD",
+      "sample_rate": 16000,
+      "chunk_size": 512,
+      "threshold": 0.55,
+      "min_silence_duration_ms": 700,
+      "speech_pad_ms": 250,
+      "max_utterance_seconds": 15.0,
+      "min_utterance_seconds": 0.6,
+      "pre_roll_seconds": 0.35
+    },
+    "output": {
+      "backend": "Tritium TTS"
+    },
+    "expression": {
+      "backend": "Tritium sequence_player",
+      "emotion_sequence_map": {
+        "joy": "Smile",
+        "trust": "hopeful_",
+        "fear": "worried",
+        "surprise": "bsurprised",
+        "sadness": "sad_gloomy",
+        "disgust": "worried",
+        "anger": "worried",
+        "anticipation": "anticipate",
+        "neutral": "bneutral"
+      },
+      "min_confidence": 0.0,
+      "force_replay_same": false
+    },
+    "general_vision": {
+      "backend": "ZED vision module",
+      "model": "llava:7b"
+    }
+  },
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Welcome back, Joy. Last time, we were discussing Recent user topics/questions: I'm still meeting you, too. Last assistant direction: It's great to start our conversation then, Joy! 😢 Recent affective context: sadness Recent user topics/questions: I'm still meeting you, too. Last assistant direction: It's great to start our conversation then, Joy! 😢 Recent affective context: sadness Where would you like to continue from? 🙂",
+      "timestamp": "2026-07-20 13:14:17",
+      "intent": "self_introduction"
+    },
+    {
+      "role": "user",
+      "content": "and we would like some information about the robotics",
+      "timestamp": "2026-07-20 13:16:02",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.7651162790697674,
+        "reason": "Adaptive reliability-aware fusion selected anticipation: text=anticipation rel=0.80, visual=None rel=0.00, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.0335548172757475,
+          "trust": 0.0335548172757475,
+          "fear": 0.0335548172757475,
+          "surprise": 0.0335548172757475,
+          "sadness": 0.0335548172757475,
+          "disgust": 0.0335548172757475,
+          "anger": 0.0335548172757475,
+          "anticipation": 0.7651162790697674
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.0,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.9302325581395349,
+          "active_normalized_visual": 0.0,
+          "active_normalized_prosody": 0.0697674418604651
+        },
+        "text_emotion": {
+          "emotion": "anticipation",
+          "confidence": 0.8,
+          "reason": "The user is seeking information, which suggests a sense of anticipation and curiosity."
+        },
+        "visual_emotion": {
+          "available": false,
+          "reliable": false,
+          "dominant_emotion": null,
+          "averaged_scores": {},
+          "frame_count": 137,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:15:36",
+          "ended_at": "2026-07-20 13:15:41",
+          "error": null,
+          "analysis_seconds": 0.3559,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 0,
+            "frames_no_face": 1,
+            "frames_failed_or_weak": 2,
+            "reason": "DeepFace did not produce a confident face+emotion reading on any of the 3 candidate frame(s) for this turn."
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.1811782419681549,
+            "duration": 4.704,
+            "energy_std": 0.10735147476087147,
+            "zero_crossing_rate": 0.16253670462245726
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0967,
+          "visual_seconds": 0.3559,
+          "prosody_seconds": 0.0013,
+          "total_seconds": 2.4539
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "joy": 0.0335548172757475,
+            "trust": 0.0335548172757475,
+            "fear": 0.0335548172757475,
+            "surprise": 0.0335548172757475,
+            "sadness": 0.0335548172757475,
+            "disgust": 0.0335548172757475,
+            "anger": 0.0335548172757475,
+            "anticipation": 0.7651162790697674
+          },
+          "smoothed_emotion": "anticipation",
+          "smoothed_confidence": 0.7651162790697674
+        }
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 137,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:15:36",
+        "ended_at": "2026-07-20 13:15:41",
+        "error": null,
+        "analysis_seconds": 0.3559,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 0,
+          "frames_no_face": 1,
+          "frames_failed_or_weak": 2,
+          "reason": "DeepFace did not produce a confident face+emotion reading on any of the 3 candidate frame(s) for this turn."
+        }
+      },
+      "text_emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is seeking information, which suggests a sense of anticipation and curiosity."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.1811782419681549,
+          "duration": 4.704,
+          "energy_std": 0.10735147476087147,
+          "zero_crossing_rate": 0.16253670462245726
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": false,
+        "query": "and we would like some information about the robotics",
+        "sources": [],
+        "reason": "Message is not a question; Self-RAG only runs for questions.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "I'd be happy to help with robotics-related topics. As a teaching assistant for AI and Robotics, I can provide explanations on machine learning, deep learning, computer vision, NLP, reinforcement learning, robot perception, control, kinematics, human-robot interaction, and humanoid robotics. 🤔",
+      "timestamp": "2026-07-20 13:16:02"
+    },
+    {
+      "role": "user",
+      "content": "Okay, what do I need to become a robotics engineer?",
+      "timestamp": "2026-07-20 13:16:38",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.643955114492836,
+        "reason": "Adaptive reliability-aware fusion selected anticipation: text=anticipation rel=0.80, visual=sadness rel=0.20, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.028241586920241993,
+          "trust": 0.028241192602595055,
+          "fear": 0.03423898714289163,
+          "surprise": 0.028241228994707178,
+          "sadness": 0.16465848026940136,
+          "disgust": 0.028241611205048943,
+          "anger": 0.04418179837227772,
+          "anticipation": 0.643955114492836
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.20226293570597964,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7829241513590711,
+          "active_normalized_visual": 0.15835653728899848,
+          "active_normalized_prosody": 0.05871931135193033
+        },
+        "text_emotion": {
+          "emotion": "anticipation",
+          "confidence": 0.8,
+          "reason": "The user is showing interest in learning and exploring a new field, which indicates anticipation."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.00011317309690639377,
+            "trust": 0.0,
+            "fear": 1.7214268445968628,
+            "surprise": 1.0444899089634418e-05,
+            "sadness": 39.15312194824219,
+            "disgust": 0.00012014307867502794,
+            "anger": 4.575112819671631,
+            "anticipation": 0.0
+          },
+          "frame_count": 129,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:16:14",
+          "ended_at": "2026-07-20 13:16:18",
+          "error": null,
+          "analysis_seconds": 0.3424,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 1,
+            "frames_no_face": 0,
+            "frames_failed_or_weak": 2
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.22976632416248322,
+            "duration": 4.448,
+            "energy_std": 0.14091440522640009,
+            "zero_crossing_rate": 0.10510489412227578
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.3486,
+          "visual_seconds": 0.3424,
+          "prosody_seconds": 0.0005,
+          "total_seconds": 2.6915
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "surprise": 0.030366664307123307,
+            "anger": 0.03993100593366563,
+            "joy": 0.030366879062444195,
+            "fear": 0.033965319196033975,
+            "sadness": 0.11221701507193982,
+            "disgust": 0.030366893633328368,
+            "anticipation": 0.6924195803236086,
+            "trust": 0.030366642471856033
+          },
+          "smoothed_emotion": "anticipation",
+          "smoothed_confidence": 0.6924195803236086
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=39%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.00011317309690639377,
+          "trust": 0.0,
+          "fear": 1.7214268445968628,
+          "surprise": 1.0444899089634418e-05,
+          "sadness": 39.15312194824219,
+          "disgust": 0.00012014307867502794,
+          "anger": 4.575112819671631,
+          "anticipation": 0.0
+        },
+        "frame_count": 129,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:16:14",
+        "ended_at": "2026-07-20 13:16:18",
+        "error": null,
+        "analysis_seconds": 0.3424,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 1,
+          "frames_no_face": 0,
+          "frames_failed_or_weak": 2
+        }
+      },
+      "text_emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is showing interest in learning and exploring a new field, which indicates anticipation."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.22976632416248322,
+          "duration": 4.448,
+          "energy_std": 0.14091440522640009,
+          "zero_crossing_rate": 0.10510489412227578
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": true,
+        "query": "Okay, what do I need to become a robotics engineer?",
+        "sources": [
+          {
+            "source": "https://rrlab.cs.rptu.de/en/robots/ameca",
+            "title": "Emah",
+            "kind": "rrlab_website",
+            "category": "robot",
+            "priority": 100,
+            "chunk_index": 8,
+            "distance": 0.3700575828552246,
+            "hybrid_score": 0.8699424171447754,
+            "expanded_source_context": true
+          },
+          {
+            "source": "https://rrlab.cs.rptu.de/en/robots/more-robots/forklift-robot",
+            "title": "Forklift",
+            "kind": "rrlab_website",
+            "category": "robot",
+            "priority": 85,
+            "chunk_index": 0,
+            "distance": 0.35301196575164795,
+            "hybrid_score": 0.8069880342483521,
+            "expanded_source_context": true
+          }
+        ],
+        "reason": "The retrieved local knowledge directly answers the user's question about becoming a robotics engineer by providing information on robots and their applications.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "To become a robotics engineer, you need to have knowledge in programming languages such as Python or C++, and experience with robot operating systems like ROS. 🤔",
+      "timestamp": "2026-07-20 13:16:38"
+    },
+    {
+      "role": "user",
+      "content": "Do I need a university degree?",
+      "timestamp": "2026-07-20 13:16:48",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.7651162790697674,
+        "reason": "Adaptive reliability-aware fusion selected anticipation: text=anticipation rel=0.80, visual=None rel=0.00, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.0335548172757475,
+          "trust": 0.0335548172757475,
+          "fear": 0.0335548172757475,
+          "surprise": 0.0335548172757475,
+          "sadness": 0.0335548172757475,
+          "disgust": 0.0335548172757475,
+          "anger": 0.0335548172757475,
+          "anticipation": 0.7651162790697674
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.0,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.9302325581395349,
+          "active_normalized_visual": 0.0,
+          "active_normalized_prosody": 0.0697674418604651
+        },
+        "text_emotion": {
+          "emotion": "anticipation",
+          "confidence": 0.8,
+          "reason": "The user is seeking guidance or advice, indicating anticipation of a potential outcome."
+        },
+        "visual_emotion": {
+          "available": false,
+          "reliable": false,
+          "dominant_emotion": null,
+          "averaged_scores": {},
+          "frame_count": 92,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:16:40",
+          "ended_at": "2026-07-20 13:16:43",
+          "error": null,
+          "analysis_seconds": 0.3418,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 0,
+            "frames_no_face": 0,
+            "frames_failed_or_weak": 3,
+            "reason": "DeepFace did not produce a confident face+emotion reading on any of the 3 candidate frame(s) for this turn."
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.22061356902122498,
+            "duration": 3.264,
+            "energy_std": 0.1412668416906582,
+            "zero_crossing_rate": 0.10962602684640867
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.3253,
+          "visual_seconds": 0.3418,
+          "prosody_seconds": 0.001,
+          "total_seconds": 2.6681
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "surprise": 0.03227955608829783,
+            "anger": 0.03610529273891475,
+            "joy": 0.03227964199042618,
+            "fear": 0.03371901804386209,
+            "sadness": 0.06501969639422443,
+            "disgust": 0.03227964781877985,
+            "anticipation": 0.736037599571304,
+            "trust": 0.03227954735419092
+          },
+          "smoothed_emotion": "anticipation",
+          "smoothed_confidence": 0.736037599571304
+        }
+      },
+      "facial_emotion_hint": "No reliable facial-expression hint was captured during speech.",
+      "face_emotion": {
+        "available": false,
+        "reliable": false,
+        "dominant_emotion": null,
+        "averaged_scores": {},
+        "frame_count": 92,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:16:40",
+        "ended_at": "2026-07-20 13:16:43",
+        "error": null,
+        "analysis_seconds": 0.3418,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 0,
+          "frames_no_face": 0,
+          "frames_failed_or_weak": 3,
+          "reason": "DeepFace did not produce a confident face+emotion reading on any of the 3 candidate frame(s) for this turn."
+        }
+      },
+      "text_emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is seeking guidance or advice, indicating anticipation of a potential outcome."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.22061356902122498,
+          "duration": 3.264,
+          "energy_std": 0.1412668416906582,
+          "zero_crossing_rate": 0.10962602684640867
+        }
+      },
+      "self_rag": {
+        "available": false,
+        "used": false,
+        "query": "Do I need a university degree?",
+        "sources": [],
+        "reason": "No sufficiently relevant local knowledge was retrieved.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "Typically, yes, a university degree is required for a career in robotics engineering. 🤔",
+      "timestamp": "2026-07-20 13:16:48"
+    },
+    {
+      "role": "user",
+      "content": "I'm going to cut a little more about the eye.",
+      "timestamp": "2026-07-20 13:17:17",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.5386011730675415,
+        "reason": "Adaptive reliability-aware fusion selected anticipation: text=anticipation rel=0.80, visual=sadness rel=0.45, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.023676838728024424,
+          "trust": 0.0236208069821197,
+          "fear": 0.024929183544411496,
+          "surprise": 0.02362081790210064,
+          "sadness": 0.19404022609354016,
+          "disgust": 0.023622397497511938,
+          "anger": 0.14788855618475014,
+          "anticipation": 0.5386011730675415
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.45210398923854034,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.6548342529696553,
+          "active_normalized_visual": 0.2960531780576206,
+          "active_normalized_prosody": 0.04911256897272414
+        },
+        "text_emotion": {
+          "emotion": "anticipation",
+          "confidence": 0.8,
+          "reason": "The user is expressing a sense of cutting or editing, which implies a future action and anticipation."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.013633579983434174,
+            "trust": 0.0,
+            "fear": 0.31835268065333366,
+            "surprise": 2.6570372059685766e-06,
+            "sadness": 41.466257095336914,
+            "disgust": 0.0003870023763283825,
+            "anger": 30.23668584227562,
+            "anticipation": 0.0
+          },
+          "frame_count": 91,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:16:58",
+          "ended_at": "2026-07-20 13:17:01",
+          "error": null,
+          "analysis_seconds": 0.3271,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 2,
+            "frames_no_face": 0,
+            "frames_failed_or_weak": 1
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.1915290802717209,
+            "duration": 5.216,
+            "energy_std": 0.1521386692566588,
+            "zero_crossing_rate": 0.12470193517464502
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.1364,
+          "visual_seconds": 0.3271,
+          "prosody_seconds": 0.0006,
+          "total_seconds": 2.4641
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "surprise": 0.027084313176579514,
+            "anger": 0.10317525080641599,
+            "joy": 0.02711796003298513,
+            "fear": 0.028445117344191733,
+            "sadness": 0.14243201421381385,
+            "disgust": 0.027085297626019106,
+            "anticipation": 0.6175757436690466,
+            "trust": 0.027084303130948187
+          },
+          "smoothed_emotion": "anticipation",
+          "smoothed_confidence": 0.6175757436690466
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=41%, anger=30%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.013633579983434174,
+          "trust": 0.0,
+          "fear": 0.31835268065333366,
+          "surprise": 2.6570372059685766e-06,
+          "sadness": 41.466257095336914,
+          "disgust": 0.0003870023763283825,
+          "anger": 30.23668584227562,
+          "anticipation": 0.0
+        },
+        "frame_count": 91,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:16:58",
+        "ended_at": "2026-07-20 13:17:01",
+        "error": null,
+        "analysis_seconds": 0.3271,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 2,
+          "frames_no_face": 0,
+          "frames_failed_or_weak": 1
+        }
+      },
+      "text_emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is expressing a sense of cutting or editing, which implies a future action and anticipation."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.1915290802717209,
+          "duration": 5.216,
+          "energy_std": 0.1521386692566588,
+          "zero_crossing_rate": 0.12470193517464502
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": false,
+        "query": "I'm going to cut a little more about the eye.",
+        "sources": [],
+        "reason": "Message is not a question; Self-RAG only runs for questions.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "You're considering modifying or cutting something related to the robot's vision system? That sounds like an interesting project! 🤔",
+      "timestamp": "2026-07-20 13:17:17"
+    },
+    {
+      "role": "user",
+      "content": "more about artificial intelligence.",
+      "timestamp": "2026-07-20 13:17:41",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.5085364168486907,
+        "reason": "Adaptive reliability-aware fusion selected anticipation: text=anticipation rel=0.80, visual=sadness rel=0.54, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.0223558448215237,
+          "trust": 0.022302291837480566,
+          "fear": 0.022392297862941415,
+          "surprise": 0.022302291837651374,
+          "sadness": 0.21427398209916212,
+          "disgust": 0.02230233481634833,
+          "anger": 0.16553453987620187,
+          "anticipation": 0.5085364168486907
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.5423866270913018,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.6182813578707484,
+          "active_normalized_visual": 0.33534754028894537,
+          "active_normalized_prosody": 0.04637110184030613
+        },
+        "text_emotion": {
+          "emotion": "anticipation",
+          "confidence": 0.8,
+          "reason": "The user is showing interest in a topic, which suggests anticipation and curiosity."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.015969385858625174,
+            "trust": 0.0,
+            "fear": 0.026839605222145718,
+            "surprise": 5.093419262747201e-11,
+            "sadness": 57.24554944038391,
+            "disgust": 1.281620689042029e-05,
+            "anger": 42.71155150731405,
+            "anticipation": 0.0
+          },
+          "frame_count": 95,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:17:18",
+          "ended_at": "2026-07-20 13:17:21",
+          "error": null,
+          "analysis_seconds": 0.3275,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 3,
+            "frames_no_face": 0,
+            "frames_failed_or_weak": 0
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.2931787073612213,
+            "duration": 3.104,
+            "energy_std": 0.19592393840319722,
+            "zero_crossing_rate": 0.14276221734490466
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.3408,
+          "visual_seconds": 0.3275,
+          "prosody_seconds": 0.0004,
+          "total_seconds": 2.6687
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "surprise": 0.02421510037322263,
+            "anger": 0.1405908242482875,
+            "joy": 0.024260690906108273,
+            "fear": 0.02481342565544154,
+            "sadness": 0.1855371949450228,
+            "disgust": 0.02421551994021664,
+            "anticipation": 0.552152147576833,
+            "trust": 0.024215096354867613
+          },
+          "smoothed_emotion": "anticipation",
+          "smoothed_confidence": 0.552152147576833
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=57%, anger=43%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.015969385858625174,
+          "trust": 0.0,
+          "fear": 0.026839605222145718,
+          "surprise": 5.093419262747201e-11,
+          "sadness": 57.24554944038391,
+          "disgust": 1.281620689042029e-05,
+          "anger": 42.71155150731405,
+          "anticipation": 0.0
+        },
+        "frame_count": 95,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:17:18",
+        "ended_at": "2026-07-20 13:17:21",
+        "error": null,
+        "analysis_seconds": 0.3275,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 3,
+          "frames_no_face": 0,
+          "frames_failed_or_weak": 0
+        }
+      },
+      "text_emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user is showing interest in a topic, which suggests anticipation and curiosity."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.2931787073612213,
+          "duration": 3.104,
+          "energy_std": 0.19592393840319722,
+          "zero_crossing_rate": 0.14276221734490466
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": false,
+        "query": "more about artificial intelligence.",
+        "sources": [],
+        "reason": "Message is not a question; Self-RAG only runs for questions.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "Artificial Intelligence (AI) is a crucial aspect of robotics engineering, as it enables robots to learn, reason, and interact with their environment in a more intelligent way. 🤔",
+      "timestamp": "2026-07-20 13:17:41"
+    },
+    {
+      "role": "user",
+      "content": "Are you a product of artificial intelligence?",
+      "timestamp": "2026-07-20 13:18:02",
+      "emotion": {
+        "emotion": "fear",
+        "confidence": 0.6272968330834854,
+        "reason": "Adaptive reliability-aware fusion selected fear: text=fear rel=0.80, visual=sadness rel=0.21, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.028106334464596178,
+          "trust": 0.02801990347816135,
+          "fear": 0.6272968330834854,
+          "surprise": 0.028019903478169232,
+          "sadness": 0.12899099356188076,
+          "disgust": 0.028019910967637764,
+          "anger": 0.09187437643758353,
+          "anticipation": 0.039671744528485875
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.21235020802418392,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7767894033549683,
+          "active_normalized_visual": 0.16495139139340922,
+          "active_normalized_prosody": 0.05825920525162261
+        },
+        "text_emotion": {
+          "emotion": "fear",
+          "confidence": 0.8,
+          "reason": "The user's question about being a product of artificial intelligence suggests uncertainty and apprehension, which are characteristic of the fear emotion."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.05239772330969572,
+            "trust": 0.0,
+            "fear": 0.023879627231508493,
+            "surprise": 4.78077204255458e-12,
+            "sadness": 61.21248245239258,
+            "disgust": 4.540403033104212e-06,
+            "anger": 38.710989475250244,
+            "anticipation": 0.0
+          },
+          "frame_count": 101,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:17:44",
+          "ended_at": "2026-07-20 13:17:48",
+          "error": null,
+          "analysis_seconds": 0.3157,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 2,
+            "frames_no_face": 1,
+            "frames_failed_or_weak": 0
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.27660566568374634,
+            "duration": 3.552,
+            "energy_std": 0.1896934468806923,
+            "zero_crossing_rate": 0.14516725026833946
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.2698,
+          "visual_seconds": 0.3157,
+          "prosody_seconds": 0.0004,
+          "total_seconds": 2.5859
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "surprise": 0.02649798223619059,
+            "anger": 0.11136095556186512,
+            "joy": 0.026568077041201014,
+            "fear": 0.38630347011226784,
+            "sadness": 0.1516094741151376,
+            "disgust": 0.02649815455666931,
+            "anticipation": 0.2446639057478247,
+            "trust": 0.026497980628843856
+          },
+          "smoothed_emotion": "fear",
+          "smoothed_confidence": 0.38630347011226784
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=61%, anger=39%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.05239772330969572,
+          "trust": 0.0,
+          "fear": 0.023879627231508493,
+          "surprise": 4.78077204255458e-12,
+          "sadness": 61.21248245239258,
+          "disgust": 4.540403033104212e-06,
+          "anger": 38.710989475250244,
+          "anticipation": 0.0
+        },
+        "frame_count": 101,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:17:44",
+        "ended_at": "2026-07-20 13:17:48",
+        "error": null,
+        "analysis_seconds": 0.3157,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 2,
+          "frames_no_face": 1,
+          "frames_failed_or_weak": 0
+        }
+      },
+      "text_emotion": {
+        "emotion": "fear",
+        "confidence": 0.8,
+        "reason": "The user's question about being a product of artificial intelligence suggests uncertainty and apprehension, which are characteristic of the fear emotion."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.27660566568374634,
+          "duration": 3.552,
+          "energy_std": 0.1896934468806923,
+          "zero_crossing_rate": 0.14516725026833946
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": true,
+        "query": "Are you a product of artificial intelligence?",
+        "sources": [
+          {
+            "source": "https://rrlab.cs.rptu.de/en/robots/ameca",
+            "title": "Emah",
+            "kind": "rrlab_website",
+            "category": "robot",
+            "priority": 100,
+            "chunk_index": 1,
+            "distance": 0.37546199560165405,
+            "hybrid_score": 0.7445380043983459,
+            "expanded_source_context": true
+          },
+          {
+            "source": "https://rrlab.cs.rptu.de/en/research/research-areas/humanoid-robots",
+            "title": "Humanoid Robots - AG Robotersysteme RPTU",
+            "kind": "rrlab_website",
+            "category": "research_area",
+            "priority": 80,
+            "chunk_index": 2,
+            "distance": 0.3908534049987793,
+            "hybrid_score": 0.6491465950012207,
+            "expanded_source_context": true
+          }
+        ],
+        "reason": "The retrieved local knowledge directly answers the question about whether you are a product of artificial intelligence by mentioning Ameca and its features.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "Ameca is a robot developed by Engineered Arts, and it does not have artificial intelligence. 😨",
+      "timestamp": "2026-07-20 13:18:02"
+    },
+    {
+      "role": "user",
+      "content": "So how is Amika learning to speak?",
+      "timestamp": "2026-07-20 13:18:26",
+      "emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.6209442900300659,
+        "reason": "Adaptive reliability-aware fusion selected anticipation: text=anticipation rel=0.80, visual=anger rel=0.25, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.027271602103125667,
+          "trust": 0.02723203356189172,
+          "fear": 0.027308527721631774,
+          "surprise": 0.027232033577610195,
+          "sadness": 0.08779022014580525,
+          "disgust": 0.02723210045486181,
+          "anger": 0.15498919240500758,
+          "anticipation": 0.6209442900300659
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.24959548015197117,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7549474650821469,
+          "active_normalized_visual": 0.18843147503669197,
+          "active_normalized_prosody": 0.056621059881161014
+        },
+        "text_emotion": {
+          "emotion": "anticipation",
+          "confidence": 0.8,
+          "reason": "The user's question about Amika's learning process suggests curiosity and interest, which aligns with anticipation."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "anger",
+          "averaged_scores": {
+            "joy": 0.020998839288949966,
+            "trust": 0.0,
+            "fear": 0.04059509187936783,
+            "surprise": 8.341721272064895e-09,
+            "sadness": 32.13794565200806,
+            "disgust": 3.549978555383859e-05,
+            "anger": 67.80012512207031,
+            "anticipation": 0.0
+          },
+          "frame_count": 142,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:18:02",
+          "ended_at": "2026-07-20 13:18:07",
+          "error": null,
+          "analysis_seconds": 0.3069,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 2,
+            "frames_no_face": 1,
+            "frames_failed_or_weak": 0
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.2736358344554901,
+            "duration": 4.576,
+            "energy_std": 0.19196798502492052,
+            "zero_crossing_rate": 0.12147783924059277
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.4622,
+          "visual_seconds": 0.3069,
+          "prosody_seconds": 0.0006,
+          "total_seconds": 2.7697
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "surprise": 0.02693841304104235,
+            "anger": 0.1375378976677506,
+            "joy": 0.026990192078355804,
+            "fear": 0.1709065046778862,
+            "sadness": 0.11331792173353819,
+            "disgust": 0.02693852209558481,
+            "anticipation": 0.47043213631716946,
+            "trust": 0.026938412388672575
+          },
+          "smoothed_emotion": "anticipation",
+          "smoothed_confidence": 0.47043213631716946
+        }
+      },
+      "facial_emotion_hint": "dominant=anger; averaged_scores=(anger=68%, sadness=32%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "anger",
+        "averaged_scores": {
+          "joy": 0.020998839288949966,
+          "trust": 0.0,
+          "fear": 0.04059509187936783,
+          "surprise": 8.341721272064895e-09,
+          "sadness": 32.13794565200806,
+          "disgust": 3.549978555383859e-05,
+          "anger": 67.80012512207031,
+          "anticipation": 0.0
+        },
+        "frame_count": 142,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:18:02",
+        "ended_at": "2026-07-20 13:18:07",
+        "error": null,
+        "analysis_seconds": 0.3069,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 2,
+          "frames_no_face": 1,
+          "frames_failed_or_weak": 0
+        }
+      },
+      "text_emotion": {
+        "emotion": "anticipation",
+        "confidence": 0.8,
+        "reason": "The user's question about Amika's learning process suggests curiosity and interest, which aligns with anticipation."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.2736358344554901,
+          "duration": 4.576,
+          "energy_std": 0.19196798502492052,
+          "zero_crossing_rate": 0.12147783924059277
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": true,
+        "query": "So how is Amika learning to speak?",
+        "sources": [
+          {
+            "source": "https://rrlab.cs.rptu.de/en/robots/ameca",
+            "title": "Emah",
+            "kind": "rrlab_website",
+            "category": "robot",
+            "priority": 100,
+            "chunk_index": 4,
+            "distance": 0.4531114101409912,
+            "hybrid_score": 0.6668885898590088,
+            "expanded_source_context": true
+          }
+        ],
+        "reason": "The retrieved local knowledge directly answers the user's question about Amika learning to speak",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "Ameka is learning to speak through the Emah system, which utilizes rule-based behavior models, custom machine learning and deep learning architectures. 🤔",
+      "timestamp": "2026-07-20 13:18:26"
+    },
+    {
+      "role": "user",
+      "content": "What are you using to speak?",
+      "timestamp": "2026-07-20 13:18:41",
+      "emotion": {
+        "emotion": "surprise",
+        "confidence": 0.6170909607349198,
+        "reason": "Adaptive reliability-aware fusion selected surprise: text=surprise rel=0.80, visual=anger rel=0.23, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.02762426690704668,
+          "trust": 0.02756576162504367,
+          "fear": 0.027636844573535484,
+          "surprise": 0.6170909607349198,
+          "sadness": 0.08997366163832309,
+          "disgust": 0.027565793925041323,
+          "anger": 0.14351395898835498,
+          "anticipation": 0.0390287516077351
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.23355911264419554,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7641993321794287,
+          "active_normalized_visual": 0.17848571790711418,
+          "active_normalized_prosody": 0.05731494991345715
+        },
+        "text_emotion": {
+          "emotion": "surprise",
+          "confidence": 0.8,
+          "reason": "The user's question suggests curiosity and unexpectedness, which aligns with the surprise emotion."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "anger",
+          "averaged_scores": {
+            "joy": 0.03277866914868355,
+            "trust": 0.0,
+            "fear": 0.03982554003596306,
+            "surprise": 1.735218566056851e-11,
+            "sadness": 34.96518325805664,
+            "disgust": 1.8096672647516243e-05,
+            "anger": 64.96212768554688,
+            "anticipation": 0.0
+          },
+          "frame_count": 92,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:18:26",
+          "ended_at": "2026-07-20 13:18:30",
+          "error": null,
+          "analysis_seconds": 0.3172,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 1,
+            "frames_no_face": 2,
+            "frames_failed_or_weak": 0
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.3153044283390045,
+            "duration": 2.976,
+            "energy_std": 0.22486453097094286,
+            "zero_crossing_rate": 0.14953271028037382
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.3832,
+          "visual_seconds": 0.3172,
+          "prosody_seconds": 0.0004,
+          "total_seconds": 2.7008
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "surprise": 0.38102994165736875,
+            "anger": 0.14112353446011322,
+            "joy": 0.02737063697557033,
+            "fear": 0.08494470861527578,
+            "sadness": 0.09931136567640914,
+            "disgust": 0.02731488519325872,
+            "anticipation": 0.21159010549150886,
+            "trust": 0.027314821930495232
+          },
+          "smoothed_emotion": "surprise",
+          "smoothed_confidence": 0.38102994165736875
+        }
+      },
+      "facial_emotion_hint": "dominant=anger; averaged_scores=(anger=65%, sadness=35%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "anger",
+        "averaged_scores": {
+          "joy": 0.03277866914868355,
+          "trust": 0.0,
+          "fear": 0.03982554003596306,
+          "surprise": 1.735218566056851e-11,
+          "sadness": 34.96518325805664,
+          "disgust": 1.8096672647516243e-05,
+          "anger": 64.96212768554688,
+          "anticipation": 0.0
+        },
+        "frame_count": 92,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:18:26",
+        "ended_at": "2026-07-20 13:18:30",
+        "error": null,
+        "analysis_seconds": 0.3172,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 1,
+          "frames_no_face": 2,
+          "frames_failed_or_weak": 0
+        }
+      },
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 0.8,
+        "reason": "The user's question suggests curiosity and unexpectedness, which aligns with the surprise emotion."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.899993896484375,
+          "rms": 0.3153044283390045,
+          "duration": 2.976,
+          "energy_std": 0.22486453097094286,
+          "zero_crossing_rate": 0.14953271028037382
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": true,
+        "query": "What are you using to speak?",
+        "sources": [
+          {
+            "source": "https://rrlab.cs.rptu.de/en/robots/ameca",
+            "title": "Emah",
+            "kind": "rrlab_website",
+            "category": "robot",
+            "priority": 100,
+            "chunk_index": 4,
+            "distance": 0.4409260153770447,
+            "hybrid_score": 0.6790739846229553,
+            "expanded_source_context": true
+          }
+        ],
+        "reason": "The retrieved local knowledge directly answers the user's question about what is used to speak",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "I am using the Speaker on chest to speak. 😮",
+      "timestamp": "2026-07-20 13:18:41"
+    },
+    {
+      "role": "user",
+      "content": "How do you know what to say?",
+      "timestamp": "2026-07-20 13:19:09",
+      "emotion": {
+        "emotion": "sadness",
+        "confidence": 0.7554284786955237,
+        "reason": "Adaptive reliability-aware fusion selected sadness: text=sadness rel=0.80, visual=sadness rel=0.27, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.06792432306851122,
+          "trust": 0.02674346457165284,
+          "fear": 0.03157870509824501,
+          "surprise": 0.026744383794500334,
+          "sadness": 0.7554284786955237,
+          "disgust": 0.026747453507844327,
+          "anger": 0.026968682018708993,
+          "anticipation": 0.03786450924501343
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.273794150241216,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7414029782240393,
+          "active_normalized_visual": 0.20299179840915763,
+          "active_normalized_prosody": 0.055605223366802944
+        },
+        "text_emotion": {
+          "emotion": "sadness",
+          "confidence": 0.8,
+          "reason": "The user's words express uncertainty and questioning, which are typical of sadness."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 17.382123947143555,
+            "trust": 0.0,
+            "fear": 2.0409178733825684,
+            "surprise": 0.0003879969008266926,
+            "sadness": 66.16110229492188,
+            "disgust": 0.0016836993163451552,
+            "anger": 0.09506255388259888,
+            "anticipation": 0.0
+          },
+          "frame_count": 73,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:18:44",
+          "ended_at": "2026-07-20 13:18:47",
+          "error": null,
+          "analysis_seconds": 0.3588,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 1,
+            "frames_no_face": 0,
+            "frames_failed_or_weak": 2
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.3033653497695923,
+            "duration": 2.656,
+            "energy_std": 0.22195575220420946,
+            "zero_crossing_rate": 0.15554771149547006
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.3316,
+          "visual_seconds": 0.3588,
+          "prosody_seconds": 0.0008,
+          "total_seconds": 2.6912
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "surprise": 0.1684586069396477,
+            "anger": 0.07263062299527069,
+            "joy": 0.05170284863133486,
+            "fear": 0.052925106505057315,
+            "sadness": 0.4929816334878778,
+            "disgust": 0.026974426182010083,
+            "anticipation": 0.1073547477436116,
+            "trust": 0.0269720075151898
+          },
+          "smoothed_emotion": "sadness",
+          "smoothed_confidence": 0.4929816334878778
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=66%, joy=17%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 17.382123947143555,
+          "trust": 0.0,
+          "fear": 2.0409178733825684,
+          "surprise": 0.0003879969008266926,
+          "sadness": 66.16110229492188,
+          "disgust": 0.0016836993163451552,
+          "anger": 0.09506255388259888,
+          "anticipation": 0.0
+        },
+        "frame_count": 73,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:18:44",
+        "ended_at": "2026-07-20 13:18:47",
+        "error": null,
+        "analysis_seconds": 0.3588,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 1,
+          "frames_no_face": 0,
+          "frames_failed_or_weak": 2
+        }
+      },
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "The user's words express uncertainty and questioning, which are typical of sadness."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.3033653497695923,
+          "duration": 2.656,
+          "energy_std": 0.22195575220420946,
+          "zero_crossing_rate": 0.15554771149547006
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": true,
+        "query": "How do you know what to say?",
+        "sources": [
+          {
+            "source": "https://rrlab.cs.rptu.de/en/robots/ameca",
+            "title": "Emah",
+            "kind": "rrlab_website",
+            "category": "robot",
+            "priority": 100,
+            "chunk_index": 4,
+            "distance": 0.4731792211532593,
+            "hybrid_score": 0.6468207788467407,
+            "expanded_source_context": true
+          }
+        ],
+        "reason": "The retrieved local knowledge directly answers the user's question about how the robot knows what to say",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "I know what to say because the Emah system, implemented on Generation 1 Ameca robot from Engineered Arts, utilizes rule-based behavior models, custom machine learning and deep learning architectures which provides a realistic communication between human and robot. 😢",
+      "timestamp": "2026-07-20 13:19:09"
+    },
+    {
+      "role": "user",
+      "content": "Thank you for your time.",
+      "timestamp": "2026-07-20 13:19:24",
+      "emotion": {
+        "emotion": "trust",
+        "confidence": 0.4858728750069951,
+        "reason": "Adaptive reliability-aware fusion selected trust: text=trust rel=0.80, visual=sadness rel=0.59, prosody=anticipation rel=0.30.",
+        "scores": {
+          "joy": 0.021945759123738865,
+          "trust": 0.4858728750069951,
+          "fear": 0.021788378216233528,
+          "surprise": 0.0217041841555552,
+          "sadness": 0.2335535929576097,
+          "disgust": 0.02170420026658571,
+          "anger": 0.162701323795617,
+          "anticipation": 0.030729686477664872
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 0.8,
+          "reliability_visual": 0.586957358678182,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.6017001548074242,
+          "active_normalized_visual": 0.35317233358201894,
+          "active_normalized_prosody": 0.04512751161055681
+        },
+        "text_emotion": {
+          "emotion": "trust",
+          "confidence": 0.8,
+          "reason": "The user is expressing gratitude, which is a sign of trust and appreciation."
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "averaged_scores": {
+            "joy": 0.06840139627456665,
+            "trust": 0.0,
+            "fear": 0.023839354515075684,
+            "surprise": 4.770045442621315e-13,
+            "sadness": 59.98467254638672,
+            "disgust": 4.561801688396372e-06,
+            "anger": 39.92301559448242,
+            "anticipation": 0.0
+          },
+          "frame_count": 58,
+          "sampled_frame_count": 3,
+          "started_at": "2026-07-20 13:19:13",
+          "ended_at": "2026-07-20 13:19:15",
+          "error": null,
+          "analysis_seconds": 0.3597,
+          "deepface_diagnostics": {
+            "deepface_available": true,
+            "candidates_considered": 3,
+            "frames_with_face": 2,
+            "frames_no_face": 1,
+            "frames_failed_or_weak": 0
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "anticipation",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.1413320004940033,
+            "duration": 4.16,
+            "energy_std": 0.117655097535078,
+            "zero_crossing_rate": 0.1244309559939302
+          }
+        },
+        "response_times": {
+          "text_seconds": 2.0915,
+          "visual_seconds": 0.3597,
+          "prosody_seconds": 0.0006,
+          "total_seconds": 2.4518
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "surprise": 0.0804059532691922,
+            "anger": 0.12667304347547848,
+            "joy": 0.03384859492677726,
+            "fear": 0.034243069531763044,
+            "sadness": 0.33732480916971697,
+            "disgust": 0.02381229063275546,
+            "anticipation": 0.06137971098404356,
+            "trust": 0.302312528010273
+          },
+          "smoothed_emotion": "sadness",
+          "smoothed_confidence": 0.33732480916971697
+        }
+      },
+      "facial_emotion_hint": "dominant=sadness; averaged_scores=(sadness=60%, anger=40%); samples=3",
+      "face_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "averaged_scores": {
+          "joy": 0.06840139627456665,
+          "trust": 0.0,
+          "fear": 0.023839354515075684,
+          "surprise": 4.770045442621315e-13,
+          "sadness": 59.98467254638672,
+          "disgust": 4.561801688396372e-06,
+          "anger": 39.92301559448242,
+          "anticipation": 0.0
+        },
+        "frame_count": 58,
+        "sampled_frame_count": 3,
+        "started_at": "2026-07-20 13:19:13",
+        "ended_at": "2026-07-20 13:19:15",
+        "error": null,
+        "analysis_seconds": 0.3597,
+        "deepface_diagnostics": {
+          "deepface_available": true,
+          "candidates_considered": 3,
+          "frames_with_face": 2,
+          "frames_no_face": 1,
+          "frames_failed_or_weak": 0
+        }
+      },
+      "text_emotion": {
+        "emotion": "trust",
+        "confidence": 0.8,
+        "reason": "The user is expressing gratitude, which is a sign of trust and appreciation."
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "anticipation",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.1413320004940033,
+          "duration": 4.16,
+          "energy_std": 0.117655097535078,
+          "zero_crossing_rate": 0.1244309559939302
+        }
+      },
+      "self_rag": {
+        "available": true,
+        "used": false,
+        "query": "Thank you for your time.",
+        "sources": [],
+        "reason": "Message is not a question; Self-RAG only runs for questions.",
+        "error": null
+      },
+      "input_mode": "silero_vad_faster-whisper_qwen25vl_single_frame_deepface_gate_adaptive_reliability_aware_fusion_temporal_smoothing_self_rag"
+    },
+    {
+      "role": "assistant",
+      "content": "You're welcome, Joy. 😢",
+      "timestamp": "2026-07-20 13:19:24"
+    }
+  ]
+}

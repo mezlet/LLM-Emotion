@@ -4684,7 +4684,7 @@ def parse_robot_args() -> argparse.Namespace:
     parser.add_argument("--vision_model", default="llava:7b", help="Ollama vision-language model used for general ZED 'what do you see' queries (default: llava:7b).")
 
     parser.add_argument("--tts_url", default=os.environ.get("TTS_URL", "http://emah/tritium/text_to_speech/say?voice=Lucy"))
-    parser.add_argument("--tts_token", default="")
+    parser.add_argument("--tts_token", default="ZWNFuNQVIPyztWCfPPM5VLPslpj8rR")
     parser.add_argument("--speaking_cooldown", type=float, default=0.3, help="Seconds of echo-guard cooldown after TTS finishes speaking.")
 
     parser.add_argument("--google_stt_language", default=os.environ.get("GOOGLE_STT_LANGUAGE", "en-US"))

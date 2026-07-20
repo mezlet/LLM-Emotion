@@ -1,40 +1,13 @@
 {
-  "lecicit": {
-    "name": "Lecicit",
-    "created_at": "2026-07-01 11:12:04",
-    "last_seen": "2026-07-01 12:14:22",
-    "session_files": [
-      "conversation_data/sessions/lecicit_20260701_113105.json",
-      "conversation_data/sessions/lecicit_20260701_121422.json"
-    ],
-    "conversation_summary": "- Previous continuity context: Previous continuity context: Previous continuity context: Recent user topics/questions: I'm really tired today.; But I just don't know what to do today.; What do you have in mind?; I'm really hungry right now. Last assistant direction: Food is always a great...\n- Recent user topics/questions: L-E-T-I-C-I-A\n- Last assistant direction: Hello again, Leticia! It's great to see you're still thinking about recharging for the rest of the day. 😮\n- Recent affective context: surprise"
-  },
-  "i_need_my_slits_here": {
-    "name": "I need my slits here",
-    "created_at": "2026-07-01 12:26:28",
-    "last_seen": "2026-07-01 12:34:54",
-    "session_files": [
-      "conversation_data/sessions/i_need_my_slits_here_20260701_123454.json"
-    ],
-    "conversation_summary": "Here is an updated continuity summary:\n\n* Ongoing projects or unresolved tasks: User's frustration with a text-based task, feeling stuck and unable to make progress.\n* Thesis/research/debugging topics discussed: None explicitly mentioned, but user's emotional state suggests potential struggles with research or debugging.\n* Important technical context: Robotics Research (RR) Lab, possibly related to Ashita/Ashica, Professor Benz, and current projects/events in the lab.\n* Emotional state trends: User experienced a range of emotions, including anticipation, anger, sadness, joy, and surprise. They may be feeling overwhelmed or frustrated.\n* Personal preferences or interaction style: User values empathy and understanding, seeking help with emotional struggles and technical challenges.\n* Useful next-step cues for continuing the conversation:\n\t+ Explore user's specific research or debugging issues in more detail.\n\t+ Provide general tips on managing frustration and staying motivated.\n\t+ Offer to help find resources or connections within the RR Lab."
-  },
-  "guest": {
-    "name": "Guest",
-    "created_at": "2026-07-07 10:21:55",
-    "last_seen": "2026-07-07 10:22:59",
-    "session_files": [
-      "conversation_data/sessions/guest_20260707_102259.json"
-    ],
-    "conversation_summary": "- Previous continuity context: Recent user topics/questions: nice to meet you too.; I'm just tired and trying to make the best of today.; Bye Last assistant direction: Thank you, and take care. 🙂 Recent affective context: trust, sadness\n- Recent user topics/questions: nice to meet you too.; I'm just tired and trying to make the best of today.; Bye\n- Last assistant direction: Thank you, and take care. 🙂\n- Recent affective context: trust, sadness"
-  },
   "joy": {
     "name": "Joy",
-    "created_at": "2026-07-07 11:37:33",
-    "last_seen": "2026-07-07 13:40:32",
+    "created_at": "2026-07-20 13:09:23",
+    "last_seen": "2026-07-20 14:30:42",
     "session_files": [
-      "conversation_data/sessions/joy_20260707_114215.json",
-      "conversation_data/sessions/joy_20260707_134032.json"
+      "conversation_data/sessions/joy_20260720_131100.json",
+      "conversation_data/sessions/joy_20260720_131937.json",
+      "conversation_data/sessions/joy_20260720_143042.json"
     ],
-    "conversation_summary": "- Previous continuity context: Previous continuity context: Previous continuity context: Recent user topics/questions: have no rights.; I'm just hoping that my supervisor comes today anyways.; Name.; I said thank you. Last assistant direction: You're welcome! 🤔 Recent affective context...\n- Recent user topics/questions: What causes do I need to do? So enable me become ANAI Agenia.; said what courses in school do I need to study to become an AI engineer.; What is the latest improvements in AI at the moment?; Okay, thank you so much.\n- Knowledge/RAG topics used: What do I need to do to become an AI engineer?; What causes do I need to do? So enable me become ANAI Agenia.; said what courses in school do I need to study to become an AI engineer.; What is the latest improvements in AI at the moment?\n- Relevant retrieved sources included: Emah; Marvin; Head of the Laboratory - AG Robotersysteme RPTU; M. Sc. Ashita Ashok - AG Robotersysteme RPTU; ZukunftBau\n- Last assistant direction: You're welcome! It was my pleasure to help. 🤔\n- Recent affective context: anticipation"
+    "conversation_summary": "Here is an updated continuity summary:\n\n• Ongoing project: User's interest in robotics and AI, including topics such as machine learning, computer vision, and human-robot interaction.\n• Unresolved task: User's desire to learn more about the Emah system and its applications in robotics research.\n• Thesis/research/debugging topics discussed: Human-Robot Interaction (HRI) systems, robotics engineering, and AI advancements in autonomous vehicles and robots.\n• Important technical context: The user is interested in learning more about the robotic research lab, including the head of the lab, Prof. Dr. Karsten Berns, and research associate Ashita Ashok.\n• Emotional state trends: Anticipation, surprise, trust, fear, and sadness were observed during the conversation.\n• Personal preferences or interaction style: The user is interested in learning more about robotics and AI, and values technical information and examples.\n• Useful next-step cues for continuing the conversation:\n\t+ Explore specific applications of Emah in robotics research\n\t+ Discuss the latest developments in AI and their implications for human-robot interaction\n\t+ Provide more information on becoming a robotics engineer"
   }
 }

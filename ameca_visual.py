@@ -185,7 +185,7 @@ KNOWN_RRLAB_ENTITIES = {
 
 SELF_RAG_REINDEX_ON_START = os.environ.get("SELF_RAG_REINDEX_ON_START", "0") == "1"
 SELF_RAG_AUTO_SCRAPE_ON_EMPTY = os.environ.get("SELF_RAG_AUTO_SCRAPE_ON_EMPTY", "0") == "1"
-SELF_RAG_SCRAPE_SCRIPT = os.environ.get("SELF_RAG_SCRAPE_SCRIPT", "scrape.py")
+SELF_RAG_SCRAPE_SCRIPT = os.environ.get("SELF_RAG_SCRAPE_SCRIPT", "scrape2.py")
 SELF_RAG_SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".json", ".csv", ".py", ".html", ".htm", ".pdf"}
 
 ENABLE_LLM_SESSION_SUMMARY = os.environ.get("ENABLE_LLM_SESSION_SUMMARY", "1") == "1"
@@ -420,6 +420,74 @@ EXPRESSION_MIN_CONFIDENCE = float(os.environ.get("EXPRESSION_MIN_CONFIDENCE", "0
 EXPRESSION_FORCE_REPLAY_SAME = os.environ.get("EXPRESSION_FORCE_REPLAY_SAME", "0") == "1"
 
 
+# =========================
+# DeepFace hybrid visual modality configuration
+# =========================
+# Qwen2.5-VL has no reliable face-presence gate of its own: it has been
+# observed confidently describing a facial emotion from background/scene
+# elements (a door handle, a chair) when no face was actually visible in
+# the frame. DeepFace ships an actual face DETECTOR (not just an emotion
+# classifier), so it is used here as a cross-check: if DeepFace says no
+# face is present, VLM's reading for that same frame is discarded rather
+# than trusted, regardless of how confident VLM was.
+#
+# DeepFace runs in a SEPARATE PROCESS (see deepface_worker.py), ideally
+# from a SEPARATE conda environment via DEEPFACE_PYTHON below. This is
+# deliberate: DeepFace pulls in TensorFlow, and running TensorFlow
+# computation in the same process as this script's PyTorch usage (Silero
+# VAD, faster-whisper) has previously caused a silent native segfault with
+# no Python traceback (see the HARDWARE/CAUTION notes on zed_vision_module
+# elsewhere in this file for the same class of bug). Isolating DeepFace
+# into its own OS process -- and its own environment, so TF/Keras version
+# pins can't collide with this pipeline's dependencies -- removes that
+# risk entirely. If the worker process crashes, it crashes alone, and this
+# pipeline just treats DeepFace as unavailable for that turn.
+DEEPFACE_ENABLED = os.environ.get("DEEPFACE_ENABLED", "1") == "1"
+
+# Path to the python interpreter of a SEPARATE conda env that has
+# deepface + tensorflow installed, e.g.:
+#   conda create -n deepface_env python=3.10
+#   conda run -n deepface_env pip install deepface tensorflow
+#   export DEEPFACE_PYTHON=/home/emah/miniconda3/envs/deepface_env/bin/python
+# Deliberately NOT auto-detected. Leave empty (or set DEEPFACE_ENABLED=0) to
+# disable the hybrid visual modality and fall back to Qwen2.5-VL alone,
+# exactly as before.
+DEEPFACE_PYTHON = os.environ.get("DEEPFACE_PYTHON", "")
+DEEPFACE_WORKER_SCRIPT = os.environ.get("DEEPFACE_WORKER_SCRIPT", "deepface_worker.py")
+
+# TensorFlow import + model load can take a while on first run of the
+# worker process; this only blocks startup once.
+DEEPFACE_STARTUP_TIMEOUT_SECONDS = float(os.environ.get("DEEPFACE_STARTUP_TIMEOUT_SECONDS", "90"))
+# Per-frame analyze() timeout. DeepFace itself is fast (much faster than
+# the Qwen2.5-VL call it's paired with); this is a safety net against a
+# stuck/dead worker, not a reflection of expected latency.
+DEEPFACE_REQUEST_TIMEOUT_SECONDS = float(os.environ.get("DEEPFACE_REQUEST_TIMEOUT_SECONDS", "5"))
+
+# Relative weight of each modality WITHIN the visual channel (VLM vs
+# DeepFace), used only when BOTH produced a usable reading for the same
+# frame (see combine_vlm_and_deepface_scores()). This blend happens before
+# the result is fed into the existing text/visual/prosody fusion weights
+# (FUSION_VISUAL_WEIGHT etc.) further down the pipeline.
+VISUAL_VLM_WEIGHT = float(os.environ.get("VISUAL_VLM_WEIGHT", "0.6"))
+VISUAL_DEEPFACE_WEIGHT = float(os.environ.get("VISUAL_DEEPFACE_WEIGHT", "0.4"))
+
+# DeepFace's 7 Ekman-basic categories mapped onto this pipeline's 8
+# Plutchik emotions. DeepFace has no equivalent of "trust" or
+# "anticipation". "neutral" is deliberately mapped to None rather than
+# forced onto "trust": Plutchik's trust carries a positive-social
+# connotation that plain facial neutrality doesn't imply, so a neutral
+# reading simply contributes no signal instead of being redistributed.
+DEEPFACE_TO_PLUTCHIK = {
+    "happy": "joy",
+    "sad": "sadness",
+    "angry": "anger",
+    "fear": "fear",
+    "disgust": "disgust",
+    "surprise": "surprise",
+    "neutral": None,
+}
+
+
 @dataclass
 class EmotionResult:
     emotion: str
@@ -539,6 +607,11 @@ class FaceEmotionCapture:
     # Wall-clock seconds spent inside the Qwen2.5-VL analysis call itself
     # (not the whole VAD capture window). None if analysis never ran.
     analysis_seconds: Optional[float] = None
+    # Diagnostics from combine_vlm_and_deepface_scores() for the hybrid
+    # visual modality (agreement, whether DeepFace gated out a VLM result
+    # for lack of a detected face, per-modality dominant emotion, etc.).
+    # None if DeepFace was not used this turn (disabled / unavailable).
+    deepface_diagnostics: Optional[dict[str, Any]] = None
 
     @property
     def averaged_scores(self) -> dict[str, float]:
@@ -613,9 +686,11 @@ class FaceEmotionCapture:
             "analysis_seconds": (
                 round(self.analysis_seconds, 4) if isinstance(self.analysis_seconds, (int, float)) else None
             ),
+            "deepface_diagnostics": self.deepface_diagnostics,
             "note": (
-                "Qwen2.5-VL facial expression analysis is used as the visual component "
-                "in fixed weighted late fusion."
+                "Qwen2.5-VL facial expression analysis is combined with DeepFace "
+                "(when available) as the visual component in fixed weighted late fusion; "
+                "see deepface_diagnostics for how the two modalities were combined."
             ),
         }
 
@@ -651,6 +726,7 @@ def default_face_emotion_json() -> dict:
         "ended_at": None,
         "error": "No face emotion capture was provided.",
         "analysis_seconds": None,
+        "deepface_diagnostics": None,
     }
 
 
@@ -830,6 +906,321 @@ class RobotExpression:
 
         if success:
             self.last_emotion = resolved_emotion
+
+
+@dataclass
+class DeepFaceResult:
+    ok: bool
+    no_face: bool
+    scores: dict[str, float]  # raw Ekman-category percentages from DeepFace
+    dominant_emotion: Optional[str] = None
+    error: Optional[str] = None
+
+
+class DeepFaceClient:
+    """
+    Manages a persistent DeepFace analysis worker running in its OWN
+    process (see deepface_worker.py) -- ideally launched from a SEPARATE
+    conda environment via DEEPFACE_PYTHON -- isolated from this process's
+    PyTorch usage (Silero VAD, faster-whisper) to avoid the
+    TensorFlow/PyTorch same-process segfault documented elsewhere in this
+    file. Communicates via line-delimited JSON over stdin/stdout.
+
+    If DEEPFACE_PYTHON is unset, the worker script is missing, or the
+    worker fails to start/respond, this client degrades gracefully:
+    is_alive() returns False and analyze() returns None, so callers fall
+    back to Qwen2.5-VL alone -- the hybrid modality is opt-in, not a hard
+    dependency.
+    """
+
+    def __init__(
+        self,
+        python_executable: str,
+        worker_script: str,
+        startup_timeout: float = DEEPFACE_STARTUP_TIMEOUT_SECONDS,
+        request_timeout: float = DEEPFACE_REQUEST_TIMEOUT_SECONDS,
+    ) -> None:
+        self.python_executable = python_executable
+        self.worker_script = worker_script
+        self.startup_timeout = startup_timeout
+        self.request_timeout = request_timeout
+
+        self.proc: Optional[subprocess.Popen] = None
+        self._reader_thread: Optional[threading.Thread] = None
+        self._response_queue: "queue.Queue[dict]" = queue.Queue()
+        self._lock = threading.Lock()
+        self._request_counter = 0
+        self._ready = False
+
+        self._start_worker()
+
+    def _start_worker(self) -> bool:
+        if not self.python_executable:
+            print_ts(
+                "[DeepFace] DEEPFACE_PYTHON not set; hybrid visual modality disabled "
+                "(falling back to Qwen2.5-VL alone)."
+            )
+            return False
+
+        if not os.path.isfile(self.worker_script):
+            print_ts(
+                f"[DeepFace] Worker script not found: {self.worker_script}; "
+                "hybrid visual modality disabled."
+            )
+            return False
+
+        try:
+            self.proc = subprocess.Popen(
+                [self.python_executable, self.worker_script],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+        except Exception as exc:
+            print_ts(f"[DeepFace] Could not start worker process: {exc}")
+            self.proc = None
+            return False
+
+        # Drain stderr in the background so worker logging doesn't block it,
+        # and so failures are visible in the main console.
+        threading.Thread(target=self._drain_stderr, daemon=True).start()
+
+        ready_event = threading.Event()
+
+        def wait_for_ready() -> None:
+            try:
+                line = self.proc.stdout.readline()
+                if line.strip() == "READY":
+                    ready_event.set()
+            except Exception:
+                pass
+
+        threading.Thread(target=wait_for_ready, daemon=True).start()
+        got_ready = ready_event.wait(timeout=self.startup_timeout)
+
+        if not got_ready:
+            print_ts(
+                f"[DeepFace] Worker did not signal READY within {self.startup_timeout}s "
+                f"(check DEEPFACE_PYTHON='{self.python_executable}' has deepface+tensorflow "
+                "installed); hybrid visual modality disabled for this session."
+            )
+            self._ready = False
+            return False
+
+        print_ts("[DeepFace] Worker ready.")
+        self._ready = True
+
+        self._reader_thread = threading.Thread(target=self._read_responses, daemon=True)
+        self._reader_thread.start()
+        return True
+
+    def _drain_stderr(self) -> None:
+        if not self.proc or not self.proc.stderr:
+            return
+        for line in self.proc.stderr:
+            line = line.rstrip()
+            if line:
+                print_ts(f"[DeepFace worker] {line}")
+
+    def _read_responses(self) -> None:
+        if not self.proc or not self.proc.stdout:
+            return
+        for line in self.proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                response = json.loads(line)
+            except Exception:
+                continue
+            self._response_queue.put(response)
+
+    def is_alive(self) -> bool:
+        return self._ready and self.proc is not None and self.proc.poll() is None
+
+    def analyze(self, frame_bgr: np.ndarray) -> Optional[DeepFaceResult]:
+        """
+        Analyze one frame. Returns None if DeepFace is unavailable this
+        turn (disabled, worker not ready, worker died, or timed out) --
+        callers should treat None as "fall back to VLM alone", which is
+        different from a DeepFaceResult with no_face=True ("DeepFace ran
+        successfully and found no face").
+        """
+        if not self.is_alive():
+            return None
+
+        temp_path = None
+        try:
+            with self._lock:
+                self._request_counter += 1
+                request_id = f"req_{self._request_counter}"
+
+            fd, temp_path = tempfile.mkstemp(suffix=".jpg", prefix="deepface_frame_")
+            os.close(fd)
+            cv2.imwrite(temp_path, frame_bgr)
+
+            request_line = json.dumps(
+                {"request_id": request_id, "cmd": "analyze", "image_path": temp_path}
+            )
+
+            try:
+                self.proc.stdin.write(request_line + "\n")
+                self.proc.stdin.flush()
+            except Exception as exc:
+                print_ts(f"[DeepFace] Could not send request to worker (worker may have died): {exc}")
+                self._ready = False
+                return None
+
+            deadline = time.time() + self.request_timeout
+            while time.time() < deadline:
+                try:
+                    response = self._response_queue.get(timeout=max(0.05, deadline - time.time()))
+                except queue.Empty:
+                    break
+
+                if response.get("request_id") != request_id:
+                    # Stale/mismatched response; requests are sequential so
+                    # this shouldn't normally happen, but keep waiting for
+                    # the one we asked for rather than misattributing it.
+                    continue
+
+                if not response.get("ok"):
+                    print_ts(f"[DeepFace] Worker reported an error: {response.get('error')}")
+                    return None
+
+                return DeepFaceResult(
+                    ok=True,
+                    no_face=bool(response.get("no_face")),
+                    scores=response.get("scores", {}) or {},
+                    dominant_emotion=response.get("dominant_emotion"),
+                )
+
+            print_ts(f"[DeepFace] Request timed out after {self.request_timeout}s.")
+            return None
+
+        except Exception as exc:
+            print_ts(f"[DeepFace] analyze() failed unexpectedly: {exc}")
+            return None
+
+        finally:
+            if temp_path:
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+
+    def shutdown(self) -> None:
+        if self.proc is None:
+            return
+        try:
+            if self.proc.stdin:
+                self.proc.stdin.write(json.dumps({"cmd": "shutdown"}) + "\n")
+                self.proc.stdin.flush()
+            self.proc.wait(timeout=3)
+        except Exception:
+            try:
+                self.proc.terminate()
+            except Exception:
+                pass
+
+
+def deepface_scores_to_plutchik(deepface_result: Optional[DeepFaceResult]) -> Optional[dict[str, float]]:
+    """
+    Map a successful (face-found) DeepFace result onto this pipeline's
+    Plutchik emotion keys via DEEPFACE_TO_PLUTCHIK. Returns None if there's
+    nothing usable to map (no result, error, or no face).
+    """
+    if deepface_result is None or not deepface_result.ok or deepface_result.no_face:
+        return None
+
+    plutchik_scores: dict[str, float] = {emo: 0.0 for emo in PLUTCHIK_EMOTIONS if emo != "neutral"}
+    for ekman_label, value in (deepface_result.scores or {}).items():
+        plutchik_label = DEEPFACE_TO_PLUTCHIK.get(str(ekman_label).strip().lower())
+        if not plutchik_label:
+            continue
+        try:
+            plutchik_scores[plutchik_label] += float(value)
+        except Exception:
+            continue
+
+    return plutchik_scores
+
+
+def combine_vlm_and_deepface_scores(
+    vlm_scores: Optional[dict[str, float]],
+    deepface_result: Optional[DeepFaceResult],
+) -> tuple[Optional[dict[str, float]], dict[str, Any]]:
+    """
+    Combine Qwen2.5-VL's facial-emotion scores with DeepFace's, using
+    DeepFace's real face detector as a gate:
+
+    - DeepFace unavailable this turn (disabled / worker down / timed out)
+      -> fall back to VLM alone, unchanged from the non-hybrid behavior.
+    - DeepFace ran and found NO face -> discard VLM's reading for this
+      frame entirely, rather than blending it in. VLM has repeatedly been
+      observed describing an emotion from background/scene elements (a
+      door handle, a chair) with high confidence when no face was actually
+      visible; DeepFace's detector is the more trustworthy signal for
+      face presence specifically.
+    - Both produced a reading -> blend via VISUAL_VLM_WEIGHT /
+      VISUAL_DEEPFACE_WEIGHT, and record whether the two agreed on the
+      dominant emotion (consumed by face_reliability_score() to adjust
+      confidence up or down).
+
+    Returns (combined_scores_or_None, diagnostics_dict). diagnostics is
+    always a dict (never None) so it can be safely embedded in
+    FaceEmotionCapture.as_json() regardless of outcome.
+    """
+    diagnostics: dict[str, Any] = {
+        "deepface_available": deepface_result is not None,
+        "deepface_no_face": bool(deepface_result and deepface_result.no_face),
+        "agree": None,
+        "vlm_dominant": max(vlm_scores.items(), key=lambda kv: kv[1])[0] if vlm_scores else None,
+        "deepface_dominant": None,
+    }
+
+    if deepface_result is None:
+        return vlm_scores, diagnostics
+
+    if deepface_result.no_face:
+        if vlm_scores:
+            diagnostics["vlm_discarded_reason"] = (
+                "DeepFace's face detector found no face in this frame; discarding VLM's "
+                "facial-emotion reading for it since VLM has no reliable face-presence gate "
+                "of its own."
+            )
+        return None, diagnostics
+
+    deepface_plutchik = deepface_scores_to_plutchik(deepface_result) or {}
+    diagnostics["deepface_dominant"] = (
+        max(deepface_plutchik.items(), key=lambda kv: kv[1])[0] if deepface_plutchik else None
+    )
+
+    if not vlm_scores:
+        return (deepface_plutchik or None), diagnostics
+
+    diagnostics["agree"] = (
+        diagnostics["vlm_dominant"] is not None
+        and diagnostics["vlm_dominant"] == diagnostics["deepface_dominant"]
+    )
+
+    total_weight = VISUAL_VLM_WEIGHT + VISUAL_DEEPFACE_WEIGHT
+    if total_weight <= 0:
+        return vlm_scores, diagnostics
+
+    all_emotions = set(vlm_scores) | set(deepface_plutchik)
+    combined = {
+        emo: (
+            VISUAL_VLM_WEIGHT * vlm_scores.get(emo, 0.0)
+            + VISUAL_DEEPFACE_WEIGHT * deepface_plutchik.get(emo, 0.0)
+        )
+        / total_weight
+        for emo in all_emotions
+    }
+
+    return combined, diagnostics
 
 
 # =========================
@@ -1092,6 +1483,13 @@ def compact_previous_summary_for_greeting(
     if not summary:
         return ""
 
+    # Defensively strip nested "Previous continuity context: " prefixes
+    # here too (not just in build_deterministic_session_summary), so every
+    # caller -- including the startup "Memory preview" log and the
+    # returning-user greeting fallback -- displays cleanly even for
+    # already-corrupted summaries saved before that fix existed.
+    summary = strip_previous_continuity_prefix(summary)
+
     summary = re.sub(r"^\s*[-*•]\s*", "", summary, flags=re.MULTILINE)
     summary = re.sub(r"\s+", " ", summary).strip()
 
@@ -1270,6 +1668,17 @@ def save_session_transcript(
                 "jpeg_quality": VISION_JPEG_QUALITY,
                 "min_top_score": FACE_MIN_TOP_SCORE,
                 "min_margin": FACE_MIN_MARGIN,
+                "hybrid_deepface": {
+                    "enabled": DEEPFACE_ENABLED,
+                    "python_executable": DEEPFACE_PYTHON or None,
+                    "visual_vlm_weight": VISUAL_VLM_WEIGHT,
+                    "visual_deepface_weight": VISUAL_DEEPFACE_WEIGHT,
+                    "note": (
+                        "DeepFace runs in a separate process/env and acts as a face-presence "
+                        "gate for Qwen2.5-VL; see deepface_diagnostics on each turn's face_emotion "
+                        "for whether it was used and whether it agreed with VLM."
+                    ),
+                },
             },
             "vad": {
                 "backend": "Silero VAD",
@@ -1303,6 +1712,27 @@ def save_session_transcript(
         json.dump(transcript_data, file, indent=2, ensure_ascii=False)
 
     return path
+
+
+def strip_previous_continuity_prefix(text: str) -> str:
+    """
+    Remove one or more leading "Previous continuity context: " prefixes.
+
+    build_deterministic_session_summary() wraps whatever the previous
+    session saved in this exact prefix every time it runs. Without
+    stripping it first, each session nests another layer on top of the
+    last ("Previous continuity context: Previous continuity context:
+    ..."), and the useful content underneath gets squeezed out by the
+    growing prefix within compact_previous_summary_for_greeting()'s fixed
+    character budget -- after enough sessions the "memory preview" is
+    almost entirely repeated prefix text with no real content left. This
+    also cleans up summaries that were already corrupted by the bug
+    before this fix (which may have several stacked layers) the next
+    time they pass through here.
+    """
+    text = str(text or "").strip()
+    prefix_pattern = re.compile(r"^(previous continuity context:\s*)+", re.IGNORECASE)
+    return prefix_pattern.sub("", text).strip()
 
 
 def build_deterministic_session_summary(
@@ -1350,7 +1780,12 @@ def build_deterministic_session_summary(
 
     previous_summary = str(previous_summary or "").strip()
     if previous_summary:
-        bullets.append("Previous continuity context: " + compact_previous_summary_for_greeting(previous_summary, 260))
+        cleaned_previous_summary = strip_previous_continuity_prefix(previous_summary)
+        if cleaned_previous_summary:
+            bullets.append(
+                "Previous continuity context: "
+                + compact_previous_summary_for_greeting(cleaned_previous_summary, 260)
+            )
 
     if user_turns:
         recent_user = "; ".join(user_turns[-4:])
@@ -1464,6 +1899,13 @@ def summarize_session_with_llm(
 ) -> str:
     if not session_log:
         return previous_summary
+
+    # Clean up the previous summary before it's used anywhere in this
+    # function -- both as input to the LLM prompt below and as the
+    # deterministic fallback -- so a corrupted/nested "Previous continuity
+    # context:" chain from before this fix doesn't keep being fed back in
+    # as-is.
+    previous_summary = strip_previous_continuity_prefix(previous_summary)
 
     fallback_summary = build_deterministic_session_summary(
         session_log=session_log,
@@ -2264,9 +2706,15 @@ class FaceEmotionSampler:
     queries) reads from its thread-safe get_latest_frame().
     """
 
-    def __init__(self, vision_module: Any, vision_client: Client) -> None:
+    def __init__(
+        self,
+        vision_module: Any,
+        vision_client: Client,
+        deepface_client: Optional["DeepFaceClient"] = None,
+    ) -> None:
         self.vision_module = vision_module
         self.vision_client = vision_client
+        self.deepface_client = deepface_client
         self.started_at = now_ts()
         self.error: Optional[str] = None
         self.emotion_score_samples: list[dict[str, float]] = []
@@ -2281,6 +2729,13 @@ class FaceEmotionSampler:
         # Wall-clock seconds spent inside the actual Qwen2.5-VL analysis
         # call (set once finish() runs _analyze_snapshot_now()).
         self.analysis_seconds: Optional[float] = None
+        # Wall-clock seconds spent inside the DeepFace analyze() call.
+        # None if DeepFace was not used this turn.
+        self.deepface_analysis_seconds: Optional[float] = None
+        # Diagnostics from combine_vlm_and_deepface_scores(); surfaced on
+        # the resulting FaceEmotionCapture for transparency/debugging and
+        # consumed by face_reliability_score() for the agreement bonus.
+        self.deepface_diagnostics: Optional[dict[str, Any]] = None
 
     def start(self) -> None:
         self.started_at = now_ts()
@@ -2395,7 +2850,7 @@ class FaceEmotionSampler:
                 f"(best_sharpness={best_sharpness:.1f}, candidates={len(self.candidate_frames)})..."
             )
             analysis_start = time.time()
-            scores = analyze_multiple_frames_emotion_scores(selected, self.vision_client)
+            vlm_scores = analyze_multiple_frames_emotion_scores(selected, self.vision_client)
             self.analysis_seconds = time.time() - analysis_start
         else:
             print_ts(
@@ -2403,25 +2858,58 @@ class FaceEmotionSampler:
                 f"(sharpness={best_sharpness:.1f}, candidates={len(self.candidate_frames)})..."
             )
             analysis_start = time.time()
-            scores = analyze_frame_emotion_scores(self.snapshot_frame, self.vision_client)
+            vlm_scores = analyze_frame_emotion_scores(self.snapshot_frame, self.vision_client)
             self.analysis_seconds = time.time() - analysis_start
 
+        # Hybrid visual modality: cross-check VLM's reading against
+        # DeepFace's on the same best frame. DeepFace is fast enough that a
+        # single frame is sufficient even when VLM analyzed several.
+        deepface_result: Optional[DeepFaceResult] = None
+        if self.deepface_client is not None:
+            deepface_start = time.time()
+            deepface_result = self.deepface_client.analyze(self.snapshot_frame)
+            self.deepface_analysis_seconds = time.time() - deepface_start
+
+        scores, self.deepface_diagnostics = combine_vlm_and_deepface_scores(vlm_scores, deepface_result)
+
+        if self.deepface_diagnostics.get("deepface_no_face"):
+            print_ts(
+                "[DeepFace] No face detected in this frame; discarded VLM's facial-emotion "
+                f"reading (was: {self.deepface_diagnostics.get('vlm_dominant')}) for this turn."
+            )
+
         if not scores:
-            self.last_status = "no reliable VLM facial emotion"
+            self.last_status = (
+                "no face detected (DeepFace gate)"
+                if self.deepface_diagnostics.get("deepface_no_face")
+                else "no reliable VLM facial emotion"
+            )
             return
 
         top_emotion, top_score = max(scores.items(), key=lambda item: item[1])
         if top_score < FACE_MIN_TOP_SCORE:
             print_ts(
-                f"Qwen2.5-VL facial result rejected as weak: "
+                f"Hybrid facial result rejected as weak: "
                 f"{top_emotion}={top_score:.1f}% < {FACE_MIN_TOP_SCORE:.1f}%"
             )
-            self.last_status = f"weak VLM result: {top_emotion}={top_score:.0f}%"
+            self.last_status = f"weak hybrid result: {top_emotion}={top_score:.0f}%"
             return
 
         self.emotion_score_samples.append(scores)
-        self.last_status = f"{top_emotion}: {top_score:.0f}%"
-        print_ts(f"Qwen2.5-VL facial result accepted: {self.last_status}")
+
+        agree = self.deepface_diagnostics.get("agree")
+        if agree is True:
+            agree_note = " (VLM+DeepFace agree)"
+        elif agree is False:
+            agree_note = (
+                f" (VLM+DeepFace disagree: vlm={self.deepface_diagnostics.get('vlm_dominant')}, "
+                f"deepface={self.deepface_diagnostics.get('deepface_dominant')})"
+            )
+        else:
+            agree_note = ""
+
+        self.last_status = f"{top_emotion}: {top_score:.0f}%{agree_note}"
+        print_ts(f"Hybrid facial result accepted: {self.last_status}")
 
     def finish(self) -> FaceEmotionCapture:
         if self.window_created:
@@ -2434,7 +2922,7 @@ class FaceEmotionSampler:
         try:
             self._analyze_snapshot_now()
         except Exception as exc:
-            self.error = f"Qwen2.5-VL best-frame analysis failed: {exc}"
+            self.error = f"Hybrid VLM/DeepFace analysis failed: {exc}"
             print_ts(self.error)
 
         return FaceEmotionCapture(
@@ -2445,6 +2933,7 @@ class FaceEmotionSampler:
             ended_at=now_ts(),
             error=self.error,
             analysis_seconds=self.analysis_seconds,
+            deepface_diagnostics=self.deepface_diagnostics,
         )
 
 
@@ -2593,6 +3082,7 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
     vision_module: Any = None,
     prompt_label: str = "utterance",
     robot_speaker: Optional[RobotSpeaker] = None,
+    deepface_client: Optional["DeepFaceClient"] = None,
 ) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
     input_sample_rate = get_input_samplerate(input_device)
     input_block_size = max(1, int(input_sample_rate * 0.05))
@@ -2699,7 +3189,11 @@ def listen_for_utterance_with_silero_vad_and_face_emotion(
                             print()
                             print_ts("Speech detected. Recording utterance and sampling facial expression...")
 
-                            face_sampler = FaceEmotionSampler(vision_module=vision_module, vision_client=vision_client)
+                            face_sampler = FaceEmotionSampler(
+                                vision_module=vision_module,
+                                vision_client=vision_client,
+                                deepface_client=deepface_client,
+                            )
                             face_sampler.start()
                             face_sampler.sample_if_due()
 
@@ -3335,7 +3829,7 @@ def init_self_rag_store(client: Client) -> SelfRAGStore:
         if probe_embedding is None:
             error_msg = (
                 f"Could not get a test embedding from Ollama model '{SELF_RAG_EMBED_MODEL}'. "
-                f"Make sure it is pulled, e.g.: ollama pull {SELF_RAG_EMBED_MODEL}", "a", "an", 
+                f"Make sure it is pulled, e.g.: ollama pull {SELF_RAG_EMBED_MODEL}"
             )
             print_ts(f"Self-RAG initialization failed: {error_msg}")
             return SelfRAGStore(enabled=False, error=error_msg)
@@ -4215,7 +4709,26 @@ def face_reliability_score(face_emotion_json: Optional[dict]) -> float:
 
     declared_reliable = 1.0 if face_emotion_json.get("reliable") else 0.65
 
-    return max(0.0, min(1.0, (0.45 * top_score_component) + (0.35 * margin_component) + (0.20 * frame_component))) * declared_reliable
+    base_score = (
+        max(0.0, min(1.0, (0.45 * top_score_component) + (0.35 * margin_component) + (0.20 * frame_component)))
+        * declared_reliable
+    )
+
+    # Hybrid VLM+DeepFace agreement adjustment: if both modalities landed on
+    # the same dominant emotion for this frame, that's stronger evidence
+    # than either alone, so boost reliability slightly. If they disagreed,
+    # the "averaged_scores" above are really a weighted-average compromise
+    # between two different readings rather than a confident detection, so
+    # shrink reliability accordingly. No adjustment if DeepFace wasn't used
+    # this turn (diagnostics.get("agree") is None).
+    diagnostics = face_emotion_json.get("deepface_diagnostics") or {}
+    agree = diagnostics.get("agree")
+    if agree is True:
+        base_score = min(1.0, base_score * 1.15)
+    elif agree is False:
+        base_score = base_score * 0.75
+
+    return base_score
 
 
 def text_reliability_score(text_emotion: EmotionResult, user_text: str = "") -> float:
@@ -4925,7 +5438,7 @@ def parse_robot_args() -> argparse.Namespace:
     parser.add_argument("--speaking_cooldown", type=float, default=0.3, help="Seconds of echo-guard cooldown after TTS finishes speaking.")
     parser.add_argument(
         "--tts_token",
-        default="ZWNFuNQVIPyztWCfPPM5VLPslpj8rR",
+        default=os.environ.get("TTS_TOKEN", "ZWNFuNQVIPyztWCfPPM5VLPslpj8rR"),
         help="X-Tritium-Auth-Token used for both the TTS 'say' endpoint and the sequence_player expression endpoint.",
     )
     parser.add_argument(
@@ -4937,6 +5450,24 @@ def parse_robot_args() -> argparse.Namespace:
         "--disable_expression",
         action="store_true",
         help="Disable driving Ameca's physical facial expression from the fused emotion result.",
+    )
+
+    parser.add_argument(
+        "--deepface_python",
+        default=DEEPFACE_PYTHON,
+        help="Path to the python interpreter of a SEPARATE conda env with deepface+tensorflow "
+        "installed, used to run deepface_worker.py in an isolated process. Leave unset to "
+        "disable the hybrid VLM+DeepFace visual modality and use Qwen2.5-VL alone.",
+    )
+    parser.add_argument(
+        "--deepface_worker_script",
+        default=DEEPFACE_WORKER_SCRIPT,
+        help=f"Path to deepface_worker.py (default: {DEEPFACE_WORKER_SCRIPT}).",
+    )
+    parser.add_argument(
+        "--disable_deepface",
+        action="store_true",
+        help="Disable the hybrid VLM+DeepFace visual modality even if --deepface_python is set.",
     )
 
     parser.add_argument("--google_stt_language", default=os.environ.get("GOOGLE_STT_LANGUAGE", "en-US"))
@@ -4988,22 +5519,20 @@ def main() -> None:
     # both for Qwen2.5-VL facial-emotion sampling and (optionally) general
     # "what do you see" queries, so it is required rather than optional.
     #
-    # CAUTION: despite enable_emotion_analysis=False being passed to
-    # ZedVisionModule below, a prior crash log showed TensorFlow's oneDNN /
-    # cudart_stub init messages printing immediately after this import call
-    # -- meaning zed_vision_module.py imports tensorflow/deepface
-    # unconditionally at module load time, not lazily gated on
-    # enable_emotion_analysis. If zed_vision_module.py can be edited, making
-    # that TF/DeepFace import lazy (only inside the code path that actually
-    # needs it) would remove TensorFlow from this process entirely when
-    # emotion_analysis is off, which is the more robust fix. Self-RAG's
-    # embeddings now go through Ollama instead of an in-process
+    # NOTE on TensorFlow/PyTorch segfault risk: zed_vision_module.py now
+    # imports tensorflow/deepface LAZILY, gated behind
+    # enable_emotion_analysis (see _ensure_deepface_imported() there), not
+    # unconditionally at module load time -- an earlier version imported it
+    # eagerly, which was the original source of a same-process TF/PyTorch
+    # segfault. We still always pass enable_emotion_analysis=False below:
+    # zed_vision_module's own in-process DeepFace path is now DEPRECATED in
+    # favor of the isolated hybrid VLM+DeepFace modality (DeepFaceClient /
+    # deepface_worker.py, launched in its own process/conda env further
+    # down in this function), which is what actually provides DeepFace
+    # cross-checking for facial emotion in this pipeline. Self-RAG's
+    # embeddings also go through Ollama instead of an in-process
     # sentence-transformers/PyTorch model (see get_ollama_embedding()),
-    # which removes the specific PyTorch-computation-vs-TensorFlow
-    # collision that caused the segfault observed at this point in the
-    # startup sequence; it does not guarantee no other torch/TF collision
-    # is possible elsewhere in the process (e.g. Silero VAD's own torch
-    # usage later in startup).
+    # removing another potential PyTorch-vs-TensorFlow collision point.
     try_import_zed_vision_module()
     if not HAS_ZED_VISION:
         raise RuntimeError(
@@ -5086,6 +5615,28 @@ def main() -> None:
         host=args.expression_host,
         tts_token=args.tts_token,
     )
+
+    # ---- Hybrid visual modality: Qwen2.5-VL + DeepFace ----
+    # DeepFace runs in its own process (deepface_worker.py), ideally from a
+    # separate conda env, to avoid the TensorFlow/PyTorch same-process
+    # segfault risk documented on DEEPFACE_ENABLED above. If
+    # --deepface_python / DEEPFACE_PYTHON isn't set, or the worker fails to
+    # start, deepface_client simply won't be "alive" and every downstream
+    # call degrades to VLM-only behavior automatically.
+    deepface_client: Optional[DeepFaceClient] = None
+    deepface_enabled = DEEPFACE_ENABLED and not args.disable_deepface
+    if deepface_enabled:
+        print_ts(f"Starting DeepFace worker via: {args.deepface_python or '(not set)'}")
+        deepface_client = DeepFaceClient(
+            python_executable=args.deepface_python,
+            worker_script=args.deepface_worker_script,
+        )
+        if deepface_client.is_alive():
+            print_ts("Hybrid visual modality ENABLED (Qwen2.5-VL + DeepFace).")
+        else:
+            print_ts("Hybrid visual modality unavailable this session; using Qwen2.5-VL alone.")
+    else:
+        print_ts("DeepFace hybrid visual modality disabled (DEEPFACE_ENABLED=0 or --disable_deepface).")
 
     # Optional TTS-activity monitor (avoids the robot hearing its own voice),
     # mirroring AmecaRobotChat's setup. Best-effort; continues without it if
@@ -5191,6 +5742,7 @@ def main() -> None:
                 vision_module=vision_module,
                 prompt_label="utterance",
                 robot_speaker=robot_speaker,
+                deepface_client=deepface_client,
             )
 
             if face_capture:
@@ -5484,6 +6036,13 @@ def main() -> None:
         if vision_module is not None:
             try:
                 vision_module.stop()
+            except Exception:
+                pass
+
+        if deepface_client is not None:
+            try:
+                deepface_client.shutdown()
+                print_ts("[DeepFace] Worker shut down.")
             except Exception:
                 pass
 
