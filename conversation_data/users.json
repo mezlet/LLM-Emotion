@@ -1,106 +1,12 @@
 {
-  "a1320": {
-    "participant_id": "A1320",
-    "display_name": "there",
-    "created_at": "2026-07-21T15:48:45",
-    "last_seen": "2026-07-21T15:48:58",
-    "conversation_summary": "",
-    "warm_up": {
-      "completed": false,
-      "completed_at": null,
-      "emotion_samples": {}
-    },
-    "name_capture": {
-      "spoken_name_transcript": "",
-      "spelling_transcript": "",
-      "spoken_name_candidate": "",
-      "spelled_name": "",
-      "captured_at": "2026-07-21T15:48:58",
-      "backend": "faster-whisper",
-      "model": "base"
-    }
-  },
-  "a12345": {
-    "participant_id": "A12345",
-    "display_name": "",
-    "created_at": "2026-07-21T16:17:10",
-    "last_seen": "2026-07-21T16:17:10",
-    "conversation_summary": "",
-    "warm_up": {
-      "completed": false,
-      "completed_at": null,
-      "emotion_samples": {}
-    }
-  },
-  "a1234": {
-    "participant_id": "A1234",
-    "display_name": "",
-    "created_at": "2026-07-21T16:17:45",
-    "last_seen": "2026-07-21T16:17:45",
-    "conversation_summary": "",
-    "warm_up": {
-      "completed": false,
-      "completed_at": null,
-      "emotion_samples": {}
-    }
-  },
-  "a1243": {
-    "participant_id": "A1243",
-    "display_name": "Joy",
-    "created_at": "2026-07-21T16:18:47",
-    "last_seen": "2026-07-21T16:19:36",
-    "conversation_summary": "",
-    "warm_up": {
-      "completed": false,
-      "completed_at": null,
-      "emotion_samples": {
-        "joy": {
-          "requested_emotion": "joy",
-          "detected_emotion": "neutral",
-          "matched_request": false,
-          "confidence": 0.8196,
-          "deepface_scores": {
-            "angry": 0.1560787409543991,
-            "disgust": 0.00017040656530298293,
-            "fear": 1.9972010850906372,
-            "happy": 3.8248963356018066,
-            "sad": 11.515581130981445,
-            "surprise": 0.5434458255767822,
-            "neutral": 81.9626235961914
-          },
-          "script": "I received wonderful news today, and I feel very happy and excited.",
-          "transcript": "The perceptions are loud while showing the emotion written on the screen.",
-          "image_path": "conversation_data/profile_images/a1243/joy_detected-neutral_20260721_161936.jpg",
-          "captured_at": "2026-07-21T16:19:36"
-        }
-      }
-    },
-    "name_capture": {
-      "spoken_name_transcript": "Joy",
-      "spelling_transcript": "J-O-Y",
-      "spoken_name_candidate": "Joy",
-      "spelled_name": "Joy",
-      "captured_at": "2026-07-21T16:19:19",
-      "backend": "silero-vad + faster-whisper",
-      "configuration": {
-        "profile": "home_macbook_cpu",
-        "model": "base",
-        "device": "cuda",
-        "compute_type": "int8",
-        "language": "en",
-        "beam_size": 1,
-        "vad_filter": false
-      },
-      "silero_threshold": 0.55,
-      "silero_min_silence_ms": 700,
-      "silero_speech_pad_ms": 250
-    }
-  },
-  "chimezie": {
-    "name": "Chimezie",
-    "created_at": "2026-07-21 16:26:05",
-    "last_seen": "2026-07-21 16:26:05",
-    "session_files": [],
-    "conversation_summary": ""
+  "jy": {
+    "name": "Jy",
+    "participant_id": "",
+    "created_at": "2026-07-24 15:09:52",
+    "last_seen": "2026-07-24 15:11:18",
+    "session_files": [
+      "conversation_data/sessions/jy_20260724_151118.json"
+    ],
+    "conversation_summary": "- Previous continuity context: Recent user topics/questions: to meet you too.; Okay, who is the head of the robotics research lab? Knowledge/RAG topics used: Okay, who is the head of the robotics research lab? Relevant retrieved sources included: Head of the Laboratory - AG Robotersysteme...\n- Recent user topics/questions: to meet you too.; Okay, who is the head of the robotics research lab?\n- Knowledge/RAG topics used: Okay, who is the head of the robotics research lab?\n- Relevant retrieved sources included: Head of the Laboratory - AG Robotersysteme RPTU\n- Last assistant direction: Prof. Dr. Karsten Berns is the head of the robotics research lab. 🙂\n- Recent affective context: trust"
   }
 }

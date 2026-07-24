@@ -1,70 +1,74 @@
 #!/usr/bin/env python3
 """
-Ameca demo integration script.
+Executable Ameca warm-up session (multimodal edition, structured flow).
 
-This combines two previously separate systems:
+Speech front end (unchanged from the original experiment):
+- Silero VAD at 16 kHz, threshold=0.55, min_silence_duration_ms=700,
+  speech_pad_ms=250, pre-roll=0.35 s, min utterance=0.60 s, max
+  utterance=15 s
+- faster-whisper base, language=en, beam_size=1, vad_filter=False,
+  condition_on_previous_text=False
+- Barge-in echo guard: while Ameca is speaking/cooling down, incoming
+  audio is buffered (not discarded) for a short tail, so genuine speech
+  starting right at the edge of the gate isn't lost.
 
-1. The thesis pipeline (vlm4.py): Silero VAD -> faster-whisper ASR ->
-   text LLM + Qwen2.5-VL facial emotion + librosa-style prosody ->
-   adaptive reliability-aware late fusion -> Self-RAG with ChromaDB ->
-   persistent per-user memory -> response generation.
+DeepFace is launched through the same isolated worker-process arrangement
+as the main experiment; TensorFlow/DeepFace is not imported into this
+process.
 
-2. The robot-facing demo script (AmecaRobotChat): Tritium TTS output and
-   the ZED vision module for general "what do you see" style queries.
+FLOW
+1. Ameca asks for the participant's name in one utterance (spelled out,
+   then said naturally), then plays a double-nod ("nod_double") as a
+   turn-end cue to reduce barge-in.
+2. The response is transcribed and parsed into a display name.
+3. Ameca states the two goals of the session (small talk + an emotional
+   facial baseline), then nods.
+4-6. For each of 6 target emotions (joy, sadness, anger, fear, surprise,
+   neutral): Ameca asks the participant to read a script while showing
+   that emotion (nod), the participant reads it, and the two sharpest
+   captured frames are saved as-is. NO emotion classification runs here --
+   this is baseline facial-expression capture only. Ameca acknowledges
+   with a plain "Next." and moves to the next emotion.
+7-8. Ameca asks the participant to show whichever emotion they might use
+   most while interacting with it. This round DOES run full multimodal
+   emotion classification (text + facial + prosody, adaptively fused),
+   saves one representative image, and Ameca replies with one sentence
+   that both states the detected emotion/confidence and responds
+   naturally to what was said.
+9. A short teacher-style Q&A: Ameca invites up to 3 questions about
+   itself/the experiment. Each question also runs full multimodal
+   classification and saves an image; each is answered conversationally.
 
-Integration choices (per user requirements):
-- ASR: Silero VAD + faster-whisper remains PRIMARY. If faster-whisper
-  returns an empty/unusable transcript, Google Speech Recognition
-  (speech_recognition library) is used as a FALLBACK on the same
-  recorded utterance.
-- Output: every spoken reply (introductions, returning-user greetings,
-  deterministic replies, normal chat replies, vision-query replies) is
-  sent to the robot via Tritium TTS using the same PUT-based API as
-  AmecaRobotChat.tts_say(), in addition to being printed to the console.
-- Vision: ZedVisionModule is the SINGLE owner of the ZED camera handle.
-  It runs continuously in a background thread. Qwen2.5-VL facial-emotion
-  sampling (used by the fusion pipeline) reads frames via
-  ZedVisionModule.get_latest_frame() instead of opening its own
-  cv2.VideoCapture, and general "what do you see" queries read via
-  ZedVisionModule.save_latest_frame(). DeepFace emotion analysis inside
-  ZedVisionModule is explicitly disabled (enable_emotion_analysis=False):
-  Qwen2.5-VL is the sole source of truth for facial-expression recognition.
-
-HARDWARE NOTE:
-Earlier versions of this script opened two independent OpenCV capture
-handles on the same physical ZED camera (one for facial sampling, one for
-general vision queries), which most UVC drivers do not support reliably
-and could cause crashes/contention. That is no longer the case: there is
-now exactly one cv2.VideoCapture handle, owned by ZedVisionModule, shared
-by both consumers via thread-safe get_latest_frame()/save_latest_frame().
+Every step is logged into a single session file:
+    warm_up_sessions/{participant_id}.json
+Images are saved under:
+    warm_up_profile/{participant_id}/{participant_id}_{id}_{emotion}_{timestamp}.jpg   (baseline, steps 4-6)
+    warm_up_profile/{participant_id}/test_{id}_{timestamp}.jpg                         (step 7)
+    warm_up_profile/{participant_id}/questions_{id}_{timestamp}.jpg                    (step 9)
 """
+
 from __future__ import annotations
 
 import argparse
-import base64
-import hashlib
 import json
 import os
 import queue
 import re
+import subprocess
 import sys
 import tempfile
-import subprocess
 import threading
 import time
 import unicodedata
-from dataclasses import dataclass, field
+from collections import deque
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Tuple
-from urllib.parse import urlparse
+from typing import Any, Optional
 
-# Linux-only Qt fix. Do not force this on macOS.
 if sys.platform.startswith("linux"):
-    os.environ["QT_QPA_PLATFORM"] = "xcb"
-
-# Harmless on non-Windows; prevents some OpenCV backend priority issues on Windows.
-os.environ["OPENCV_VIDEOIO_PRIORITY_MSMF"] = "0"
+    os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+os.environ.setdefault("OPENCV_VIDEOIO_PRIORITY_MSMF", "0")
 
 import cv2
 import numpy as np
@@ -72,16 +76,10 @@ import requests
 import sounddevice as sd
 import soundfile as sf
 import torch
-import speech_recognition as sr
 from faster_whisper import WhisperModel
 from ollama import Client
-from silero_vad import load_silero_vad, VADIterator
-import platform
+from silero_vad import VADIterator, load_silero_vad
 
-# Robot-side modules (must be present in the same project as the original
-# AmecaRobotChat script). Imported defensively so the thesis pipeline can
-# still run standalone (e.g. on a dev laptop with no robot attached) if
-# these are missing.
 try:
     from tts_active import find_target_device, listen_levels_for_device, is_tts_active
     HAS_TTS_ACTIVITY_MONITOR = True
@@ -89,294 +87,362 @@ except Exception as exc:  # pragma: no cover
     HAS_TTS_ACTIVITY_MONITOR = False
     print(f"[WARN] tts_active module not available, TTS-activity echo guard disabled: {exc}")
 
-# zed_vision_module is imported LAZILY (inside main(), only if ZED vision is
-# actually requested) rather than at module load time. zed_vision_module
-# pulls in tensorflow + deepface, and loading tensorflow into the same
-# process as torch/sentence-transformers/mediapipe is a common cause of a
-# silent native segfault (no Python traceback) on Linux, even when the
-# import itself "succeeds" or is later unused. Importing it eagerly here
-# meant every run paid that risk, even with --disable_zed_vision.
-ZedVisionModule = None
-HAS_ZED_VISION = False
+try:
+    import mediapipe as mp
+    HAS_MEDIAPIPE = True
+except Exception as exc:  # pragma: no cover
+    HAS_MEDIAPIPE = False
+    print(
+        f"[WARN] mediapipe not available ({exc}); local face-region detection "
+        "will use the Haar cascade fallback only. Install mediapipe in this "
+        "environment for a more robust detector (`pip install mediapipe`)."
+    )
+
+try:
+    # gaze_speaker_utils.py (RRLab) unconditionally imports mediapipe itself,
+    # so this import fails the same way if mediapipe isn't installed --
+    # SessionMedia (audio+video muxed via ffmpeg) is simply unavailable in
+    # that case and the video-only SessionVideoRecorder is used instead.
+    from gaze_speaker_utils import SessionMedia
+    HAS_SESSION_MEDIA = True
+except Exception as exc:  # pragma: no cover
+    HAS_SESSION_MEDIA = False
+    print(
+        f"[WARN] gaze_speaker_utils.SessionMedia not available ({exc}); "
+        "session recording will be video-only (no audio track). Make sure "
+        "gaze_speaker_utils.py is importable (e.g. on PYTHONPATH or next to "
+        "this script) to enable muxed audio+video recording."
+    )
 
 
-def try_import_zed_vision_module() -> bool:
-    """
-    Attempt to import zed_vision_module on demand. Call this only when ZED
-    vision is actually going to be used (see main()). Sets the module-level
-    ZedVisionModule/HAS_ZED_VISION globals.
-    """
-    global ZedVisionModule, HAS_ZED_VISION
-    if HAS_ZED_VISION and ZedVisionModule is not None:
-        return True
-    try:
-        from zed_vision_module import ZedVisionModule as _ZedVisionModule
-        ZedVisionModule = _ZedVisionModule
-        HAS_ZED_VISION = True
-        return True
-    except Exception as exc:  # pragma: no cover
-        HAS_ZED_VISION = False
-        print(f"[WARN] zed_vision_module not available, ZED vision queries disabled: {exc}")
-        return False
-
-IS_MAC = platform.system() == "Darwin"
-IS_LINUX = platform.system() == "Linux"
-
-CAMERA_DEVICE = 0 if IS_MAC else 1
-USE_ZED_HALF_FRAME_CROP = IS_LINUX
-
-# =========================
-# Local Ollama configuration
-# =========================
-
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-
-MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
-VISION_MODEL_NAME = os.environ.get("OLLAMA_VISION_MODEL", "qwen2.5vl:7b")
-# Vision model used specifically for general ZED "what do you see" queries.
-# Can be the same as VISION_MODEL_NAME, but kept separate because the demo
-# script previously used llava:7b for this purpose.
-ZED_VISION_MODEL_NAME = os.environ.get("ZED_VISION_MODEL", VISION_MODEL_NAME)
-
-
-# =========================
-# Persistent memory / transcript configuration
-# =========================
-
-DATA_DIR = "conversation_data"
-USERS_FILE = os.path.join(DATA_DIR, "users.json")
-SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
-
-
-# =========================
-# Self-RAG / local knowledge configuration
-# =========================
-
-SELF_RAG_ENABLED = os.environ.get("SELF_RAG_ENABLED", "1") == "1"
-SELF_RAG_KB_DIR = os.environ.get("SELF_RAG_KB_DIR", "knowledge_base")
-
-SELF_RAG_DB_DIR = os.environ.get("SELF_RAG_DB_DIR", "chroma_db")
-SELF_RAG_COLLECTION = os.environ.get("SELF_RAG_COLLECTION", "emah_knowledge")
-SELF_RAG_EMBED_MODEL = os.environ.get("SELF_RAG_EMBED_MODEL", "all-MiniLM-L6-v2")
-SELF_RAG_TOP_K = int(os.environ.get("SELF_RAG_TOP_K", "12"))
-SELF_RAG_CHUNK_SIZE = int(os.environ.get("SELF_RAG_CHUNK_SIZE", "900"))
-SELF_RAG_CHUNK_OVERLAP = int(os.environ.get("SELF_RAG_CHUNK_OVERLAP", "150"))
-SELF_RAG_MIN_CONTEXT_CHARS = int(os.environ.get("SELF_RAG_MIN_CONTEXT_CHARS", "80"))
-SELF_RAG_MAX_CONTEXT_CHARS = int(os.environ.get("SELF_RAG_MAX_CONTEXT_CHARS", "6500"))
-
-SELF_RAG_MAX_DISTANCE = float(os.environ.get("SELF_RAG_MAX_DISTANCE", "0.52"))
-SELF_RAG_FINAL_TOP_K = int(os.environ.get("SELF_RAG_FINAL_TOP_K", "5"))
-SELF_RAG_MIN_HYBRID_SCORE = float(os.environ.get("SELF_RAG_MIN_HYBRID_SCORE", "0.62"))
-SELF_RAG_PERSON_LOOKUP_STRICT = os.environ.get("SELF_RAG_PERSON_LOOKUP_STRICT", "1") == "1"
-SELF_RAG_SKIP_SOCIAL = os.environ.get("SELF_RAG_SKIP_SOCIAL", "1") == "1"
-SELF_RAG_SKIP_EMOTIONAL_SUPPORT = os.environ.get("SELF_RAG_SKIP_EMOTIONAL_SUPPORT", "1") == "1"
-
-KNOWN_RRLAB_ENTITIES = {
-    "ashita", "ashita ashok", "ameca", "emah", "rrlab",
-    "robotics research lab", "robotersysteme", "ravon", "robin", "carl",
-    "unimog", "avos", "dengel", "sembai", "senna", "casrew", "zukunftbau", "znt",
-}
-
-SELF_RAG_REINDEX_ON_START = os.environ.get("SELF_RAG_REINDEX_ON_START", "0") == "1"
-SELF_RAG_AUTO_SCRAPE_ON_EMPTY = os.environ.get("SELF_RAG_AUTO_SCRAPE_ON_EMPTY", "0") == "1"
-SELF_RAG_SCRAPE_SCRIPT = os.environ.get("SELF_RAG_SCRAPE_SCRIPT", "scrape.py")
-SELF_RAG_SUPPORTED_EXTENSIONS = {".txt", ".md", ".markdown", ".json", ".csv", ".py", ".html", ".htm", ".pdf"}
-
-ENABLE_LLM_SESSION_SUMMARY = os.environ.get("ENABLE_LLM_SESSION_SUMMARY", "1") == "1"
-ENABLE_NAME_SPELLING = os.environ.get("ENABLE_NAME_SPELLING", "1") == "1"
-ASK_SPELLED_NAME_ON_START = os.environ.get("ASK_SPELLED_NAME_ON_START", "1") == "1"
-
-ENABLE_RETURNING_USER_MEMORY_GREETING = os.environ.get("ENABLE_RETURNING_USER_MEMORY_GREETING", "1") == "1"
-RETURNING_USER_GREETING_MAX_SUMMARY_CHARS = int(os.environ.get("RETURNING_USER_GREETING_MAX_SUMMARY_CHARS", "420"))
-
-
-# =========================
-# Ameca identity prompt
-# =========================
-
-AMECA_SYSTEM_PROMPT = """
-You are Ameca, a humanoid social robot used in a university laboratory for research and demonstrations.
-
-IDENTITY
-You are a robot, not a human. Speak in a friendly, professional tone. Refer to yourself as a robot only when relevant, not in every response.
-
-CAPABILITY BOUNDARIES
-You are a humanoid upper-torso robot approximately 187 cm tall and about 49 kg in weight.
-You can provide conversational help, explanations, brainstorming, writing feedback, study guidance, and thesis-structure support.
-You cannot physically perform tasks for the user.
-You cannot walk because your legs are decorative.
-Your perception depends on the provided inputs.
-You cannot see unless vision input is explicitly provided.
-You cannot access the internet unless explicitly stated.
-Do not claim internal diagnostics, sensor access, or system state beyond what is explicitly provided.
-
-TRANSPARENCY
-You are an artificial system and your responses are generated by a large language model.
-If uncertain, say so instead of guessing.
-Do not fabricate facts, dates, sources, capabilities, or memories.
-
-TASK
-Hold a natural conversation with the user.
-Answer clearly.
-Keep responses concise, usually 1-2 sentences, unless the user asks for more detail.
-
-PRIVACY
-Do not ask for sensitive personal information such as passwords, medical data, financial information, or private identity documents.
-Treat the conversation as locally stored for this prototype. A local JSON transcript and a concise conversation summary may be saved at the end of the session.
-
-
-MEMORY AND CONTINUITY
-You have continuity memory through locally stored user profiles and conversation summaries.
-You may reference previous conversations, ongoing projects, prior discussion topics, and saved user preferences only when they are present in the provided local memory context.
-Do not claim human-like autobiographical memory.
-Do not invent memories outside the provided local memory context.
-If the user asks whether you remember previous conversations, explain that you can continue from the saved local conversation summary when one is available.
-
-USER ADAPTATION
-Use clear, simple explanations.
-
-ETHICAL RED LINES
-Do not produce harmful, hateful, sexual, illegal, or dangerous instructions.
-Do not pretend to have human emotions or lived experiences.
-Do not mislead users about your capabilities or limitations.
-"""
-
-
-# =========================
-# faster-whisper configuration
-# =========================
+# =============================================================================
+# Configuration
+# =============================================================================
 
 FAST_WHISPER_CONFIG = {
     "profile": "home_macbook_cpu",
-    "model": "base",
-    "device": "cuda",
-    "compute_type": "int8",
+    "model": os.environ.get("WHISPER_MODEL", "base"),
+    "device": os.environ.get("WHISPER_DEVICE", "cuda"),
+    "compute_type": os.environ.get("WHISPER_COMPUTE_TYPE", "int8"),
     "language": "en",
     "beam_size": 1,
     "vad_filter": False,
 }
 
-# SCHOOL / GPU CONFIG
-# FAST_WHISPER_CONFIG = {
-#     "profile": "school_gpu",
-#     "model": "small",
-#     "device": "cuda",
-#     "compute_type": "float16",
-#     "language": "en",
-#     "beam_size": 1,
-#     "vad_filter": False,
-# }
-
-
-# =========================
-# Audio / Silero VAD configuration
-# =========================
-
 TARGET_SAMPLE_RATE = 16000
-INPUT_DEVICE: Optional[int] = None
-
 SILERO_SAMPLE_RATE = 16000
 SILERO_CHUNK_SIZE = 512
-
 SILERO_THRESHOLD = 0.55
-
 SILERO_MIN_SILENCE_DURATION_MS = 700
 SILERO_SPEECH_PAD_MS = 250
-
 VAD_MAX_UTTERANCE_SECONDS = 15.0
 VAD_MIN_UTTERANCE_SECONDS = 0.60
 VAD_PRE_ROLL_SECONDS = 0.35
 
+# Barge-in echo-guard tail: rather than fully discarding audio while Ameca
+# is speaking/cooling down, keep a short rolling buffer so genuine speech
+# starting right at the edge of the TTS gate isn't lost outright.
+BARGE_IN_TAIL_SECONDS = float(os.environ.get("BARGE_IN_TAIL_SECONDS", "2.0"))
+BARGE_IN_MAX_AGE_SECONDS = float(os.environ.get("BARGE_IN_MAX_AGE_SECONDS", "1.5"))
+
 MIN_PEAK_THRESHOLD = 0.01
 MIN_RMS_THRESHOLD = 0.003
 
+# Session/profile storage layout.
+SESSIONS_DIR = Path(os.environ.get("WARMUP_SESSIONS_DIR", "warm_up_sessions"))
+PROFILE_DIR = Path(os.environ.get("WARMUP_PROFILE_DIR", "warm_up_profile"))
+VIDEOS_DIR = Path(os.environ.get("WARMUP_VIDEOS_DIR", "warm_up_videos"))
 
-# =========================
-# Camera / Qwen2.5-VL configuration (facial emotion sampling)
-# =========================
+# Continuous session video recording.
+VIDEO_RECORD_FPS = float(os.environ.get("VIDEO_RECORD_FPS", "15"))
+VIDEO_FOURCC = os.environ.get("VIDEO_FOURCC", "mp4v")
 
-CAMERA_DEVICE: Optional[int] = 0 if IS_LINUX else 0
+TTS_URL = os.environ.get(
+    "TRITIUM_TTS_URL",
+    "http://emah/tritium/text_to_speech/say?voice=Lucy",
+)
+TTS_TOKEN = os.environ.get("TRITIUM_TOKEN", "")
 
-ZED_STEREO_WIDTH = 2560
-ZED_STEREO_HEIGHT = 720
+# Turn-end nod gesture, played via the same Tritium sequence_player
+# endpoint the main pipeline uses for facial expressions -- here used
+# purely as a "I'm done talking" cue to reduce barge-in.
+EXPRESSION_HOST = os.environ.get("EXPRESSION_HOST", "http://emah")
+NOD_SEQUENCE_NAME = os.environ.get("NOD_SEQUENCE_NAME", "nod_double")
 
-CAMERA_FRAME_WIDTH = ZED_STEREO_WIDTH if IS_LINUX else 1280
-CAMERA_FRAME_HEIGHT = ZED_STEREO_HEIGHT if IS_LINUX else 720
-
-CAMERA_PREVIEW_WIDTH = 960
-CAMERA_PREVIEW_HEIGHT = 540
-
-CAMERA_PREVIEW_ENABLED = os.environ.get("CAMERA_PREVIEW_ENABLED", "1") == "1"
-CAMERA_PREVIEW_WINDOW_NAME = "Camera Preview - press q to close preview"
-
-USE_ZED_HALF_FRAME_CROP = IS_LINUX
-
-CAMERA_SAMPLE_EVERY_SECONDS = float(os.environ.get("CAMERA_SAMPLE_EVERY_SECONDS", "0.5"))
-CAMERA_WARMUP_SECONDS = float(os.environ.get("CAMERA_WARMUP_SECONDS", "0.35"))
-FACE_MAX_CANDIDATE_FRAMES = int(os.environ.get("FACE_MAX_CANDIDATE_FRAMES", "5"))
-
-VISION_JPEG_QUALITY = int(os.environ.get("VISION_JPEG_QUALITY", "80"))
-VISION_MODEL_TIMEOUT_SECONDS = int(os.environ.get("VISION_MODEL_TIMEOUT_SECONDS", "20"))
-VISION_DEBUG = os.environ.get("VISION_DEBUG", "1") == "1"
-VISION_DEBUG_DIR = os.environ.get("VISION_DEBUG_DIR", "vision_debug_frames")
-VISION_MAX_IMAGE_SIDE = int(os.environ.get("VISION_MAX_IMAGE_SIDE", "224"))
-
-VISION_DENOISE_ENABLED = os.environ.get("VISION_DENOISE_ENABLED", "1") == "1"
-VISION_LIGHTING_ENHANCE_ENABLED = os.environ.get("VISION_LIGHTING_ENHANCE_ENABLED", "1") == "1"
-VISION_SHARPEN_ENABLED = os.environ.get("VISION_SHARPEN_ENABLED", "1") == "1"
-VISION_DENOISE_H = float(os.environ.get("VISION_DENOISE_H", "3"))
-VISION_DENOISE_H_COLOR = float(os.environ.get("VISION_DENOISE_H_COLOR", "3"))
-VISION_CLAHE_CLIP_LIMIT = float(os.environ.get("VISION_CLAHE_CLIP_LIMIT", "1.5"))
-VISION_MIN_BRIGHTNESS = float(os.environ.get("VISION_MIN_BRIGHTNESS", "35.0"))
-VISION_MAX_BRIGHTNESS = float(os.environ.get("VISION_MAX_BRIGHTNESS", "220.0"))
-VISION_MIN_SHARPNESS = float(os.environ.get("VISION_MIN_SHARPNESS", "8.0"))
-VISION_SKIP_LOW_QUALITY = os.environ.get("VISION_SKIP_LOW_QUALITY", "0") == "1"
-FACE_ANALYSIS_STRATEGY = os.environ.get("FACE_ANALYSIS_STRATEGY", "multi_frame").strip().lower()
-FACE_MULTI_FRAME_COUNT = int(os.environ.get("FACE_MULTI_FRAME_COUNT", "3"))
-
-FACE_MIN_TOP_SCORE = float(os.environ.get("FACE_MIN_TOP_SCORE", "35.0"))
-FACE_MIN_MARGIN = float(os.environ.get("FACE_MIN_MARGIN", "8.0"))
-
-
-# =========================
-# Chat configuration
-# =========================
-
-MAX_HISTORY_MESSAGES = 12
-
-PLUTCHIK_EMOTIONS = {
-    "joy": "😊",
-    "trust": "🙂",
-    "fear": "😨",
-    "surprise": "😮",
-    "sadness": "😢",
-    "disgust": "🤢",
-    "anger": "😠",
-    "anticipation": "🤔",
-    "neutral": "🙂"
+# ZED stereo camera resolution presets: (SBS width, SBS height, max fps),
+# as reported by the UVC device. Per-eye width/height after the
+# half-frame crop is exactly half the SBS width. Sourced from RRLab's
+# gaze_speaker_utils.py RESOLUTION_MAP; fps values are the ZED's known
+# per-resolution hardware maximums.
+RESOLUTION_MAP = {
+    "HD2K":   (4416, 1242, 15),
+    "HD1080": (3840, 1080, 30),
+    "HD720":  (2560, 720, 60),
 }
 
-ALLOWED_FACE_EMOJIS = set(PLUTCHIK_EMOTIONS.values())
+_DEFAULT_RESOLUTION = "HD2K"
+_DEFAULT_SBS_WIDTH, _DEFAULT_SBS_HEIGHT, _DEFAULT_FPS = RESOLUTION_MAP[_DEFAULT_RESOLUTION]
 
-# =========================
-# Adaptive reliability-aware emotion fusion
-# =========================
+CAMERA_WIDTH = int(os.environ.get("CAMERA_WIDTH", str(_DEFAULT_SBS_WIDTH)))
+CAMERA_HEIGHT = int(os.environ.get("CAMERA_HEIGHT", str(_DEFAULT_SBS_HEIGHT)))
+CAMERA_FPS = int(os.environ.get("CAMERA_FPS", str(_DEFAULT_FPS)))
+USE_ZED_HALF_FRAME_CROP = os.environ.get("USE_ZED_HALF_FRAME_CROP", "1") == "1"
+CAMERA_SAMPLE_EVERY_SECONDS = float(
+    os.environ.get("CAMERA_SAMPLE_EVERY_SECONDS", "0.5")
+)
+FACE_MAX_CANDIDATE_FRAMES = int(
+    os.environ.get("FACE_MAX_CANDIDATE_FRAMES", "2")
+)
+
+DEEPFACE_PYTHON = os.environ.get("DEEPFACE_PYTHON", "")
+DEEPFACE_WORKER_SCRIPT = os.environ.get(
+    "DEEPFACE_WORKER_SCRIPT", "deepface_worker.py"
+)
+DEEPFACE_STARTUP_TIMEOUT_SECONDS = float(
+    os.environ.get("DEEPFACE_STARTUP_TIMEOUT_SECONDS", "90")
+)
+DEEPFACE_REQUEST_TIMEOUT_SECONDS = float(
+    os.environ.get("DEEPFACE_REQUEST_TIMEOUT_SECONDS", "5")
+)
+
+# The 6 baseline emotions (5 affective + neutral). Order is preserved.
+EMOTION_SCRIPTS: dict[str, str] = {
+    "joy": "I received wonderful news today, and I feel very happy and excited.",
+    "sadness": (
+        "Something important to me did not go as planned, and I feel sad "
+        "and disappointed."
+    ),
+    "anger": (
+        "Someone treated me unfairly, and I feel angry about what happened."
+    ),
+    "fear": (
+        "I heard a sudden sound behind me, and I feel frightened because "
+        "I do not know what caused it."
+    ),
+    "surprise": (
+        "I opened the door and found an unexpected celebration waiting for me."
+    ),
+    "neutral": (
+        "This is just a plain description of my day. Nothing about it "
+        "feels especially strong one way or another."
+    ),
+}
+
+DEEPFACE_TO_PROFILE_EMOTION = {
+    "happy": "joy",
+    "sad": "sadness",
+    "angry": "anger",
+    "fear": "fear",
+    "surprise": "surprise",
+    "disgust": "disgust",
+    "neutral": "neutral",
+}
+
+# =============================================================================
+# Multimodal emotion-classification configuration
+# =============================================================================
+
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+EMOTION_MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
+
+# Ekman's basic emotion categories ("happiness" relabeled "joy" to match
+# this script's existing EMOTION_SCRIPTS/baseline naming), plus "neutral".
+# This matches exactly what DeepFace's own classifier outputs (see
+# DEEPFACE_TO_PROFILE_EMOTION), unlike the previous Plutchik-based vocabulary,
+# which included "trust"/"anticipation" -- categories DeepFace can never
+# produce at all, so the visual modality always contributed 0.0 to them.
+# Aligning all three modalities (text, facial, prosody) on the same
+# vocabulary removes that structural mismatch.
+FUSION_EMOTIONS = [
+    "joy", "sadness", "anger", "fear", "surprise", "disgust", "neutral",
+]
+
 FUSION_TEXT_WEIGHT = float(os.environ.get("FUSION_TEXT_WEIGHT", "0.5"))
 FUSION_VISUAL_WEIGHT = float(os.environ.get("FUSION_VISUAL_WEIGHT", "0.4"))
 FUSION_PROSODY_WEIGHT = float(os.environ.get("FUSION_PROSODY_WEIGHT", "0.1"))
 
-FUSION_ENABLE_SEMANTIC_OVERRIDE = os.environ.get("FUSION_ENABLE_SEMANTIC_OVERRIDE", "1") == "1"
-FUSION_EXPLICIT_TEXT_CONFIDENCE = float(os.environ.get("FUSION_EXPLICIT_TEXT_CONFIDENCE", "0.72"))
+# When enabled, every DeepFace candidate frame considered during the
+# test-emotion round, the Q&A, and baseline capture is ALSO saved to a
+# per-participant "debug" folder as a raw (uncropped) frame, tagged with
+# its outcome (no_face / unmapped / confident emotion / failed) -- useful
+# for diagnosing why a face wasn't detected, but not something you want
+# on by default once things are working, since it writes an extra,
+# uncropped image alongside every properly cropped one. Default OFF: only
+# the final cropped face image is ever persisted to disk. The print_ts
+# diagnostic summaries (considered/confident/no_face counts, etc.) always
+# run regardless of this flag -- only the extra image files are gated.
+VISION_DEBUG = os.environ.get("VISION_DEBUG", "0") == "1"
 
-# =========================
-# Response length configuration
-# =========================
-# Hard backstop on reply length. This is enforced in code (see
-# truncate_to_max_sentences / normalize_reply) in addition to being
-# requested in the system prompt, because LLMs do not always honor a
-# "keep it short" instruction reliably.
-MAX_REPLY_SENTENCES = int(os.environ.get("MAX_REPLY_SENTENCES", "2"))
 
+# =============================================================================
+# General helpers
+# =============================================================================
+
+def now_ts() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def print_ts(message: str) -> None:
+    print(f"[{now_ts()}] {message}", flush=True)
+
+
+def sanitize_participant_folder_name(value: str) -> str:
+    """
+    Filesystem-safe, CASE-PRESERVING name used both for the session's JSON
+    filename and its image folder, so "A11320" stays "A11320" rather than
+    silently becoming "a11320" -- a mismatch that otherwise makes saved
+    files look "missing" when checked by the literal participant number.
+    """
+    value = value.strip()
+    value = re.sub(r"[^A-Za-z0-9_-]+", "_", value)
+    value = value.strip("_")
+    return value or "unknown_participant"
+
+
+def ensure_directories() -> None:
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def list_input_devices() -> None:
+    print("\nAvailable audio input devices:")
+    try:
+        devices = sd.query_devices()
+        for index, device in enumerate(devices):
+            if int(device.get("max_input_channels", 0)) > 0:
+                marker = ""
+                try:
+                    if index == sd.default.device[0]:
+                        marker = " [default]"
+                except Exception:
+                    pass
+                print(
+                    f"  {index}: {device['name']} | "
+                    f"inputs={device['max_input_channels']} | "
+                    f"default_rate={device['default_samplerate']}{marker}"
+                )
+    except Exception as exc:
+        print(f"  Could not enumerate devices: {exc}")
+    print()
+
+
+# =============================================================================
+# Session persistence (single JSON file per participant)
+# =============================================================================
+
+def new_session(participant_id: str, participant_folder: str) -> dict[str, Any]:
+    return {
+        "participant_id": participant_id,
+        "participant_folder": participant_folder,
+        "display_name": "",
+        "started_at": now_iso(),
+        "ended_at": None,
+        "goals_stated": False,
+        "baseline_emotion_rounds": {},  # emotion -> {...}
+        "test_emotion_round": None,     # {...}
+        "qa_session": [],               # [{...}, ...]
+        "conversation": [],             # full turn-by-turn transcript
+        "video_path": None,             # session video, set once recording starts
+        "_next_image_id": 1,
+    }
+
+
+def append_turn(session: dict[str, Any], role: str, content: str, **extra: Any) -> None:
+    turn: dict[str, Any] = {"role": role, "content": content, "timestamp": now_iso()}
+    if extra:
+        turn.update(extra)
+    session["conversation"].append(turn)
+
+
+def allocate_image_id(session: dict[str, Any]) -> int:
+    current = int(session.get("_next_image_id", 1))
+    session["_next_image_id"] = current + 1
+    return current
+
+
+def save_session(participant_id: str, session: dict[str, Any]) -> Path:
+    """
+    Atomic write of the whole session to warm_up_sessions/{participant_id}.json.
+    Called after every major step (not just at the end), so a crash or
+    Ctrl+C mid-session still leaves a usable, up-to-date session file.
+    """
+    ensure_directories()
+    folder_name = session.get("participant_folder") or sanitize_participant_folder_name(participant_id)
+    path = SESSIONS_DIR / f"{folder_name}.json"
+    temp_path = path.with_suffix(".json.tmp")
+    with temp_path.open("w", encoding="utf-8") as file:
+        json.dump(session, file, indent=2, ensure_ascii=False, default=str)
+    temp_path.replace(path)
+    return path
+
+
+def build_profile_image_path(
+    participant_folder: str,
+    kind: str,
+    image_id: int,
+    emotion: Optional[str] = None,
+) -> Path:
+    """
+    kind == "baseline" -> {participant_folder}_{id}_{emotion}_{timestamp}.jpg
+    kind == "test"     -> test_{id}_{timestamp}.jpg
+    kind == "questions"-> questions_{id}_{timestamp}.jpg
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    directory = PROFILE_DIR / participant_folder
+    directory.mkdir(parents=True, exist_ok=True)
+
+    if kind == "baseline":
+        filename = f"{participant_folder}_{image_id}_{emotion}_{timestamp}.jpg"
+    elif kind == "test":
+        filename = f"test_{image_id}_{timestamp}.jpg"
+    elif kind == "questions":
+        filename = f"questions_{image_id}_{timestamp}.jpg"
+    else:
+        filename = f"{kind}_{image_id}_{timestamp}.jpg"
+
+    return directory / filename
+
+
+def save_frame_to_profile(frame: np.ndarray, path: Path) -> bool:
+    """cv2.imwrite() does not raise on failure -- it returns False -- so
+    the result must be checked explicitly, or a failed write looks
+    identical to a successful one in the logs."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        ok = cv2.imwrite(str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
+        if not ok or not path.exists() or path.stat().st_size == 0:
+            print_ts(f"[WARN] Failed to save profile image: {path}")
+            return False
+        return True
+    except Exception as exc:
+        print_ts(f"[WARN] Exception saving profile image {path}: {exc}")
+        return False
+
+
+def _save_debug_frame(frame: np.ndarray, debug_dir: Path, tag: str) -> None:
+    if not VISION_DEBUG:
+        return
+    try:
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        path = debug_dir / f"{tag}_{timestamp}.jpg"
+        ok = cv2.imwrite(str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if not ok:
+            print_ts(f"[WARN] cv2.imwrite returned False for debug frame: {path}")
+        elif not path.exists() or path.stat().st_size == 0:
+            print_ts(f"[WARN] Debug frame reports success but file is missing/empty: {path}")
+    except Exception as exc:
+        print_ts(f"Could not save DeepFace debug frame: {exc}")
+
+
+# =============================================================================
+# Emotion-classification data structures
+# =============================================================================
 
 @dataclass
 class EmotionResult:
@@ -414,2388 +480,22 @@ class FusedEmotionResult:
     text_emotion: dict[str, Any]
     visual_emotion: dict[str, Any]
     prosody_emotion: dict[str, Any]
-    # Per-modality wall-clock response times in seconds, e.g.
-    # {"text_seconds": 0.41, "visual_seconds": 1.22, "prosody_seconds": 0.0006}.
-    # "total_seconds" is added automatically in as_json as the sum of the
-    # numeric entries present here.
-    response_times: dict[str, Any] = field(default_factory=dict)
 
     @property
     def as_json(self) -> dict:
-        response_times = {
-            k: (round(v, 4) if isinstance(v, (int, float)) else v)
-            for k, v in (self.response_times or {}).items()
-        }
-        numeric = [v for v in response_times.values() if isinstance(v, (int, float))]
-        response_times["total_seconds"] = round(sum(numeric), 4) if numeric else None
-
         return {
             "emotion": self.emotion,
-            "confidence": self.confidence,
+            "confidence": round(self.confidence, 4),
             "reason": self.reason,
-            "scores": self.scores,
-            "weights": self.weights,
+            "scores": {k: round(v, 4) for k, v in self.scores.items()},
+            "weights": {k: round(v, 4) for k, v in self.weights.items()},
             "text_emotion": self.text_emotion,
             "visual_emotion": self.visual_emotion,
             "prosody_emotion": self.prosody_emotion,
-            "response_times": response_times,
-        }
-
-    def to_emotion_result(self) -> EmotionResult:
-        return EmotionResult(
-            emotion=self.emotion,
-            confidence=self.confidence,
-            reason=self.reason,
-        )
-
-
-@dataclass
-class SelfRAGContext:
-    available: bool
-    used: bool
-    query: str
-    context_text: str
-    sources: list[dict[str, Any]]
-    reason: str
-    error: Optional[str] = None
-
-    @property
-    def as_json(self) -> dict:
-        return {
-            "available": self.available,
-            "used": self.used,
-            "query": self.query,
-            "sources": self.sources,
-            "reason": self.reason,
-            "error": self.error,
         }
 
 
-@dataclass
-class SelfRAGStore:
-    enabled: bool
-    collection: Any = None
-    embedder: Any = None
-    error: Optional[str] = None
-
-
-@dataclass
-class FaceEmotionCapture:
-    emotion_score_samples: list[dict[str, float]]
-    frame_count: int
-    sampled_frame_count: int
-    started_at: str
-    ended_at: str
-    error: Optional[str] = None
-    # Wall-clock seconds spent inside the Qwen2.5-VL analysis call itself
-    # (not the whole VAD capture window). None if analysis never ran.
-    analysis_seconds: Optional[float] = None
-
-    @property
-    def averaged_scores(self) -> dict[str, float]:
-        if not self.emotion_score_samples:
-            return {}
-
-        totals: dict[str, float] = {}
-        for sample in self.emotion_score_samples:
-            for emotion, score in sample.items():
-                totals[emotion] = totals.get(emotion, 0.0) + score
-
-        count = len(self.emotion_score_samples)
-        return {emotion: total / count for emotion, total in totals.items()}
-
-    @property
-    def dominant_emotion(self) -> Optional[str]:
-        scores = self.averaged_scores
-        if not scores:
-            return None
-        return max(scores.items(), key=lambda item: item[1])[0]
-
-    @property
-    def is_reliable(self) -> bool:
-        scores = self.averaged_scores
-        if not scores:
-            return False
-
-        ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-        top_score = ordered[0][1]
-        second_score = ordered[1][1] if len(ordered) > 1 else 0.0
-        return top_score >= FACE_MIN_TOP_SCORE and (top_score - second_score) >= FACE_MIN_MARGIN
-
-    @property
-    def summary_text(self) -> str:
-        if self.error:
-            return f"No facial-expression hint available because: {self.error}"
-
-        scores = self.averaged_scores
-        if not scores:
-            return "No reliable facial-expression hint was captured during speech."
-
-        ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-
-        if not self.is_reliable:
-            top_parts = [f"{emo}={score:.0f}%" for emo, score in ordered[:3]]
-            return (
-                "Facial-expression hint was weak or mixed; "
-                f"top_signals=({', '.join(top_parts)}); "
-                f"samples={self.sampled_frame_count}"
-            )
-
-        parts = [f"{emo}={score:.0f}%" for emo, score in ordered if score >= 5.0]
-        return (
-            f"dominant={self.dominant_emotion}; "
-            f"averaged_scores=({', '.join(parts)}); "
-            f"samples={self.sampled_frame_count}"
-        )
-
-    @property
-    def as_json(self) -> dict:
-        scores = self.averaged_scores
-        return {
-            "available": self.error is None and bool(scores),
-            "reliable": self.is_reliable,
-            "dominant_emotion": self.dominant_emotion,
-            "averaged_scores": scores,
-            "frame_count": self.frame_count,
-            "sampled_frame_count": self.sampled_frame_count,
-            "started_at": self.started_at,
-            "ended_at": self.ended_at,
-            "error": self.error,
-            "analysis_seconds": (
-                round(self.analysis_seconds, 4) if isinstance(self.analysis_seconds, (int, float)) else None
-            ),
-            "note": (
-                "Qwen2.5-VL facial expression analysis is used as the visual component "
-                "in fixed weighted late fusion."
-            ),
-        }
-
-
-# =========================
-# Timestamp helpers
-# =========================
-
-def now_ts() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def print_ts(message: str) -> None:
-    print(f"[{now_ts()}] {message}")
-
-
-def normalize_command(text: str) -> Optional[str]:
-    stripped = text.strip().lower()
-    if not stripped.startswith(("/", "\\")):
-        return None
-    return re.sub(r"^[\\/]+", "", stripped)
-
-
-def default_face_emotion_json() -> dict:
-    return {
-        "available": False,
-        "reliable": False,
-        "dominant_emotion": None,
-        "averaged_scores": {},
-        "frame_count": 0,
-        "sampled_frame_count": 0,
-        "started_at": None,
-        "ended_at": None,
-        "error": "No face emotion capture was provided.",
-        "analysis_seconds": None,
-    }
-
-
-# =========================
-# Robot output helpers (Tritium TTS) and text cleaning
-# =========================
-
-def clean_text_for_tts(text: str) -> str:
-    """
-    Remove markdown/control characters but keep umlauts and other letters.
-    Mirrors AmecaRobotChat.clean_text from the robot-facing script.
-    """
-    if not text:
-        return ""
-    text = re.sub(r'[*_`~]', '', text)
-    text = ''.join(c for c in text if unicodedata.category(c)[0] != 'C')
-    return text.strip()
-
-
-class RobotSpeaker:
-    """
-    Thin wrapper around the Tritium TTS PUT API used by AmecaRobotChat.tts_say().
-    Also tracks a short "speaking tail" so the VAD loop can be told to ignore
-    audio immediately after the robot finishes speaking (echo guard), mirroring
-    the original demo script's behavior.
-    """
-
-    def __init__(self, tts_url: str, tts_token: str = "", speaking_cooldown_s: float = 0.3) -> None:
-        self.tts_url = tts_url
-        self.tts_token = tts_token
-        self.speaking_cooldown_s = speaking_cooldown_s
-        self._speaking_until = 0.0
-
-        parsed = urlparse(tts_url)
-        self._host = f"{parsed.scheme}://{parsed.netloc}"
-
-    def _now(self) -> float:
-        return time.time()
-
-    def bump_speaking_tail(self, extra: Optional[float] = None) -> None:
-        tail = self.speaking_cooldown_s if extra is None else extra
-        self._speaking_until = max(self._speaking_until, self._now() + tail)
-
-    def is_speaking_or_cooling_down(self) -> bool:
-        activity_flag = False
-        if HAS_TTS_ACTIVITY_MONITOR:
-            try:
-                activity_flag = is_tts_active()
-            except Exception:
-                activity_flag = False
-        return activity_flag or (self._now() < self._speaking_until)
-
-    def say(self, text: str) -> None:
-        """
-        Speak `text` on the robot via Tritium TTS. Also prints to console so
-        the existing console-based logging/debugging still works.
-        """
-        spoken = clean_text_for_tts(text)
-        if not spoken:
-            return
-
-        self.bump_speaking_tail()
-
-        headers = {"Content-Type": "text/plain; charset=utf-8"}
-        if self.tts_token:
-            headers["X-Tritium-Auth-Token"] = self.tts_token
-
-        print_ts(f"[TTS] PUT {self.tts_url} (token_set={bool(self.tts_token)}) text={spoken[:80]!r}")
-
-        try:
-            response = requests.put(self.tts_url, data=spoken.encode("utf-8"), headers=headers, timeout=5)
-            if 200 <= response.status_code < 300:
-                print_ts(f"[TTS] Tritium responded {response.status_code} OK.")
-                return
-            print_ts(
-                f"[TTS] Tritium responded with a non-success status "
-                f"{response.status_code}: {response.text[:300]!r}"
-            )
-        except Exception as exc:
-            print_ts(f"[TTS] requests.put failed: {exc}")
-
-        # Fallback path (urllib) only runs if the primary request raised an
-        # exception or returned a non-success status.
-        try:
-            import urllib.request
-            import urllib.error
-            req = urllib.request.Request(
-                self.tts_url,
-                method="PUT",
-                data=spoken.encode("utf-8"),
-                headers=headers,
-            )
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                print_ts(f"[TTS] urllib fallback responded {resp.status}.")
-        except urllib.error.HTTPError as exc2:
-            body = ""
-            try:
-                body = exc2.read().decode("utf-8", errors="ignore")[:300]
-            except Exception:
-                pass
-            print_ts(f"[TTS] urllib fallback HTTP error {exc2.code}: {body!r}")
-        except Exception as exc2:
-            print_ts(f"[TTS] urllib fallback failed: {exc2}")
-
-
-# =========================
-# Persistent memory helpers
-# =========================
-
-def ensure_data_dirs() -> None:
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(SESSIONS_DIR, exist_ok=True)
-
-
-def slugify_name(name: str) -> str:
-    name = name.strip().lower()
-    name = re.sub(r"[^a-z0-9]+", "_", name)
-    return name.strip("_") or "unknown_user"
-
-
-def load_users() -> dict:
-    ensure_data_dirs()
-
-    if not os.path.exists(USERS_FILE):
-        return {}
-
-    try:
-        with open(USERS_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-    except json.JSONDecodeError:
-        return {}
-
-
-def save_users(users: dict) -> None:
-    ensure_data_dirs()
-
-    with open(USERS_FILE, "w", encoding="utf-8") as file:
-        json.dump(users, file, indent=2, ensure_ascii=False)
-
-
-def clean_spoken_name(spoken_name: str) -> str:
-    spoken_name = spoken_name.strip()
-
-    patterns = [
-        r"^my name is\s+",
-        r"^my name's\s+",
-        r"^i am\s+",
-        r"^i'm\s+",
-        r"^this is\s+",
-        r"^it is\s+",
-        r"^it's\s+",
-        r"^call me\s+",
-    ]
-
-    for pattern in patterns:
-        spoken_name = re.sub(pattern, "", spoken_name, flags=re.IGNORECASE).strip()
-
-    spoken_name = re.sub(r"[^a-zA-Z0-9\s\-]", "", spoken_name)
-    spoken_name = spoken_name[:40].strip()
-
-    return spoken_name or "Guest"
-
-
-def clean_spelled_name(text: str) -> Optional[str]:
-    text = text.upper().strip()
-
-    text = re.sub(r"\bMY NAME IS\b", "", text)
-    text = re.sub(r"\bIT IS\b", "", text)
-    text = re.sub(r"\bIT'S\b", "", text)
-    text = re.sub(r"\bSPELL(?:ED|ING)?\b", "", text)
-    text = re.sub(r"[^A-Z\s]", " ", text)
-
-    parts = text.split()
-
-    letters = []
-    for part in parts:
-        if len(part) == 1 and part.isalpha():
-            letters.append(part)
-
-    if len(letters) >= 2:
-        return "".join(letters).title()
-
-    return None
-
-
-def get_known_user_names() -> list[str]:
-    users = load_users()
-    names: list[str] = []
-    for profile in users.values():
-        name = str(profile.get("name", "")).strip()
-        if name:
-            names.append(name)
-    return names
-
-
-def levenshtein_distance(a: str, b: str) -> int:
-    a = a.lower().strip()
-    b = b.lower().strip()
-
-    if a == b:
-        return 0
-    if not a:
-        return len(b)
-    if not b:
-        return len(a)
-
-    previous = list(range(len(b) + 1))
-    for i, ca in enumerate(a, start=1):
-        current = [i]
-        for j, cb in enumerate(b, start=1):
-            insert_cost = current[j - 1] + 1
-            delete_cost = previous[j] + 1
-            replace_cost = previous[j - 1] + (0 if ca == cb else 1)
-            current.append(min(insert_cost, delete_cost, replace_cost))
-        previous = current
-
-    return previous[-1]
-
-
-def correct_spelled_name_with_known_users(
-    spelled_name: Optional[str],
-    spoken_name: Optional[str] = None,
-) -> Optional[str]:
-    if not spelled_name:
-        return None
-
-    candidate = clean_spoken_name(spelled_name)
-    known_names = get_known_user_names()
-
-    if not known_names:
-        return candidate
-
-    candidate_slug = slugify_name(candidate)
-    for known in known_names:
-        if slugify_name(known) == candidate_slug:
-            return known
-
-    best_name = None
-    best_distance = 999
-
-    for known in known_names:
-        distance = levenshtein_distance(candidate, known)
-        if distance < best_distance:
-            best_distance = distance
-            best_name = known
-
-    if best_name and best_distance <= 2:
-        print_ts(f"Corrected spelled name '{candidate}' to known user '{best_name}'.")
-        return best_name
-
-    if spoken_name:
-        spoken_candidate = clean_spoken_name(spoken_name)
-        best_spoken = None
-        best_spoken_distance = 999
-
-        for known in known_names:
-            distance = levenshtein_distance(spoken_candidate, known)
-            if distance < best_spoken_distance:
-                best_spoken_distance = distance
-                best_spoken = known
-
-        if best_spoken and best_spoken_distance <= 2:
-            print_ts(f"Corrected spoken name '{spoken_candidate}' to known user '{best_spoken}'.")
-            return best_spoken
-
-    return candidate
-
-
-def extract_name_from_text(text: str) -> Optional[str]:
-    text = text.strip()
-
-    patterns = [
-        r"\bmy name is\s+([a-zA-Z][a-zA-Z\s\-]{1,40})",
-        r"\bmy name's\s+([a-zA-Z][a-zA-Z\s\-]{1,40})",
-        r"\bcall me\s+([a-zA-Z][a-zA-Z\s\-]{1,40})",
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, text, flags=re.IGNORECASE)
-        if match:
-            candidate = clean_spoken_name(match.group(1))
-
-            words = candidate.split()
-            if 1 <= len(words) <= 4:
-                return candidate
-
-    return None
-
-
-def looks_like_invalid_name(name: str) -> bool:
-    invalid = {
-        "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
-        "yes", "no", "okay", "ok", "thanks", "thank you", "bye", "goodbye",
-    }
-
-    return name.strip().lower() in invalid
-
-
-def rename_current_user(
-    old_user_key: str,
-    user_profile: dict,
-    new_name: str,
-) -> tuple[str, dict]:
-    users = load_users()
-
-    new_name = clean_spoken_name(new_name)
-    new_key = slugify_name(new_name)
-
-    if not new_name or looks_like_invalid_name(new_name):
-        return old_user_key, user_profile
-
-    existing_profile = users.get(new_key)
-
-    if existing_profile:
-        existing_profile["last_seen"] = now_ts()
-        print_ts(f"Switched to existing user profile: {existing_profile['name']}")
-        save_users(users)
-        return new_key, existing_profile
-
-    old_profile = users.pop(old_user_key, user_profile)
-
-    old_profile["name"] = new_name
-    old_profile["last_seen"] = now_ts()
-    users[new_key] = old_profile
-
-    save_users(users)
-
-    print_ts(f"Updated user name to: {new_name}")
-    return new_key, users[new_key]
-
-
-def build_user_memory_context(user_profile: Optional[dict]) -> str:
-    if not user_profile:
-        return ""
-
-    name = user_profile.get("name", "the user")
-    summary = user_profile.get("conversation_summary", "").strip()
-
-    if not summary:
-        summary = "No previous conversation summary is available."
-
-    return f"""
-        USER MEMORY CONTEXT
-        The user's name is {name}.
-
-        Previous conversation summary:
-        {summary}
-
-        Rules:
-        - Use the user's name naturally when appropriate.
-        - You may continue from this saved local summary, but do not claim memory beyond it.
-        - If the user asks whether you remember previous conversations, say that you can continue from the saved local conversation summary when available.
-        - Do not say every conversation starts fresh if a previous summary is provided.
-        - Do not reveal the raw JSON file unless the user asks.
-        """.strip()
-
-
-def compact_previous_summary_for_greeting(
-    summary: str,
-    max_chars: int = RETURNING_USER_GREETING_MAX_SUMMARY_CHARS,
-) -> str:
-    summary = str(summary or "").strip()
-    if not summary:
-        return ""
-
-    summary = re.sub(r"^\s*[-*•]\s*", "", summary, flags=re.MULTILINE)
-    summary = re.sub(r"\s+", " ", summary).strip()
-
-    if len(summary) <= max_chars:
-        return summary
-
-    clipped = summary[:max_chars].rsplit(" ", 1)[0].strip()
-    return clipped.rstrip(".,;:") + "..."
-
-
-def fallback_returning_user_greeting(user_profile: dict) -> str:
-    name = str(user_profile.get("name", "there")).strip() or "there"
-    summary = compact_previous_summary_for_greeting(
-        str(user_profile.get("conversation_summary", "")).strip()
-    )
-
-    if not summary:
-        return f"Welcome back, {name}. It is nice to continue our conversation. 🙂"
-
-    return (
-        f"Welcome back, {name}. Last time, we were discussing {summary} "
-        f"Where would you like to continue from? 🙂"
-    )
-
-
-def build_returning_user_context(user_profile: Optional[dict]) -> str:
-    if not user_profile:
-        return ""
-
-    summary = str(user_profile.get("conversation_summary", "")).strip()
-    name = str(user_profile.get("name", "the user")).strip() or "the user"
-    last_seen = str(user_profile.get("last_seen", "")).strip()
-
-    if not summary:
-        return ""
-
-    return f"""
-RETURNING USER CONTEXT
-
-User name: {name}
-Last seen: {last_seen or "unknown"}
-
-Previous conversation summary:
-{summary}
-
-Continuity rules:
-- Start the new session from this previous conversation summary.
-- Remind the user of at most ONE relevant previous topic.
-- Use a natural phrase such as "Last time, we discussed..." or "Last time, we were working on..."
-- Do not dump the whole summary.
-- Ask one short follow-up question connected to the previous topic when appropriate.
-- Do not mention JSON, files, transcripts, or memory storage.
-- Do not claim to remember anything outside this saved local summary.
-""".strip()
-
-
-def generate_returning_user_response(
-    client: Client,
-    user_profile: dict,
-) -> str:
-    if not ENABLE_RETURNING_USER_MEMORY_GREETING:
-        name = str(user_profile.get("name", "there")).strip() or "there"
-        return f"Welcome back, {name}. It is nice to continue our conversation. 🙂"
-
-    memory_context = build_returning_user_context(user_profile)
-
-    if not memory_context:
-        return fallback_returning_user_greeting(user_profile)
-
-    system_prompt = f"""
-You are Ameca, a socially intelligent humanoid robot.
-
-A returning user has started a new interaction session.
-
-{memory_context}
-
-Your task:
-- welcome the user back naturally
-- remind the user of exactly ONE important previous topic from the saved summary
-- continue from that topic instead of starting from zero
-- ask one short follow-up question connected to that topic
-- keep it warm, concise, and conversational
-- produce 1-2 short sentences
-- end with exactly one friendly facial emoji
-- use only this emoji: 🙂
-
-Required style:
-- Prefer wording like: "Last time, we were working on..." or "Last time, we discussed..."
-- Sound like a helpful robot continuing a conversation, not like a log reader.
-
-Do not:
-- dump the memory summary
-- mention transcripts, JSON, files, storage, or saved summaries
-- pretend to remember anything outside the provided local memory context
-- mention more than one previous topic
-""".strip()
-
-    try:
-        response = client.chat(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_prompt},
-            ],
-            options={
-                "temperature": 0.35,
-                "num_predict": 120,
-                "num_ctx": 4096,
-            },
-            stream=False,
-        )
-
-        raw_reply = response["message"]["content"]
-        reply = normalize_reply(raw_reply, "trust")
-
-        lower_reply = reply.lower()
-        if (
-            user_profile.get("conversation_summary")
-            and "last time" not in lower_reply
-            and "previous" not in lower_reply
-            and "we discussed" not in lower_reply
-            and "we were" not in lower_reply
-        ):
-            return fallback_returning_user_greeting(user_profile)
-
-        return reply
-
-    except Exception as exc:
-        print_ts(f"Could not generate returning-user greeting with LLM: {exc}")
-        return fallback_returning_user_greeting(user_profile)
-
-
-def save_session_transcript(
-    user_key: str,
-    user_profile: dict,
-    session_log: list[dict],
-) -> str:
-    ensure_data_dirs()
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{user_key}_{timestamp}.json"
-    path = os.path.join(SESSIONS_DIR, filename)
-
-    transcript_data = {
-        "user": {
-            "key": user_key,
-            "name": user_profile.get("name", "Guest"),
-        },
-        "session": {
-            "started_at": session_log[0]["timestamp"] if session_log else now_ts(),
-            "ended_at": now_ts(),
-            "model": MODEL_NAME,
-            "ollama_host": OLLAMA_HOST,
-            "asr": {
-                "backend": "faster-whisper (primary) + Google Speech Recognition (fallback)",
-                **FAST_WHISPER_CONFIG,
-            },
-            "emotion_fusion": {
-                "type": "adaptive_reliability_aware_late_fusion",
-                "text_weight": FUSION_TEXT_WEIGHT,
-                "visual_weight": FUSION_VISUAL_WEIGHT,
-                "prosody_weight": FUSION_PROSODY_WEIGHT,
-            },
-            "face_emotion": {
-                "backend": "qwen2.5vl:7b via Ollama",
-                "camera_source": "shared ZedVisionModule.get_latest_frame() (single camera handle)",
-                "camera_frame_width": CAMERA_FRAME_WIDTH,
-                "camera_frame_height": CAMERA_FRAME_HEIGHT,
-                "preview_enabled": CAMERA_PREVIEW_ENABLED,
-                "sample_every_seconds": CAMERA_SAMPLE_EVERY_SECONDS,
-                "warmup_seconds": CAMERA_WARMUP_SECONDS,
-                "max_candidate_frames": FACE_MAX_CANDIDATE_FRAMES,
-                "face_analysis_strategy": FACE_ANALYSIS_STRATEGY,
-                "multi_frame_count": FACE_MULTI_FRAME_COUNT,
-                "skip_low_quality": VISION_SKIP_LOW_QUALITY,
-                "vision_model": VISION_MODEL_NAME,
-                "jpeg_quality": VISION_JPEG_QUALITY,
-                "min_top_score": FACE_MIN_TOP_SCORE,
-                "min_margin": FACE_MIN_MARGIN,
-            },
-            "vad": {
-                "backend": "Silero VAD",
-                "sample_rate": SILERO_SAMPLE_RATE,
-                "chunk_size": SILERO_CHUNK_SIZE,
-                "threshold": SILERO_THRESHOLD,
-                "min_silence_duration_ms": SILERO_MIN_SILENCE_DURATION_MS,
-                "speech_pad_ms": SILERO_SPEECH_PAD_MS,
-                "max_utterance_seconds": VAD_MAX_UTTERANCE_SECONDS,
-                "min_utterance_seconds": VAD_MIN_UTTERANCE_SECONDS,
-                "pre_roll_seconds": VAD_PRE_ROLL_SECONDS,
-            },
-            "output": {
-                "backend": "Tritium TTS",
-            },
-            "general_vision": {
-                "backend": "ZED vision module" if HAS_ZED_VISION else "unavailable",
-                "model": ZED_VISION_MODEL_NAME,
-            },
-        },
-        "messages": session_log,
-    }
-
-    with open(path, "w", encoding="utf-8") as file:
-        json.dump(transcript_data, file, indent=2, ensure_ascii=False)
-
-    return path
-
-
-def build_deterministic_session_summary(
-    session_log: list[dict],
-    previous_summary: str = "",
-) -> str:
-    if not session_log:
-        return str(previous_summary or "").strip()
-
-    user_turns: list[str] = []
-    assistant_turns: list[str] = []
-    emotions: list[str] = []
-    rag_topics: list[str] = []
-    rag_sources: list[str] = []
-
-    for item in session_log:
-        role = str(item.get("role", "")).strip().lower()
-        content = re.sub(r"\s+", " ", str(item.get("content", "")).strip())
-        if not content:
-            continue
-
-        if role == "user":
-            user_turns.append(content)
-        elif role == "assistant" and item.get("intent") != "self_introduction":
-            assistant_turns.append(content)
-
-        emotion = item.get("emotion")
-        if isinstance(emotion, dict):
-            detected = str(emotion.get("emotion", "")).strip()
-            if detected:
-                emotions.append(detected)
-
-        self_rag = item.get("self_rag")
-        if isinstance(self_rag, dict) and self_rag.get("used"):
-            query = str(self_rag.get("query", "")).strip()
-            if query:
-                rag_topics.append(query)
-            for source in self_rag.get("sources", []) or []:
-                if isinstance(source, dict):
-                    title = str(source.get("title", "")).strip()
-                    if title and title not in rag_sources:
-                        rag_sources.append(title)
-
-    bullets: list[str] = []
-
-    previous_summary = str(previous_summary or "").strip()
-    if previous_summary:
-        bullets.append("Previous continuity context: " + compact_previous_summary_for_greeting(previous_summary, 260))
-
-    if user_turns:
-        recent_user = "; ".join(user_turns[-4:])
-        bullets.append("Recent user topics/questions: " + recent_user[:420].rstrip())
-
-    if rag_topics:
-        bullets.append("Knowledge/RAG topics used: " + "; ".join(rag_topics[-4:])[:420].rstrip())
-
-    if rag_sources:
-        bullets.append("Relevant retrieved sources included: " + "; ".join(rag_sources[:5])[:420].rstrip())
-
-    if assistant_turns:
-        bullets.append("Last assistant direction: " + assistant_turns[-1][:300].rstrip())
-
-    if emotions:
-        recent_unique: list[str] = []
-        for emotion in emotions[-8:]:
-            if emotion not in recent_unique:
-                recent_unique.append(emotion)
-        bullets.append("Recent affective context: " + ", ".join(recent_unique))
-
-    if not bullets:
-        return previous_summary
-
-    return "\n".join(f"- {bullet}" for bullet in bullets[:8])
-
-
-def load_latest_session_log_for_user(user_key: str, user_profile: Optional[dict]) -> list[dict]:
-    ensure_data_dirs()
-
-    candidate_paths: list[str] = []
-
-    if isinstance(user_profile, dict):
-        for path in user_profile.get("session_files", []) or []:
-            if isinstance(path, str) and path.strip():
-                candidate_paths.append(path.strip())
-
-    try:
-        slug = slugify_name(user_key)
-        for filename in os.listdir(SESSIONS_DIR):
-            if filename.startswith(f"{slug}_") and filename.endswith(".json"):
-                candidate_paths.append(os.path.join(SESSIONS_DIR, filename))
-    except Exception as exc:
-        print_ts(f"Could not scan session folder for memory recovery: {exc}")
-
-    existing_paths = []
-    seen = set()
-    for path in candidate_paths:
-        if path in seen:
-            continue
-        seen.add(path)
-        if os.path.exists(path):
-            existing_paths.append(path)
-
-    if not existing_paths:
-        return []
-
-    existing_paths.sort(key=lambda path: os.path.getmtime(path), reverse=True)
-
-    for path in existing_paths:
-        try:
-            with open(path, "r", encoding="utf-8") as file:
-                data = json.load(file)
-            messages = data.get("messages", [])
-            if isinstance(messages, list) and messages:
-                print_ts(f"Recovered continuity memory from latest transcript: {path}")
-                return messages
-        except Exception as exc:
-            print_ts(f"Could not recover memory from transcript {path}: {exc}")
-
-    return []
-
-
-def ensure_user_has_conversation_summary(
-    user_key: str,
-    user_profile: dict,
-) -> dict:
-    summary = str(user_profile.get("conversation_summary", "")).strip()
-    if summary:
-        return user_profile
-
-    recovered_log = load_latest_session_log_for_user(user_key, user_profile)
-    if not recovered_log:
-        print_ts("No previous conversation summary or recoverable transcript found.")
-        return user_profile
-
-    recovered_summary = build_deterministic_session_summary(
-        session_log=recovered_log,
-        previous_summary="",
-    ).strip()
-
-    if not recovered_summary:
-        print_ts("Recovered transcript did not produce a usable continuity summary.")
-        return user_profile
-
-    users = load_users()
-    profile = users.get(user_key, user_profile)
-    profile["conversation_summary"] = recovered_summary
-    profile["last_seen"] = now_ts()
-    users[user_key] = profile
-    save_users(users)
-
-    print_ts("Recovered and saved previous conversation summary for returning-user greeting.")
-    return profile
-
-
-def summarize_session_with_llm(
-    client: Client,
-    session_log: list[dict],
-    previous_summary: str = "",
-) -> str:
-    if not session_log:
-        return previous_summary
-
-    fallback_summary = build_deterministic_session_summary(
-        session_log=session_log,
-        previous_summary=previous_summary,
-    )
-
-    compact_messages = []
-
-    for item in session_log[-30:]:
-        role = item.get("role", "")
-        content = item.get("content", "")
-        emotion = item.get("emotion")
-        self_rag = item.get("self_rag")
-
-        extra_parts = []
-        if isinstance(emotion, dict):
-            extra_parts.append(f"emotion={emotion.get('emotion')}")
-        if isinstance(self_rag, dict):
-            extra_parts.append(f"self_rag_used={self_rag.get('used')}")
-
-        extra = f" ({', '.join(extra_parts)})" if extra_parts else ""
-        compact_messages.append(f"{role}{extra}: {content}")
-
-    prompt = f"""
-Summarize this human-robot interaction session for long-term conversational continuity.
-
-Previous saved continuity summary:
-{previous_summary or "None"}
-
-Recent session:
-{chr(10).join(compact_messages)}
-
-Write an updated continuity summary that Ameca can use at the start of the next session.
-
-Focus on:
-- ongoing projects or unresolved tasks
-- thesis/research/debugging topics discussed
-- important technical context
-- emotional state trends if relevant
-- personal preferences or interaction style
-- useful next-step cues for continuing the conversation
-
-Avoid:
-- trivial greetings
-- repetitive small talk
-- exact quotations
-- invented facts
-- private implementation details that the user did not discuss
-
-Return 4-8 concise bullet points.
-""".strip()
-
-    try:
-        response = client.chat(
-            model=MODEL_NAME,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You write accurate continuity summaries for a humanoid robot. Do not invent facts.",
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
-            options={
-                "temperature": 0.2,
-                "num_predict": 260,
-                "num_ctx": 4096,
-            },
-            stream=False,
-        )
-
-        summary = response["message"]["content"].strip()
-        if not summary:
-            print_ts("LLM returned an empty session summary; using deterministic fallback summary.")
-            return fallback_summary or previous_summary
-
-        return summary
-
-    except KeyboardInterrupt:
-        print_ts("Summary generation interrupted. Using deterministic fallback summary instead.")
-        return fallback_summary or previous_summary
-
-    except Exception as exc:
-        print_ts(f"Could not summarize session with LLM: {exc}")
-        print_ts("Using deterministic fallback summary instead.")
-        return fallback_summary or previous_summary
-
-
-def update_user_after_session(
-    client: Client,
-    user_key: str,
-    session_path: str,
-    session_log: list[dict],
-) -> None:
-    users = load_users()
-
-    if user_key not in users:
-        return
-
-    users[user_key]["last_seen"] = now_ts()
-    users[user_key].setdefault("session_files", []).append(session_path)
-
-    previous_summary = str(users[user_key].get("conversation_summary", "")).strip()
-
-    deterministic_summary = build_deterministic_session_summary(
-        session_log=session_log,
-        previous_summary=previous_summary,
-    ).strip()
-    if deterministic_summary:
-        users[user_key]["conversation_summary"] = deterministic_summary
-        save_users(users)
-        print_ts("Saved deterministic returning-user conversation summary.")
-
-    if ENABLE_LLM_SESSION_SUMMARY:
-        users = load_users()
-        previous_summary = str(users[user_key].get("conversation_summary", "")).strip()
-        users[user_key]["conversation_summary"] = summarize_session_with_llm(
-            client=client,
-            session_log=session_log,
-            previous_summary=previous_summary,
-        )
-        print_ts("Updated returning-user conversation summary.")
-    else:
-        print_ts("Skipping LLM session summary for faster shutdown.")
-
-    save_users(users)
-
-
-# =========================
-# Ollama setup helpers
-# =========================
-
-def check_ollama_available(max_attempts: int = 10, delay_seconds: float = 1.0) -> None:
-    client = Client(host=OLLAMA_HOST)
-
-    for attempt in range(1, max_attempts + 1):
-        try:
-            client.list()
-            print_ts(f"Ollama is reachable at {OLLAMA_HOST}.")
-            return
-        except Exception as exc:
-            print_ts(f"Ollama not reachable yet, attempt {attempt}/{max_attempts}: {exc}")
-            time.sleep(delay_seconds)
-
-    raise RuntimeError(
-        f"Could not connect to Ollama at {OLLAMA_HOST} after {max_attempts} attempts."
-    )
-
-
-def ensure_model_available(model_name: str = MODEL_NAME) -> None:
-    print_ts(f"Using Ollama model '{model_name}' from {OLLAMA_HOST}. Skipping local pull.")
-
-
-# =========================
-# Audio helpers
-# =========================
-
-def list_input_devices() -> None:
-    print("\nAvailable input devices:")
-
-    try:
-        devices = sd.query_devices()
-        hostapis = sd.query_hostapis()
-    except Exception as exc:
-        print(f"Could not query devices: {exc}")
-        return
-
-    found = False
-
-    for idx, device in enumerate(devices):
-        if device["max_input_channels"] > 0:
-            found = True
-            hostapi_name = hostapis[device["hostapi"]]["name"]
-            print(
-                f"[mic {idx}] {device['name']} | "
-                f"hostapi={hostapi_name} | "
-                f"inputs={device['max_input_channels']} | "
-                f"default_sr={device['default_samplerate']}"
-            )
-
-    if not found:
-        print("No input devices found.")
-
-    print()
-    print(f"Current default audio device: {sd.default.device}")
-    print()
-
-
-def get_input_samplerate(input_device: Optional[int]) -> int:
-    if input_device is None:
-        device_info = sd.query_devices(kind="input")
-    else:
-        device_info = sd.query_devices(input_device)
-
-    default_sr = int(round(device_info["default_samplerate"]))
-    if default_sr <= 0:
-        return TARGET_SAMPLE_RATE
-
-    return default_sr
-
-
-def resample_audio(audio: np.ndarray, original_sr: int, target_sr: int) -> np.ndarray:
-    if original_sr == target_sr:
-        return audio.astype(np.float32, copy=False)
-
-    if audio.size == 0:
-        return audio.astype(np.float32, copy=False)
-
-    duration = len(audio) / original_sr
-    target_length = max(1, int(round(duration * target_sr)))
-
-    old_times = np.linspace(0.0, duration, num=len(audio), endpoint=False)
-    new_times = np.linspace(0.0, duration, num=target_length, endpoint=False)
-
-    return np.interp(new_times, old_times, audio).astype(np.float32)
-
-
-def save_audio_to_temp_wav(audio_16k: np.ndarray) -> Optional[str]:
-    if audio_16k.size == 0:
-        return None
-
-    peak = float(np.max(np.abs(audio_16k)))
-    rms = float(np.sqrt(np.mean(audio_16k ** 2)))
-
-    print_ts(f"Captured utterance audio level: peak={peak:.4f}, rms={rms:.4f}")
-
-    if peak < MIN_PEAK_THRESHOLD or rms < MIN_RMS_THRESHOLD:
-        print("Captured audio was too quiet or silent.")
-        return None
-
-    audio_16k = np.clip(audio_16k * min(0.9 / max(peak, 1e-6), 10.0), -1.0, 1.0)
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        wav_path = tmp.name
-
-    sf.write(wav_path, audio_16k, TARGET_SAMPLE_RATE)
-    return wav_path
-
-
-def transcribe_with_faster_whisper(wav_path: str, whisper_model: WhisperModel) -> str:
-    segments, info = whisper_model.transcribe(
-        wav_path,
-        language=FAST_WHISPER_CONFIG.get("language"),
-        beam_size=int(FAST_WHISPER_CONFIG.get("beam_size", 1)),
-        vad_filter=bool(FAST_WHISPER_CONFIG.get("vad_filter", False)),
-        condition_on_previous_text=False,
-    )
-
-    text = " ".join(segment.text.strip() for segment in segments).strip()
-    text = re.sub(r"\s+", " ", text).strip()
-
-    if len(text.split()) <= 1 and len(text) < 3:
-        return ""
-
-    return text
-
-
-# Backwards-compatible alias.
-transcribe_audio = transcribe_with_faster_whisper
-
-
-def transcribe_with_google(
-    wav_path: str,
-    recognizer: sr.Recognizer,
-    language: str = "en-US",
-) -> str:
-    """
-    Fallback transcription using Google Speech Recognition on the same WAV
-    file that was already produced by the Silero VAD recorder. Requires
-    internet access. Returns "" on any failure so callers can treat this
-    the same way as an empty faster-whisper transcript.
-    """
-    try:
-        with sr.AudioFile(wav_path) as source:
-            audio = recognizer.record(source)
-        text = recognizer.recognize_google(audio, language=language)
-        text = text.strip()
-        return text
-    except sr.UnknownValueError:
-        print_ts("[Google STT] Audio captured, but speech could not be understood.")
-        return ""
-    except sr.RequestError as exc:
-        print_ts(f"[Google STT] Request failed (check internet connectivity): {exc}")
-        return ""
-    except Exception as exc:
-        print_ts(f"[Google STT] Unexpected error: {exc}")
-        return ""
-
-
-def transcribe_with_fallback(
-    wav_path: str,
-    whisper_model: WhisperModel,
-    google_recognizer: Optional[sr.Recognizer],
-    google_language: str = "en-US",
-) -> tuple[str, str]:
-    """
-    faster-whisper is primary. If it returns an empty/unusable transcript,
-    fall back to Google Speech Recognition on the same WAV file.
-
-    Returns (text, engine_used) where engine_used is "faster-whisper",
-    "google", or "none".
-    """
-    text = transcribe_with_faster_whisper(wav_path, whisper_model)
-    if text:
-        return text, "faster-whisper"
-
-    if google_recognizer is None:
-        return "", "none"
-
-    print_ts("faster-whisper returned no usable transcript; trying Google STT fallback...")
-    google_text = transcribe_with_google(wav_path, google_recognizer, language=google_language)
-    if google_text:
-        print_ts(f"Google STT fallback succeeded: {google_text}")
-        return google_text, "google"
-
-    return "", "none"
-
-
-def load_audio_for_prosody(wav_path: str, target_sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
-    try:
-        audio, sr_in = sf.read(wav_path, dtype="float32")
-
-        if audio is None or len(audio) == 0:
-            return np.array([], dtype=np.float32)
-
-        if getattr(audio, "ndim", 1) > 1:
-            audio = np.mean(audio, axis=1)
-
-        audio = audio.astype(np.float32, copy=False)
-
-        if int(sr_in) != int(target_sr):
-            audio = resample_audio(audio, int(sr_in), int(target_sr))
-
-        return audio.astype(np.float32, copy=False)
-
-    except Exception as exc:
-        print_ts(f"Could not load audio for prosody: {exc}")
-        return np.array([], dtype=np.float32)
-
-
-# =========================
-# Camera / Qwen2.5-VL helpers (facial emotion sampling)
-# =========================
-
-def normalize_camera_frame(frame: np.ndarray) -> np.ndarray:
-    if USE_ZED_HALF_FRAME_CROP:
-        height, width = frame.shape[:2]
-        frame = frame[:, : width // 2]
-    return frame
-
-
-def get_camera_backend() -> int:
-    if sys.platform == "darwin":
-        return cv2.CAP_AVFOUNDATION
-    if sys.platform.startswith("linux"):
-        return cv2.CAP_V4L2
-    return cv2.CAP_ANY
-
-
-def open_camera(camera_device: Optional[int]) -> cv2.VideoCapture:
-    candidates = []
-
-    if camera_device is not None:
-        candidates.append(camera_device)
-
-    candidates.extend([0, 1, 2, 3])
-
-    seen = set()
-
-    for camera_index in candidates:
-        if camera_index in seen:
-            continue
-
-        seen.add(camera_index)
-
-        cap = cv2.VideoCapture(camera_index, get_camera_backend())
-
-        if not cap.isOpened():
-            cap.release()
-            continue
-
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_FRAME_WIDTH)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_FRAME_HEIGHT)
-        cap.set(cv2.CAP_PROP_FPS, 30)
-
-        time.sleep(0.2)
-
-        ok, frame = cap.read()
-
-        if ok and frame is not None:
-            actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            print_ts(
-                f"Using camera device /dev/video{camera_index} "
-                f"at {actual_width}x{actual_height}"
-            )
-            return cap
-
-        cap.release()
-
-    return cv2.VideoCapture(-1)
-
-
-def resize_keep_aspect(frame_bgr: np.ndarray, max_side: int = VISION_MAX_IMAGE_SIDE) -> np.ndarray:
-    height, width = frame_bgr.shape[:2]
-    longest = max(height, width)
-    if longest <= max_side:
-        return frame_bgr
-    scale = max_side / float(longest)
-    new_width = max(1, int(width * scale))
-    new_height = max(1, int(height * scale))
-    return cv2.resize(frame_bgr, (new_width, new_height), interpolation=cv2.INTER_AREA)
-
-
-def image_quality_metrics(frame_bgr: np.ndarray) -> dict[str, float]:
-    try:
-        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-        brightness = float(np.mean(gray))
-        sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-        return {"brightness": brightness, "sharpness": sharpness}
-    except Exception:
-        return {"brightness": 0.0, "sharpness": 0.0}
-
-
-def denoise_frame(frame_bgr: np.ndarray) -> np.ndarray:
-    if not VISION_DENOISE_ENABLED:
-        return frame_bgr
-    try:
-        return cv2.fastNlMeansDenoisingColored(
-            frame_bgr,
-            None,
-            h=VISION_DENOISE_H,
-            hColor=VISION_DENOISE_H_COLOR,
-            templateWindowSize=7,
-            searchWindowSize=21,
-        )
-    except Exception as exc:
-        if VISION_DEBUG:
-            print_ts(f"Denoising skipped: {exc}")
-        return frame_bgr
-
-
-def enhance_lighting(frame_bgr: np.ndarray) -> np.ndarray:
-    if not VISION_LIGHTING_ENHANCE_ENABLED:
-        return frame_bgr
-    try:
-        lab = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2LAB)
-        l_channel, a_channel, b_channel = cv2.split(lab)
-        clahe = cv2.createCLAHE(
-            clipLimit=VISION_CLAHE_CLIP_LIMIT,
-            tileGridSize=(8, 8),
-        )
-        enhanced_l = clahe.apply(l_channel)
-        enhanced_lab = cv2.merge((enhanced_l, a_channel, b_channel))
-        return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
-    except Exception as exc:
-        if VISION_DEBUG:
-            print_ts(f"Lighting enhancement skipped: {exc}")
-        return frame_bgr
-
-
-def sharpen_frame(frame_bgr: np.ndarray) -> np.ndarray:
-    if not VISION_SHARPEN_ENABLED:
-        return frame_bgr
-    try:
-        blurred = cv2.GaussianBlur(frame_bgr, (0, 0), sigmaX=1.0)
-        return cv2.addWeighted(frame_bgr, 1.2, blurred, -0.2, 0)
-    except Exception as exc:
-        if VISION_DEBUG:
-            print_ts(f"Sharpening skipped: {exc}")
-        return frame_bgr
-
-
-def preprocess_frame_for_vlm(frame_bgr: np.ndarray) -> tuple[np.ndarray, dict[str, float]]:
-    prepared = crop_largest_face_or_center(frame_bgr)
-    before = image_quality_metrics(prepared)
-
-    prepared = denoise_frame(prepared)
-    prepared = enhance_lighting(prepared)
-    prepared = sharpen_frame(prepared)
-    prepared = resize_keep_aspect(prepared, max_side=VISION_MAX_IMAGE_SIDE)
-
-    after = image_quality_metrics(prepared)
-    metrics = {
-        "brightness_before": before.get("brightness", 0.0),
-        "sharpness_before": before.get("sharpness", 0.0),
-        "brightness_after": after.get("brightness", 0.0),
-        "sharpness_after": after.get("sharpness", 0.0),
-        "width": float(prepared.shape[1]),
-        "height": float(prepared.shape[0]),
-    }
-    return prepared, metrics
-
-
-def is_vlm_image_quality_usable(metrics: dict[str, float]) -> tuple[bool, str]:
-    brightness = metrics.get("brightness_after", 0.0)
-    sharpness = metrics.get("sharpness_after", 0.0)
-    if brightness < VISION_MIN_BRIGHTNESS:
-        return False, f"image too dark: brightness={brightness:.1f}"
-    if brightness > VISION_MAX_BRIGHTNESS:
-        return False, f"image too bright: brightness={brightness:.1f}"
-    if sharpness < VISION_MIN_SHARPNESS:
-        reason = f"image soft/blurry but still sent: sharpness={sharpness:.1f}"
-        if VISION_SKIP_LOW_QUALITY:
-            return False, f"image too blurry/noisy: sharpness={sharpness:.1f}"
-        return True, reason
-    return True, "image quality usable"
-
-
-def crop_largest_face_or_center(frame_bgr: np.ndarray) -> np.ndarray:
-    height, width = frame_bgr.shape[:2]
-
-    try:
-        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-        cascade_path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
-        face_cascade = cv2.CascadeClassifier(cascade_path)
-        faces = face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=4,
-            minSize=(60, 60),
-        )
-
-        if len(faces) > 0:
-            x, y, w, h = max(faces, key=lambda box: box[2] * box[3])
-            pad = int(max(w, h) * 0.65)
-            x1 = max(0, x - pad)
-            y1 = max(0, y - pad)
-            x2 = min(width, x + w + pad)
-            y2 = min(height, y + h + pad)
-            crop = frame_bgr[y1:y2, x1:x2]
-            if crop.size > 0:
-                return resize_keep_aspect(crop)
-    except Exception as exc:
-        if VISION_DEBUG:
-            print_ts(f"Face crop fallback used: {exc}")
-
-    side = min(height, width)
-    if side <= 0:
-        return resize_keep_aspect(frame_bgr)
-    x1 = max(0, (width - side) // 2)
-    y1 = max(0, (height - side) // 2)
-    crop = frame_bgr[y1:y1 + side, x1:x1 + side]
-    return resize_keep_aspect(crop if crop.size > 0 else frame_bgr)
-
-
-def save_debug_frame(frame_bgr: np.ndarray, prefix: str = "vlm_frame") -> Optional[str]:
-    if not VISION_DEBUG:
-        return None
-    try:
-        os.makedirs(VISION_DEBUG_DIR, exist_ok=True)
-        filename = f"{prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.jpg"
-        path = os.path.join(VISION_DEBUG_DIR, filename)
-        cv2.imwrite(path, frame_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), int(VISION_JPEG_QUALITY)])
-        return path
-    except Exception:
-        return None
-
-
-def encode_frame_for_ollama(frame_bgr: np.ndarray) -> Optional[str]:
-    try:
-        prepared, quality_metrics = preprocess_frame_for_vlm(frame_bgr)
-        usable, quality_reason = is_vlm_image_quality_usable(quality_metrics)
-
-        if VISION_DEBUG:
-            print_ts(
-                "VLM image quality: "
-                f"brightness={quality_metrics['brightness_after']:.1f}, "
-                f"sharpness={quality_metrics['sharpness_after']:.1f}, "
-                f"size={int(quality_metrics['width'])}x{int(quality_metrics['height'])}, "
-                f"status={quality_reason}"
-            )
-            path = save_debug_frame(prepared, prefix="qwen_face_input_clean")
-            if path:
-                print_ts(f"Saved cleaned VLM debug frame: {path}")
-
-        if not usable:
-            return None
-
-        encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), int(VISION_JPEG_QUALITY)]
-        ok, buffer = cv2.imencode(".jpg", prepared, encode_params)
-        if not ok:
-            return None
-        return base64.b64encode(buffer.tobytes()).decode("utf-8")
-    except Exception as exc:
-        print_ts(f"Could not encode frame for Qwen2.5-VL: {exc}")
-        return None
-
-
-EMOTION_ALIASES = {
-    "happy": "joy", "happiness": "joy", "smile": "joy", "smiling": "joy",
-    "calm": "trust", "friendly": "trust", "relaxed": "trust",
-    "concern": "fear", "concerned": "fear", "anxious": "fear", "anxiety": "fear", "afraid": "fear",
-    "surprised": "surprise",
-    "sad": "sadness", "unhappy": "sadness",
-    "angry": "anger", "mad": "anger", "annoyed": "anger",
-    "disgusted": "disgust",
-    "expectant": "anticipation", "curious": "anticipation", "thinking": "anticipation",
-}
-
-
-def canonical_emotion_name(name: str) -> Optional[str]:
-    cleaned = re.sub(r"[^a-zA-Z]+", "", str(name).strip().lower())
-
-    if cleaned == "neutral":
-        return None
-
-    if cleaned in PLUTCHIK_EMOTIONS and cleaned != "neutral":
-        return cleaned
-
-    return EMOTION_ALIASES.get(cleaned)
-
-
-def normalize_plutchik_scores(raw_data: dict) -> Optional[dict[str, float]]:
-    if not isinstance(raw_data, dict):
-        return None
-
-    raw_scores = raw_data.get("scores") if isinstance(raw_data.get("scores"), dict) else raw_data
-    scores: dict[str, float] = {emotion: 0.0 for emotion in PLUTCHIK_EMOTIONS}
-
-    if isinstance(raw_scores, dict):
-        for key, value in raw_scores.items():
-            emotion = canonical_emotion_name(str(key))
-            if not emotion:
-                continue
-            try:
-                scores[emotion] += max(0.0, float(value))
-            except Exception:
-                continue
-
-    total = sum(scores.values())
-
-    if total <= 0:
-        dominant = canonical_emotion_name(str(raw_data.get("dominant_emotion", raw_data.get("emotion", ""))))
-        if dominant:
-            try:
-                confidence = float(raw_data.get("confidence", 0.55))
-            except Exception:
-                confidence = 0.55
-            confidence = max(0.05, min(1.0, confidence))
-            remaining = max(0.0, 1.0 - confidence)
-            other_value = remaining / max(1, len(PLUTCHIK_EMOTIONS) - 1)
-            return {
-                emotion: (confidence if emotion == dominant else other_value) * 100.0
-                for emotion in PLUTCHIK_EMOTIONS
-            }
-        return None
-
-    if total <= 1.5:
-        return {emotion: score * 100.0 for emotion, score in scores.items()}
-
-    return {emotion: (score / total) * 100.0 for emotion, score in scores.items()}
-
-
-def build_qwen_face_prompt() -> str:
-    return """
-        You are a facial emotion classifier.
-
-        Analyze the main visible face only.
-
-        Classify the facial expression into exactly one emotion:
-        joy, trust, fear, surprise, sadness, disgust, anger, anticipation
-
-        Return JSON only:
-
-        {
-        "dominant_emotion": "joy",
-        "confidence": 0.0,
-        "scores": {
-            "joy": 0.0,
-            "trust": 0.0,
-            "fear": 0.0,
-            "surprise": 0.0,
-            "sadness": 0.0,
-            "disgust": 0.0,
-            "anger": 0.0,
-            "anticipation": 0.0
-        },
-        "reason": "1 short phrase only of facial explanation"
-        }
-        """.strip()
-
-
-def analyze_frame_emotion_scores(
-    frame_bgr: np.ndarray,
-    vision_client: Client,
-) -> Optional[dict[str, float]]:
-    image_b64 = encode_frame_for_ollama(frame_bgr)
-    if not image_b64:
-        return None
-
-    try:
-        response = vision_client.chat(
-            model=VISION_MODEL_NAME,
-            format="json",
-            messages=[
-                {
-                    "role": "user",
-                    "content": build_qwen_face_prompt(),
-                    "images": [image_b64],
-                }
-            ],
-            options={
-                "temperature": 0.0,
-                "num_predict": 220,
-                "num_ctx": 4096,
-            },
-            stream=False,
-        )
-
-        raw = response.get("message", {}).get("content", "")
-        if VISION_DEBUG:
-            print_ts(f"Qwen2.5-VL raw emotion output: {raw[:500]}")
-
-        data = safe_json_extract(raw)
-        if not isinstance(data, dict):
-            print_ts("Qwen2.5-VL returned no parseable JSON for facial emotion.")
-            return None
-
-        normalized_scores = normalize_plutchik_scores(data)
-        if not normalized_scores:
-            print_ts(f"Qwen2.5-VL JSON did not contain usable emotion scores: {data}")
-            return None
-
-        return normalized_scores
-
-    except Exception as exc:
-        print_ts(f"Qwen2.5-VL facial analysis failed: {exc}")
-        return None
-
-
-def analyze_multiple_frames_emotion_scores(
-    frames_bgr: list[np.ndarray],
-    vision_client: Client,
-    max_frames: int = FACE_MULTI_FRAME_COUNT,
-) -> Optional[dict[str, float]]:
-    images_b64: list[str] = []
-
-    for frame in frames_bgr[:max(1, max_frames)]:
-        image_b64 = encode_frame_for_ollama(frame)
-        if image_b64:
-            images_b64.append(image_b64)
-
-    if not images_b64:
-        return None
-
-    try:
-        response = vision_client.chat(
-            model=VISION_MODEL_NAME,
-            format="json",
-            messages=[
-                {
-                    "role": "user",
-                    "content": build_qwen_face_prompt(),
-                    "images": images_b64,
-                }
-            ],
-            options={
-                "temperature": 0.0,
-                "num_predict": 220,
-                "num_ctx": 4096,
-            },
-            stream=False,
-        )
-
-        raw = response.get("message", {}).get("content", "")
-        '''
-        if VISION_DEBUG:
-            print_ts(f"Qwen2.5-VL raw multi-frame emotion output: {raw[:500]}")
-        '''
-        data = safe_json_extract(raw)
-        '''
-        if not isinstance(data, dict):
-            print_ts("Qwen2.5-VL returned no parseable JSON for multi-frame facial emotion.")
-            return None
-        '''
-        normalized_scores = normalize_plutchik_scores(data)
-        if not normalized_scores:
-            print_ts(f"Qwen2.5-VL multi-frame JSON did not contain usable emotion scores: {data}")
-            return None
-
-        return normalized_scores
-
-    except Exception as exc:
-        print_ts(f"Qwen2.5-VL multi-frame facial analysis failed: {exc}")
-        return None
-
-
-class FaceEmotionSampler:
-    """
-    Facial-expression sampler for Qwen2.5-VL using best-of-N frame selection.
-
-    This now pulls frames from a shared ZedVisionModule instance instead of
-    opening its own cv2.VideoCapture handle. The ZED camera only supports one
-    active capture handle at a time, so ZedVisionModule owns the camera and
-    everything else (this sampler, and general "what do you see" vision
-    queries) reads from its thread-safe get_latest_frame().
-    """
-
-    def __init__(self, vision_module: Any, vision_client: Client) -> None:
-        self.vision_module = vision_module
-        self.vision_client = vision_client
-        self.started_at = now_ts()
-        self.error: Optional[str] = None
-        self.emotion_score_samples: list[dict[str, float]] = []
-        self.frame_count = 0
-        self.sampled_frame_count = 0
-        self.capture_start_time: Optional[float] = None
-        self.last_sample_time = 0.0
-        self.last_status = "warming up..."
-        self.snapshot_frame: Optional[np.ndarray] = None
-        self.snapshot_taken_at: Optional[str] = None
-        self.candidate_frames: list[tuple[float, np.ndarray]] = []
-        # Wall-clock seconds spent inside the actual Qwen2.5-VL analysis
-        # call (set once finish() runs _analyze_snapshot_now()).
-        self.analysis_seconds: Optional[float] = None
-
-    def start(self) -> None:
-        self.started_at = now_ts()
-        self.capture_start_time = time.time()
-
-        if self.vision_module is None:
-            self.error = "No ZedVisionModule instance was provided."
-            return
-
-        if CAMERA_PREVIEW_ENABLED:
-            try:
-                cv2.namedWindow(CAMERA_PREVIEW_WINDOW_NAME, cv2.WINDOW_NORMAL)
-                self.window_created = True
-            except Exception as exc:
-                self.error = f"Camera preview could not start: {exc}"
-                self.window_created = False
-        else:
-            self.window_created = False
-
-    def _draw_preview(self, frame: np.ndarray) -> None:
-        if not (CAMERA_PREVIEW_ENABLED and getattr(self, "window_created", False)):
-            return
-
-        try:
-            preview_frame = frame.copy()
-            cv2.putText(
-                preview_frame, "Recording speech...", (20, 35),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2, cv2.LINE_AA,
-            )
-            cv2.putText(
-                preview_frame, f"Emotion: {self.last_status}", (20, 70),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA,
-            )
-            preview_frame = cv2.resize(preview_frame, (CAMERA_PREVIEW_WIDTH, CAMERA_PREVIEW_HEIGHT))
-            cv2.imshow(CAMERA_PREVIEW_WINDOW_NAME, preview_frame)
-            cv2.waitKey(1)
-        except Exception as exc:
-            self.error = f"Camera preview failed: {exc}"
-
-    def _frame_sharpness(self, frame_bgr: np.ndarray) -> float:
-        try:
-            gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
-            return float(cv2.Laplacian(gray, cv2.CV_64F).var())
-        except Exception:
-            return 0.0
-
-    def sample_if_due(self) -> None:
-        if self.vision_module is None or self.capture_start_time is None:
-            return
-
-        # ZedVisionModule.get_latest_frame() already returns a single-eye
-        # crop (per its `view` setting), so no further SBS cropping is
-        # applied here (unlike the old standalone-camera path).
-        frame = self.vision_module.get_latest_frame(max_age_seconds=1.0)
-        if frame is None:
-            return
-
-        self.frame_count += 1
-        now = time.time()
-        elapsed = now - self.capture_start_time
-
-        self._draw_preview(frame)
-
-        if elapsed < CAMERA_WARMUP_SECONDS:
-            return
-
-        if len(self.candidate_frames) >= FACE_MAX_CANDIDATE_FRAMES:
-            self.last_status = (
-                f"collected frames ({FACE_MAX_CANDIDATE_FRAMES}/{FACE_MAX_CANDIDATE_FRAMES})"
-            )
-            return
-
-        if (
-            self.candidate_frames
-            and now - self.last_sample_time < CAMERA_SAMPLE_EVERY_SECONDS
-        ):
-            return
-
-        sharpness = self._frame_sharpness(frame)
-        self.candidate_frames.append((sharpness, frame.copy()))
-        self.last_sample_time = now
-        self.snapshot_taken_at = now_ts()
-
-        if len(self.candidate_frames) > FACE_MAX_CANDIDATE_FRAMES:
-            self.candidate_frames.sort(key=lambda item: item[0], reverse=True)
-            self.candidate_frames = self.candidate_frames[:FACE_MAX_CANDIDATE_FRAMES]
-
-        self.sampled_frame_count = len(self.candidate_frames)
-        self.last_status = (
-            f"collecting frames ({self.sampled_frame_count}/{FACE_MAX_CANDIDATE_FRAMES})"
-        )
-
-        if VISION_DEBUG:
-            print_ts(
-                f"Captured facial candidate {self.sampled_frame_count}/"
-                f"{FACE_MAX_CANDIDATE_FRAMES} with raw sharpness={sharpness:.1f}"
-            )
-
-    def _analyze_snapshot_now(self) -> None:
-        if not self.candidate_frames:
-            self.last_status = "no frames captured"
-            return
-
-        self.candidate_frames.sort(key=lambda item: item[0], reverse=True)
-        best_sharpness, best_frame = self.candidate_frames[0]
-        self.snapshot_frame = best_frame
-
-        if FACE_ANALYSIS_STRATEGY == "multi_frame":
-            selected = [frame for _, frame in self.candidate_frames[:FACE_MULTI_FRAME_COUNT]]
-            print_ts(
-                f"Analyzing {len(selected)} best facial frames with Qwen2.5-VL "
-                f"(best_sharpness={best_sharpness:.1f}, candidates={len(self.candidate_frames)})..."
-            )
-            analysis_start = time.time()
-            scores = analyze_multiple_frames_emotion_scores(selected, self.vision_client)
-            self.analysis_seconds = time.time() - analysis_start
-        else:
-            print_ts(
-                f"Analyzing best facial frame with Qwen2.5-VL "
-                f"(sharpness={best_sharpness:.1f}, candidates={len(self.candidate_frames)})..."
-            )
-            analysis_start = time.time()
-            scores = analyze_frame_emotion_scores(self.snapshot_frame, self.vision_client)
-            self.analysis_seconds = time.time() - analysis_start
-
-        if not scores:
-            self.last_status = "no reliable VLM facial emotion"
-            return
-
-        top_emotion, top_score = max(scores.items(), key=lambda item: item[1])
-        if top_score < FACE_MIN_TOP_SCORE:
-            print_ts(
-                f"Qwen2.5-VL facial result rejected as weak: "
-                f"{top_emotion}={top_score:.1f}% < {FACE_MIN_TOP_SCORE:.1f}%"
-            )
-            self.last_status = f"weak VLM result: {top_emotion}={top_score:.0f}%"
-            return
-
-        self.emotion_score_samples.append(scores)
-        self.last_status = f"{top_emotion}: {top_score:.0f}%"
-        print_ts(f"Qwen2.5-VL facial result accepted: {self.last_status}")
-
-    def finish(self) -> FaceEmotionCapture:
-        if self.window_created:
-            try:
-                cv2.destroyWindow(CAMERA_PREVIEW_WINDOW_NAME)
-                cv2.waitKey(1)
-            except Exception:
-                pass
-
-        try:
-            self._analyze_snapshot_now()
-        except Exception as exc:
-            self.error = f"Qwen2.5-VL best-frame analysis failed: {exc}"
-            print_ts(self.error)
-
-        return FaceEmotionCapture(
-            emotion_score_samples=self.emotion_score_samples,
-            frame_count=self.frame_count,
-            sampled_frame_count=self.sampled_frame_count,
-            started_at=self.started_at,
-            ended_at=now_ts(),
-            error=self.error,
-            analysis_seconds=self.analysis_seconds,
-        )
-
-
-# =========================
-# Silero VAD listener
-# =========================
-
-def listen_for_utterance_with_silero_vad(
-    input_device: Optional[int],
-    silero_model,
-    prompt_label: str = "utterance",
-) -> Optional[str]:
-    input_sample_rate = get_input_samplerate(input_device)
-    input_block_size = max(1, int(input_sample_rate * 0.05))
-    audio_queue: queue.Queue[np.ndarray] = queue.Queue()
-
-    vad_iterator = VADIterator(
-        silero_model,
-        threshold=SILERO_THRESHOLD,
-        sampling_rate=SILERO_SAMPLE_RATE,
-        min_silence_duration_ms=SILERO_MIN_SILENCE_DURATION_MS,
-        speech_pad_ms=SILERO_SPEECH_PAD_MS,
-    )
-
-    pre_roll_max_chunks = max(1, int((VAD_PRE_ROLL_SECONDS * SILERO_SAMPLE_RATE) / SILERO_CHUNK_SIZE))
-    pre_roll_chunks: list[np.ndarray] = []
-    recorded_chunks: list[np.ndarray] = []
-
-    is_recording = False
-    speech_started_at: Optional[float] = None
-    leftover_16k = np.array([], dtype=np.float32)
-
-    def audio_callback(indata, frames, callback_time, status) -> None:
-        audio_queue.put(indata[:, 0].copy())
-
-    print_ts(f"Listening automatically for {prompt_label}. Speak when ready. Press Ctrl+C to quit.")
-
-    try:
-        sd.check_input_settings(
-            device=input_device,
-            samplerate=input_sample_rate,
-            channels=1,
-            dtype="float32",
-        )
-
-        with sd.InputStream(
-            samplerate=input_sample_rate,
-            channels=1,
-            dtype="float32",
-            device=input_device,
-            blocksize=input_block_size,
-            callback=audio_callback,
-        ):
-            while True:
-                try:
-                    block = audio_queue.get(timeout=0.1)
-                except queue.Empty:
-                    continue
-
-                block_16k = resample_audio(block, input_sample_rate, SILERO_SAMPLE_RATE)
-                combined = np.concatenate([leftover_16k, block_16k]).astype(np.float32, copy=False)
-
-                usable_len = (len(combined) // SILERO_CHUNK_SIZE) * SILERO_CHUNK_SIZE
-                if usable_len == 0:
-                    leftover_16k = combined
-                    continue
-
-                chunks = combined[:usable_len].reshape(-1, SILERO_CHUNK_SIZE)
-                leftover_16k = combined[usable_len:]
-
-                for chunk in chunks:
-                    chunk = chunk.astype(np.float32, copy=False)
-
-                    if not is_recording:
-                        pre_roll_chunks.append(chunk.copy())
-                        if len(pre_roll_chunks) > pre_roll_max_chunks:
-                            pre_roll_chunks.pop(0)
-                    else:
-                        recorded_chunks.append(chunk.copy())
-
-                    speech_event = vad_iterator(torch.from_numpy(chunk), return_seconds=True)
-                    now = time.time()
-
-                    if speech_event:
-                        if "start" in speech_event and not is_recording:
-                            is_recording = True
-                            speech_started_at = now
-                            recorded_chunks = list(pre_roll_chunks)
-                            recorded_chunks.append(chunk.copy())
-                            pre_roll_chunks.clear()
-
-                            print()
-                            print_ts("Speech detected. Recording utterance...")
-
-                        if "end" in speech_event and is_recording:
-                            utterance_duration = now - (speech_started_at or now)
-
-                            if utterance_duration >= VAD_MIN_UTTERANCE_SECONDS:
-                                print_ts("Speech ended. Processing utterance...")
-                                raise StopIteration
-
-                    if is_recording and speech_started_at is not None:
-                        if now - speech_started_at >= VAD_MAX_UTTERANCE_SECONDS:
-                            print_ts("Maximum utterance length reached. Processing utterance...")
-                            raise StopIteration
-
-    except StopIteration:
-        pass
-    except KeyboardInterrupt:
-        raise
-    except Exception as exc:
-        print_ts(f"Silero VAD/audio error: {exc}")
-        return None
-    finally:
-        try:
-            vad_iterator.reset_states()
-        except Exception:
-            pass
-
-    if not recorded_chunks:
-        return None
-
-    audio_16k = np.concatenate(recorded_chunks).astype(np.float32, copy=False)
-    return save_audio_to_temp_wav(audio_16k)
-
-
-def listen_for_utterance_with_silero_vad_and_face_emotion(
-    input_device: Optional[int],
-    silero_model,
-    vision_client: Client,
-    vision_module: Any = None,
-    prompt_label: str = "utterance",
-    robot_speaker: Optional[RobotSpeaker] = None,
-) -> Tuple[Optional[str], Optional[FaceEmotionCapture]]:
-    input_sample_rate = get_input_samplerate(input_device)
-    input_block_size = max(1, int(input_sample_rate * 0.05))
-    audio_queue: queue.Queue[np.ndarray] = queue.Queue()
-
-    vad_iterator = VADIterator(
-        silero_model,
-        threshold=SILERO_THRESHOLD,
-        sampling_rate=SILERO_SAMPLE_RATE,
-        min_silence_duration_ms=SILERO_MIN_SILENCE_DURATION_MS,
-        speech_pad_ms=SILERO_SPEECH_PAD_MS,
-    )
-
-    pre_roll_max_chunks = max(1, int((VAD_PRE_ROLL_SECONDS * SILERO_SAMPLE_RATE) / SILERO_CHUNK_SIZE))
-    pre_roll_chunks: list[np.ndarray] = []
-    recorded_chunks: list[np.ndarray] = []
-
-    is_recording = False
-    speech_started_at: Optional[float] = None
-    leftover_16k = np.array([], dtype=np.float32)
-    face_sampler: Optional[FaceEmotionSampler] = None
-    face_capture: Optional[FaceEmotionCapture] = None
-
-    def audio_callback(indata, frames, callback_time, status) -> None:
-        audio_queue.put(indata[:, 0].copy())
-
-    print_ts(f"Listening automatically for {prompt_label}. Speak when ready. Press Ctrl+C to quit.")
-    print_ts(
-        f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
-        f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
-        f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
-    )
-
-    try:
-        sd.check_input_settings(
-            device=input_device,
-            samplerate=input_sample_rate,
-            channels=1,
-            dtype="float32",
-        )
-
-        with sd.InputStream(
-            samplerate=input_sample_rate,
-            channels=1,
-            dtype="float32",
-            device=input_device,
-            blocksize=input_block_size,
-            callback=audio_callback,
-        ):
-            while True:
-                # Do not record/transcribe while the robot is speaking
-                # (echo guard), mirroring the demo script's behavior.
-                if robot_speaker is not None and robot_speaker.is_speaking_or_cooling_down():
-                    # Drain any queued audio so it doesn't build a backlog.
-                    try:
-                        while True:
-                            audio_queue.get_nowait()
-                    except queue.Empty:
-                        pass
-                    time.sleep(0.05)
-                    continue
-
-                try:
-                    block = audio_queue.get(timeout=0.1)
-                except queue.Empty:
-                    if face_sampler is not None:
-                        face_sampler.sample_if_due()
-                    continue
-
-                block_16k = resample_audio(block, input_sample_rate, SILERO_SAMPLE_RATE)
-                combined = np.concatenate([leftover_16k, block_16k]).astype(np.float32, copy=False)
-
-                usable_len = (len(combined) // SILERO_CHUNK_SIZE) * SILERO_CHUNK_SIZE
-                if usable_len == 0:
-                    leftover_16k = combined
-                    continue
-
-                chunks = combined[:usable_len].reshape(-1, SILERO_CHUNK_SIZE)
-                leftover_16k = combined[usable_len:]
-
-                for chunk in chunks:
-                    chunk = chunk.astype(np.float32, copy=False)
-
-                    if not is_recording:
-                        pre_roll_chunks.append(chunk.copy())
-                        if len(pre_roll_chunks) > pre_roll_max_chunks:
-                            pre_roll_chunks.pop(0)
-                    else:
-                        recorded_chunks.append(chunk.copy())
-                        if face_sampler is not None:
-                            face_sampler.sample_if_due()
-
-                    speech_event = vad_iterator(torch.from_numpy(chunk), return_seconds=True)
-                    now = time.time()
-
-                    if speech_event:
-                        if "start" in speech_event and not is_recording:
-                            is_recording = True
-                            speech_started_at = now
-                            recorded_chunks = list(pre_roll_chunks)
-                            recorded_chunks.append(chunk.copy())
-                            pre_roll_chunks.clear()
-
-                            print()
-                            print_ts("Speech detected. Recording utterance and sampling facial expression...")
-
-                            face_sampler = FaceEmotionSampler(vision_module=vision_module, vision_client=vision_client)
-                            face_sampler.start()
-                            face_sampler.sample_if_due()
-
-                        if "end" in speech_event and is_recording:
-                            utterance_duration = now - (speech_started_at or now)
-
-                            if utterance_duration >= VAD_MIN_UTTERANCE_SECONDS:
-                                print_ts("Speech ended. Processing utterance...")
-                                raise StopIteration
-
-                    if is_recording and speech_started_at is not None:
-                        if now - speech_started_at >= VAD_MAX_UTTERANCE_SECONDS:
-                            print_ts("Maximum utterance length reached. Processing utterance...")
-                            raise StopIteration
-
-    except StopIteration:
-        pass
-    except KeyboardInterrupt:
-        raise
-    except Exception as exc:
-        print_ts(f"Silero VAD/audio/camera error: {exc}")
-        return None, face_capture
-    finally:
-        if face_sampler is not None:
-            face_capture = face_sampler.finish()
-
-        try:
-            vad_iterator.reset_states()
-        except Exception:
-            pass
-
-    if not recorded_chunks:
-        return None, face_capture
-
-    audio_16k = np.concatenate(recorded_chunks).astype(np.float32, copy=False)
-    return save_audio_to_temp_wav(audio_16k), face_capture
-
-
-def ask_user_to_spell_name(
-    whisper_model: WhisperModel,
-    silero_model,
-    input_device: Optional[int] = INPUT_DEVICE,
-    google_recognizer: Optional[sr.Recognizer] = None,
-) -> Optional[str]:
-    print()
-    print_ts("Please spell your name letter by letter. For example: L E T I C I A.")
-    print()
-
-    wav_path = listen_for_utterance_with_silero_vad(
-        input_device=input_device,
-        silero_model=silero_model,
-        prompt_label="spelled name",
-    )
-
-    if not wav_path:
-        return None
-
-    try:
-        transcript, engine = transcribe_with_fallback(wav_path, whisper_model, google_recognizer)
-    finally:
-        try:
-            os.remove(wav_path)
-        except OSError:
-            pass
-
-    print_ts(f"Raw spelling transcript ({engine}): {transcript}")
-
-    return clean_spelled_name(transcript)
-
-
-def generate_introduction_response(
-    client: Client,
-    user_name: str,
-) -> str:
-    system_prompt = f"""
-        You are Ameca, a humanoid social robot in a university laboratory.
-
-        A new user has just introduced themselves.
-
-        Your task:
-        - greet the user naturally
-        - introduce yourself naturally as Ameca
-        - keep it warm and concise
-        - keep the response to 1-2 short sentences
-        - mention the user's name
-        - end with exactly one friendly facial emoji
-        - only use this emoji: 🙂
-
-        Do not:
-        - sound robotic
-        - repeat the user's exact words
-        - mention prompts or instructions
-        """.strip()
-
-    try:
-        response = client.chat(
-            model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"My name is {user_name}"},
-            ],
-            options={
-                "temperature": 0.5,
-                "num_predict": 60,
-                "num_ctx": 1024,
-            },
-            stream=False,
-        )
-
-        raw_reply = response["message"]["content"]
-        return normalize_reply(raw_reply, "trust")
-
-    except Exception as exc:
-        print_ts(f"Could not generate introduction with LLM: {exc}")
-        return f"Hello {user_name}. I am Ameca. It is nice to meet you. 🙂"
-
-
-def prompt_for_user_name(
-    client: Client,
-    whisper_model: WhisperModel,
-    silero_model,
-    input_device: Optional[int] = INPUT_DEVICE,
-    google_recognizer: Optional[sr.Recognizer] = None,
-    robot_speaker: Optional[RobotSpeaker] = None,
-) -> tuple[str, dict, str]:
-    users = load_users()
-
-    spoken_name = ""
-
-    for attempt in range(2):
-        print()
-        print_ts("Please say your name")
-        print()
-
-        wav_path = listen_for_utterance_with_silero_vad(
-            input_device=input_device,
-            silero_model=silero_model,
-            prompt_label="name",
-        )
-
-        if not wav_path:
-            spoken_name = ""
-        else:
-            try:
-                spoken_name, engine = transcribe_with_fallback(wav_path, whisper_model, google_recognizer)
-                spoken_name = spoken_name.strip()
-            finally:
-                try:
-                    os.remove(wav_path)
-                except OSError:
-                    pass
-
-        print_ts(f"Raw name transcript: {spoken_name or '(empty)'}")
-
-        extracted_name = extract_name_from_text(spoken_name)
-        spoken_name = extracted_name or clean_spoken_name(spoken_name)
-
-        if spoken_name and not looks_like_invalid_name(spoken_name):
-            break
-
-        print_ts(f"I heard '{spoken_name or 'nothing'}', but that does not sound like a name.")
-        if robot_speaker:
-            robot_speaker.say("I might have misheard, could you say your name again?")
-
-    if not spoken_name or looks_like_invalid_name(spoken_name):
-        spoken_name = "Guest"
-
-    spelled_name = None
-
-    if ENABLE_NAME_SPELLING:
-        spelled_name = ask_user_to_spell_name(
-            whisper_model=whisper_model,
-            silero_model=silero_model,
-            input_device=input_device,
-            google_recognizer=google_recognizer,
-        )
-
-    corrected_spelled_name = correct_spelled_name_with_known_users(
-        spelled_name=spelled_name,
-        spoken_name=spoken_name,
-    )
-
-    if corrected_spelled_name and not looks_like_invalid_name(corrected_spelled_name):
-        final_name = corrected_spelled_name
-        print_ts(f"Using spelled/corrected name: {final_name}")
-    else:
-        final_name = correct_spelled_name_with_known_users(
-            spelled_name=spoken_name,
-            spoken_name=spoken_name,
-        ) or spoken_name
-        print_ts(f"Using spoken name: {final_name}")
-
-    print_ts(f"Detected name: {final_name}")
-
-    user_key = slugify_name(final_name)
-    is_new_user = user_key not in users
-
-    if is_new_user:
-        users[user_key] = {
-            "name": final_name,
-            "created_at": now_ts(),
-            "last_seen": now_ts(),
-            "session_files": [],
-            "conversation_summary": "",
-        }
-    else:
-        users[user_key]["last_seen"] = now_ts()
-
-    save_users(users)
-    user_profile = users[user_key]
-
-    if not is_new_user:
-        user_profile = ensure_user_has_conversation_summary(user_key, user_profile)
-
-    if is_new_user:
-        print_ts(f"Nice to meet you, {final_name}.")
-        introduction_reply = generate_introduction_response(
-            client=client,
-            user_name=user_profile["name"],
-        )
-    else:
-        print_ts(f"Welcome back, {user_profile['name']}.")
-        if user_profile.get("conversation_summary"):
-            print_ts("Starting from previous conversation summary.")
-        introduction_reply = generate_returning_user_response(
-            client=client,
-            user_profile=user_profile,
-        )
-
-    print_ts(f"Assistant: {introduction_reply}")
-    print()
-
-    return user_key, user_profile, introduction_reply
-
-
-# =========================
-# JSON helpers
-# =========================
-
-def safe_json_extract(raw: str):
+def safe_json_extract(raw: str) -> Optional[dict]:
     if not raw:
         return None
 
@@ -2808,869 +508,106 @@ def safe_json_extract(raw: str):
         pass
 
     start = raw.find("{")
-    if start < 0:
-        return None
-
-    candidate = raw[start:].strip()
-
-    last_close = candidate.rfind("}")
-    if last_close > 0:
-        maybe = candidate[: last_close + 1]
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        candidate = raw[start:end + 1]
         try:
-            return json.loads(maybe)
+            return json.loads(candidate)
         except Exception:
             pass
 
-    repaired = candidate
-    reason_pos = repaired.rfind('"reason"')
-    if reason_pos != -1:
-        before_reason = repaired[:reason_pos].rstrip().rstrip(",")
-        repaired = before_reason + ', "reason": "truncated"}'
-
-    open_braces = repaired.count("{")
-    close_braces = repaired.count("}")
-    if close_braces < open_braces:
-        repaired += "}" * (open_braces - close_braces)
-
-    open_brackets = repaired.count("[")
-    close_brackets = repaired.count("]")
-    if close_brackets < open_brackets:
-        repaired += "]" * (open_brackets - close_brackets)
-
-    if repaired.count('"') % 2 != 0:
-        repaired += '"'
-
-    try:
-        return json.loads(repaired)
-    except Exception:
-        pass
-
-    try:
-        dominant_match = re.search(r'"dominant_emotion"\s*:\s*"([^"{}]+)"', candidate)
-        confidence_match = re.search(r'"confidence"\s*:\s*([0-9.]+)', candidate)
-        scores_match = re.search(r'"scores"\s*:\s*\{(.*?)\}', candidate, flags=re.DOTALL)
-
-        if not scores_match:
-            return None
-
-        scores_text = scores_match.group(1)
-        scores: dict[str, float] = {}
-        for emotion in [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]:
-            match = re.search(rf'"{emotion}"\s*:\s*([0-9.]+)', scores_text)
-            if match:
-                scores[emotion] = float(match.group(1))
-
-        if not scores:
-            return None
-
-        dominant = dominant_match.group(1).strip().lower() if dominant_match else max(scores.items(), key=lambda item: item[1])[0]
-        confidence = float(confidence_match.group(1)) if confidence_match else max(scores.values())
-
-        return {
-            "dominant_emotion": dominant,
-            "confidence": confidence,
-            "scores": scores,
-            "reason": "recovered from partial JSON",
-        }
-    except Exception:
-        return None
-
-
-# =========================
-# Self-RAG helpers
-# =========================
-
-def self_rag_disabled_context(query: str, reason: str, error: Optional[str] = None) -> SelfRAGContext:
-    return SelfRAGContext(
-        available=False,
-        used=False,
-        query=query,
-        context_text="",
-        sources=[],
-        reason=reason,
-        error=error,
-    )
-
-
-def clean_knowledge_text(text: str) -> str:
-    text = re.sub(r"\r\n?", "\n", text)
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
-
-
-def read_knowledge_file(path: str) -> str:
-    ext = os.path.splitext(path)[1].lower()
-
-    if ext == ".pdf":
-        try:
-            from pypdf import PdfReader
-        except Exception as exc:
-            print_ts(f"Skipping PDF because pypdf is not installed: {path} ({exc})")
-            return ""
-
-        try:
-            reader = PdfReader(path)
-            pages = []
-            for page in reader.pages:
-                pages.append(page.extract_text() or "")
-            return clean_knowledge_text("\n\n".join(pages))
-        except Exception as exc:
-            print_ts(f"Could not read PDF knowledge file {path}: {exc}")
-            return ""
-
-    try:
-        with open(path, "r", encoding="utf-8", errors="ignore") as file:
-            return clean_knowledge_text(file.read())
-    except Exception as exc:
-        print_ts(f"Could not read knowledge file {path}: {exc}")
-        return ""
-
-
-def iter_knowledge_files(kb_dir: str) -> list[str]:
-    if not os.path.isdir(kb_dir):
-        return []
-
-    paths: list[str] = []
-    for root, _, files in os.walk(kb_dir):
-        for filename in files:
-            path = os.path.join(root, filename)
-            ext = os.path.splitext(path)[1].lower()
-            if ext in SELF_RAG_SUPPORTED_EXTENSIONS:
-                paths.append(path)
-    return sorted(paths)
-
-
-def chunk_text(text: str, chunk_size: int = SELF_RAG_CHUNK_SIZE, overlap: int = SELF_RAG_CHUNK_OVERLAP) -> list[str]:
-    text = clean_knowledge_text(text)
-    if not text:
-        return []
-
-    if len(text) <= chunk_size:
-        return [text]
-
-    chunks: list[str] = []
-    start = 0
-    step = max(1, chunk_size - overlap)
-
-    while start < len(text):
-        end = min(len(text), start + chunk_size)
-        chunk = text[start:end].strip()
-
-        if end < len(text):
-            last_break = max(chunk.rfind(". "), chunk.rfind("\n"), chunk.rfind("; "))
-            if last_break > int(chunk_size * 0.55):
-                chunk = chunk[: last_break + 1].strip()
-                end = start + last_break + 1
-
-        if chunk:
-            chunks.append(chunk)
-
-        start = max(end - overlap, start + step)
-
-    return chunks
-
-
-def stable_chunk_id(path: str, chunk: str, index: int) -> str:
-    raw = f"{path}:{index}:{chunk}".encode("utf-8", errors="ignore")
-    return hashlib.sha256(raw).hexdigest()[:32]
-
-
-def resolve_scrape_script_path() -> Optional[str]:
-    candidates = [
-        SELF_RAG_SCRAPE_SCRIPT,
-        os.path.join(os.getcwd(), SELF_RAG_SCRAPE_SCRIPT),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), SELF_RAG_SCRAPE_SCRIPT),
-    ]
-
-    for candidate in candidates:
-        if candidate and os.path.isfile(candidate):
-            return os.path.abspath(candidate)
-
     return None
 
 
-def run_rrlab_scraper() -> bool:
-    script_path = resolve_scrape_script_path()
+# =============================================================================
+# Text-based emotion classification via local Ollama LLM
+# =============================================================================
 
-    if not script_path:
-        print_ts(
-            "Could not find scrape.py. Put scrape.py in the same folder as this script "
-            "or set SELF_RAG_SCRAPE_SCRIPT=/full/path/to/scrape.py."
-        )
-        return False
+def build_emotion_prompt(transcribed_text: str) -> str:
+    emotions = ", ".join(FUSION_EMOTIONS)
+    return f"""
+You are an emotion classification system for a human-robot interaction warm-up.
 
-    print_ts(f"Running RRLab scraper: {script_path}")
+Classify the emotional state expressed by the text below into exactly one of
+Ekman's basic emotions (plus neutral): {emotions}
 
-    env = os.environ.copy()
-    env.setdefault("PYTHONUNBUFFERED", "1")
+Use the words as the primary signal. Do not add markdown or extra text.
 
-    try:
-        completed = subprocess.run(
-            [sys.executable, script_path],
-            cwd=os.path.dirname(script_path) or os.getcwd(),
-            env=env,
-            check=False,
-        )
+Return JSON only in this exact shape:
+{{"emotion": "one of the emotions above", "confidence": 0.0, "reason": "short explanation"}}
 
-        if completed.returncode != 0:
-            print_ts(f"RRLab scraper failed with exit code {completed.returncode}.")
-            return False
-
-        print_ts("RRLab scraper finished successfully.")
-        return True
-
-    except KeyboardInterrupt:
-        raise
-    except Exception as exc:
-        print_ts(f"RRLab scraper could not run: {exc}")
-        return False
-
-
-def init_self_rag_store() -> SelfRAGStore:
-    if not SELF_RAG_ENABLED:
-        print_ts("Self-RAG disabled by SELF_RAG_ENABLED=0.")
-        return SelfRAGStore(enabled=False, error="Self-RAG disabled.")
-
-    try:
-        import chromadb
-        from sentence_transformers import SentenceTransformer
-    except Exception as exc:
-        print_ts(
-            "Self-RAG dependencies missing. Install with: "
-            "pip install chromadb sentence-transformers pypdf"
-        )
-        return SelfRAGStore(enabled=False, error=str(exc))
-
-    try:
-        os.makedirs(SELF_RAG_DB_DIR, exist_ok=True)
-        chroma_client = chromadb.PersistentClient(path=SELF_RAG_DB_DIR)
-        collection = chroma_client.get_or_create_collection(
-            name=SELF_RAG_COLLECTION,
-            metadata={"hnsw:space": "cosine"},
-        )
-        embedder = SentenceTransformer(SELF_RAG_EMBED_MODEL)
-        store = SelfRAGStore(enabled=True, collection=collection, embedder=embedder)
-
-        if SELF_RAG_REINDEX_ON_START:
-            index_self_rag_knowledge(store)
-
-        count = collection.count()
-
-        if count == 0 and SELF_RAG_AUTO_SCRAPE_ON_EMPTY:
-            print_ts("Self-RAG collection is empty. Running scrape.py to build the RRLab website index...")
-            run_rrlab_scraper()
-            count = collection.count()
-
-        if count == 0:
-            print_ts(
-                "Self-RAG collection is empty. Run 'python scrape.py' first, "
-                "or type '/rrlab crawl' while the app is running."
-            )
-
-        print_ts(f"Self-RAG ready. Collection='{SELF_RAG_COLLECTION}', chunks={count}.")
-        return store
-    except Exception as exc:
-        print_ts(f"Self-RAG initialization failed: {exc}")
-        return SelfRAGStore(enabled=False, error=str(exc))
-
-
-def index_self_rag_knowledge(store: SelfRAGStore) -> None:
-    if not store.enabled or store.collection is None or store.embedder is None:
-        return
-
-    paths = iter_knowledge_files(SELF_RAG_KB_DIR)
-    if not paths:
-        print_ts(
-            f"Self-RAG knowledge folder '{SELF_RAG_KB_DIR}' has no supported files. "
-            "Create the folder and add .txt, .md, .pdf, .json, .csv, .py, or .html files."
-        )
-        return
-
-    ids: list[str] = []
-    docs: list[str] = []
-    metas: list[dict] = []
-
-    for path in paths:
-        text = read_knowledge_file(path)
-        if len(text) < SELF_RAG_MIN_CONTEXT_CHARS:
-            continue
-
-        rel_path = os.path.relpath(path, SELF_RAG_KB_DIR)
-        for index, chunk in enumerate(chunk_text(text)):
-            if len(chunk) < SELF_RAG_MIN_CONTEXT_CHARS:
-                continue
-            ids.append(stable_chunk_id(rel_path, chunk, index))
-            docs.append(chunk)
-            metas.append({
-                "source": rel_path,
-                "chunk_index": index,
-                "source_path": path,
-                "indexed_at": now_ts(),
-            })
-
-    if not docs:
-        print_ts("Self-RAG found knowledge files, but no usable text chunks were extracted.")
-        return
-
-    embeddings = store.embedder.encode(docs, normalize_embeddings=True).tolist()
-    store.collection.upsert(ids=ids, documents=docs, metadatas=metas, embeddings=embeddings)
-    print_ts(f"Self-RAG indexed/updated {len(docs)} chunks from {len(paths)} files.")
-
-
-def normalize_self_rag_query_text(text: str) -> str:
-    lowered = text.lower()
-    replacements = {
-        "ashita ashuk": "ashita ashok",
-        "ashita ashook": "ashita ashok",
-        "ashuk": "ashok",
-        "ashook": "ashok",
-        "robots amaker": "robot ameca",
-        "robot amaker": "robot ameca",
-        "amaker": "ameca",
-        "emeka": "ameca",
-        "robotic lab": "robotics research lab",
-        "robotics lab": "robotics research lab",
-    }
-    for wrong, right in replacements.items():
-        lowered = lowered.replace(wrong, right)
-    return lowered
-
-
-def extract_person_lookup_name(text: str) -> Optional[str]:
-    cleaned = normalize_self_rag_query_text(text)
-    cleaned = re.sub(r"[^a-zA-Z\s]", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-
-    patterns = [
-        r"\bwho is ([a-z]+(?:\s+[a-z]+){0,2})\b",
-        r"\bdo you know who is ([a-z]+(?:\s+[a-z]+){0,2})\b",
-        r"\bdo you know about ([a-z]+(?:\s+[a-z]+){0,2})\b",
-        r"\babout ([a-z]+(?:\s+[a-z]+){0,2}) in the robotics research lab\b",
-    ]
-
-    stop_words = {
-        "the", "a", "an", "robot", "robots", "robotic", "robotics",
-        "lab", "laboratory", "research", "group", "people", "person",
-    }
-
-    for pattern in patterns:
-        match = re.search(pattern, cleaned)
-        if not match:
-            continue
-        name = match.group(1).strip()
-        words = [w for w in name.split() if w not in stop_words]
-        if words:
-            return " ".join(words)
-
-    return None
-
-
-def candidate_contains_person(candidate: dict[str, Any], person_name: str) -> bool:
-    if not person_name:
-        return True
-
-    normalized_person = normalize_self_rag_query_text(person_name).strip()
-    tokens = [t for t in normalized_person.split() if len(t) > 2]
-    haystack = " ".join([
-        str(candidate.get("text") or ""),
-        str(candidate.get("title") or ""),
-        str(candidate.get("source") or ""),
-    ]).lower()
-
-    if normalized_person and normalized_person in haystack:
-        return True
-    if normalized_person and normalized_person.replace(" ", "-") in haystack:
-        return True
-    if len(tokens) == 1:
-        return bool(re.search(rf"\b{re.escape(tokens[0])}\b", haystack))
-    return all(re.search(rf"\b{re.escape(token)}\b", haystack) for token in tokens)
-
-
-def force_self_rag_for_entity(text: str) -> bool:
-    lowered = normalize_self_rag_query_text(text)
-    return any(entity in lowered for entity in KNOWN_RRLAB_ENTITIES)
-
-
-def is_social_or_support_message(text: str) -> tuple[bool, str]:
-    lowered = text.strip().lower()
-    simple = re.sub(r"[^a-z0-9\s']", " ", lowered)
-    simple = re.sub(r"\s+", " ", simple).strip()
-
-    social_patterns = [
-        "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
-        "nice to meet you", "thank you", "thanks", "how are you",
-        "goodbye", "bye", "see you", "talk later",
-    ]
-    if SELF_RAG_SKIP_SOCIAL and any(pattern in simple for pattern in social_patterns):
-        return True, "Social greeting/small talk does not need local knowledge retrieval."
-
-    support_patterns = [
-        "i am stressed", "i'm stressed", "i feel stressed", "so stressed",
-        "stressful", "overwhelmed", "anxious", "worried",
-        "tired", "exhausted", "i feel sad", "i am sad", "i'm sad",
-    ]
-    if SELF_RAG_SKIP_EMOTIONAL_SUPPORT and any(pattern in simple for pattern in support_patterns):
-        return True, "Emotional support message; response should be empathetic without forcing retrieved RRLab knowledge."
-
-    return False, ""
-
-
-def infer_self_rag_category(query: str) -> Optional[str]:
-    q = normalize_self_rag_query_text(query)
-    if any(token in q for token in ["ashita", "ashita ashok", "professor", "head", "leader", "leads", "staff", "research associate", "who is"]):
-        return "staff"
-    if any(token in q for token in ["project", "current project", "sembai", "senna", "casrew", "zukunftbau", "znt"]):
-        return "project"
-    if any(token in q for token in ["robot", "robots", "ameca", "emah", "ravon", "robin", "unimog", "carl"]):
-        return "robot"
-    if any(token in q for token in ["publication", "paper", "textbook", "dissertation"]):
-        return "publication"
-    if any(token in q for token in ["research area", "what does rrlab research", "rrlab research", "researches"]):
-        return "research_area"
-    return None
-
-
-def rewrite_self_rag_query(query: str) -> str:
-    q = normalize_self_rag_query_text(query).strip()
-    if "who leads" in q or ("head" in q and "laboratory" in q):
-        return "head of laboratory professor robotics research lab"
-    if "current projects" in q:
-        return "current RRLab projects SEmbAI SENNA CASREW ZukunftBau ZNT project"
-    if "what is ameca" in q or "what is emah" in q:
-        return "Ameca Emah humanoid robot RRLab student companion"
-    if "what robots" in q:
-        return "RRLab robots Ameca RAVON Robin Unimog CARL robot platforms"
-    if "ashita" in q:
-        return "M. Sc. Ashita Ashok Ameca Robothespian human robot interaction trust expectation alignment"
-    if "what does rrlab research" in q or "rrlab research" in q:
-        return "RRLab research areas control architectures outdoor robots indoor robots humanoid robots simulation projects"
-    return query
-
-
-def self_rag_hybrid_score(candidate: dict[str, Any], inferred_category: Optional[str], query: str) -> float:
-    distance = float(candidate.get("distance", 1.0))
-    score = 1.0 - distance
-    category = candidate.get("category")
-    title = str(candidate.get("title") or "").lower()
-    source = str(candidate.get("source") or "").lower()
-    q = query.lower()
-
-    try:
-        priority = int(candidate.get("priority", 0) or 0)
-    except Exception:
-        priority = 0
-
-    if inferred_category and category == inferred_category:
-        score += 0.12
-    if priority >= 100:
-        score += 0.12
-    elif priority >= 90:
-        score += 0.08
-    elif priority >= 80:
-        score += 0.04
-    if "/former-staff-members/" in source:
-        score -= 0.14
-    if category == "conference":
-        score -= 0.15
-    if inferred_category == "robot" and category == "staff":
-        score -= 0.18
-    if inferred_category == "robot" and category == "conference":
-        score -= 0.25
-    if inferred_category == "project" and category not in {"project", "general"}:
-        score -= 0.12
-    if inferred_category == "staff" and category not in {"staff", "general"}:
-        score -= 0.12
-    if "head of laboratory" in q or "who leads" in q:
-        if "head of the laboratory" in title or "head-of-the-laboratory" in source:
-            score += 0.25
-        if "technical staff" in title:
-            score -= 0.25
-        if "research associates" in title:
-            score -= 0.12
-    if "ashita" in q and ("ashita ashok" in title or "ashita-ashok" in source):
-        score += 0.25
-    if ("ameca" in q or "emah" in q) and ("/robots/ameca" in source or title == "emah"):
-        score += 0.25
-    if "project" in q:
-        if "/research/projects/" in source and "/finished-projects/" not in source:
-            score += 0.10
-        if "/finished-projects/" in source and "current" in q:
-            score -= 0.18
-    return score
-
-
-def retrieve_self_rag_candidates(store: SelfRAGStore, query: str, top_k: int = SELF_RAG_TOP_K) -> list[dict[str, Any]]:
-    if not store.enabled or store.collection is None or store.embedder is None:
-        return []
-    if not query.strip():
-        return []
-
-    normalized_query = normalize_self_rag_query_text(query)
-    rewritten_query = rewrite_self_rag_query(normalized_query)
-    inferred_category = infer_self_rag_category(rewritten_query)
-    person_lookup_name = extract_person_lookup_name(normalized_query)
-    force_rag = force_self_rag_for_entity(normalized_query)
-
-    try:
-        query_embedding = store.embedder.encode([rewritten_query], normalize_embeddings=True).tolist()[0]
-
-        def run_query(where_filter: Optional[dict] = None) -> list[dict[str, Any]]:
-            kwargs = {
-                "query_embeddings": [query_embedding],
-                "n_results": max(1, top_k),
-                "include": ["documents", "metadatas", "distances"],
-            }
-            if where_filter:
-                kwargs["where"] = where_filter
-
-            result = store.collection.query(**kwargs)
-            docs = result.get("documents", [[]])[0]
-            metas = result.get("metadatas", [[]])[0]
-            distances = result.get("distances", [[]])[0]
-
-            rows: list[dict[str, Any]] = []
-            for doc, meta, distance in zip(docs, metas, distances):
-                meta = meta or {}
-                rows.append({
-                    "text": doc,
-                    "source": meta.get("source", "unknown"),
-                    "title": meta.get("title"),
-                    "kind": meta.get("kind"),
-                    "category": meta.get("category"),
-                    "priority": meta.get("priority"),
-                    "chunk_index": meta.get("chunk_index"),
-                    "distance": float(distance),
-                })
-            return rows
-
-        rows: list[dict[str, Any]] = []
-        if inferred_category:
-            rows.extend(run_query({"category": inferred_category}))
-        rows.extend(run_query(None))
-
-        rows = [
-            row for row in rows
-            if float(row.get("distance", 1.0)) <= SELF_RAG_MAX_DISTANCE
-        ]
-
-        if SELF_RAG_PERSON_LOOKUP_STRICT and person_lookup_name:
-            rows = [
-                row for row in rows
-                if candidate_contains_person(row, person_lookup_name)
-            ]
-
-        best_by_source: dict[str, dict[str, Any]] = {}
-        for row in rows:
-            row["hybrid_score"] = self_rag_hybrid_score(row, inferred_category, rewritten_query)
-
-            min_score = SELF_RAG_MIN_HYBRID_SCORE
-            if force_rag:
-                min_score = max(0.50, SELF_RAG_MIN_HYBRID_SCORE - 0.10)
-
-            if row["hybrid_score"] < min_score:
-                continue
-
-            source = str(row.get("source") or "")
-            if source not in best_by_source or row["hybrid_score"] > best_by_source[source]["hybrid_score"]:
-                best_by_source[source] = row
-
-        reranked = sorted(
-            best_by_source.values(),
-            key=lambda item: item.get("hybrid_score", 0.0),
-            reverse=True,
-        )
-        return reranked[:SELF_RAG_FINAL_TOP_K]
-
-    except Exception as exc:
-        print_ts(f"Self-RAG retrieval failed: {exc}")
-        return []
-
-
-def get_source_page_text(
-    store: SelfRAGStore,
-    source: str,
-    center_chunk_index: Optional[int] = None,
-    max_chars: int = 3500,
-) -> str:
-    if not source or not store.enabled or store.collection is None:
-        return ""
-
-    try:
-        result = store.collection.get(
-            where={"source": source},
-            include=["documents", "metadatas"],
-        )
-    except Exception as exc:
-        print_ts(f"Self-RAG source expansion failed for {source}: {exc}")
-        return ""
-
-    docs = result.get("documents") or []
-    metas = result.get("metadatas") or []
-    rows: list[tuple[int, str]] = []
-
-    for doc, meta in zip(docs, metas):
-        meta = meta or {}
-        try:
-            chunk_index = int(meta.get("chunk_index", 0) or 0)
-        except Exception:
-            chunk_index = 0
-        cleaned = clean_knowledge_text(str(doc or ""))
-        if cleaned:
-            rows.append((chunk_index, cleaned))
-
-    if not rows:
-        return ""
-
-    rows.sort(key=lambda item: item[0])
-
-    if center_chunk_index is not None:
-        try:
-            center = int(center_chunk_index)
-            rows.sort(key=lambda item: (abs(item[0] - center), item[0]))
-        except Exception:
-            pass
-
-    selected: list[tuple[int, str]] = []
-    used = 0
-    for chunk_index, chunk in rows:
-        if used >= max_chars:
-            break
-        clipped = chunk[: max(0, max_chars - used)]
-        if clipped:
-            selected.append((chunk_index, clipped))
-            used += len(clipped) + 2
-
-    selected.sort(key=lambda item: item[0])
-    return "\n".join(f"[chunk {idx}] {chunk}" for idx, chunk in selected)
-
-
-def context_has_placeholder_risk(text: str) -> bool:
-    lowered = str(text or "").lower()
-    return any(marker in lowered for marker in ["[name]", "professor [", "dr. [", "dr [", "unknown name"])
-
-
-def generate_grounded_self_rag_answer(
-    client: Client,
-    user_text: str,
-    self_rag_context: SelfRAGContext,
-    emotion: str = "trust",
-) -> Optional[str]:
-    if not self_rag_context or not self_rag_context.used or not self_rag_context.context_text.strip():
-        return None
-
-    prompt = f"""
-You are Ameca answering a factual question using only the retrieved local lab knowledge below.
-
-User question:
-{user_text}
-
-Retrieved local lab knowledge:
-{self_rag_context.context_text}
-
-Instructions:
-- Answer only from the retrieved knowledge.
-- If the exact name, role, project, or fact is not explicitly present, say you could not verify it from the local lab knowledge.
-- Do not use placeholders such as [Name].
-- Do not claim personal familiarity.
-- Do not mention Self-RAG, embeddings, vector databases, or raw metadata.
-- Keep the answer to 1-2 short sentences.
-
-Return JSON only:
-{{
-  "reply": "answer without emoji",
-  "emoji": "one of 🙂 😊 😌 😔 😟 🤔 😮 😢 😠 🤢"
-}}
+Text:
+{transcribed_text}
 """.strip()
+
+
+def detect_text_emotion(
+    client: Optional[Client],
+    transcribed_text: str,
+    model_name: str = EMOTION_MODEL_NAME,
+) -> EmotionResult:
+    if client is None or not transcribed_text.strip():
+        return EmotionResult(
+            emotion="neutral",
+            confidence=0.0,
+            reason="No Ollama client or empty transcript; text modality unavailable.",
+        )
 
     try:
         response = client.chat(
-            model=MODEL_NAME,
-            format="json",
-            messages=[
-                {"role": "system", "content": "You return valid JSON only and never invent facts."},
-                {"role": "user", "content": prompt},
-            ],
-            options={
-                "temperature": 0.0,
-                "num_predict": 160,
-                "num_ctx": 8192,
-                "repeat_penalty": 1.15,
-            },
-            stream=False,
-        )
-        raw = response.get("message", {}).get("content", "")
-        data = safe_json_extract(raw)
-        if not isinstance(data, dict):
-            return None
-        reply = str(data.get("reply", "")).strip()
-        emoji = str(data.get("emoji", "")).strip()
-        if not reply or context_has_placeholder_risk(reply):
-            return None
-        if emoji not in ALLOWED_FACE_EMOJIS:
-            emoji = PLUTCHIK_EMOTIONS.get(emotion, "🙂")
-        return normalize_reply(f"{reply} {emoji}", emotion)
-    except Exception as exc:
-        print_ts(f"Grounded Self-RAG answer generation failed: {exc}")
-        return None
-
-
-def grade_self_rag_context(client: Client, user_text: str, candidates: list[dict[str, Any]]) -> tuple[bool, str]:
-    if not candidates:
-        return False, "No retrieved knowledge chunks were available."
-
-    compact_context = "\n\n".join(
-        f"[{idx + 1}] source={item['source']}\n{limit_text_length(item['text'], 700)}"
-        for idx, item in enumerate(candidates[:SELF_RAG_FINAL_TOP_K])
-    )
-
-    prompt = f"""
-You are the retrieval judge in a Self-RAG pipeline for a humanoid robot assistant.
-
-Decide whether the retrieved local knowledge is useful for answering the user's latest message.
-
-User message:
-{user_text}
-
-Retrieved local knowledge:
-{compact_context}
-
-Return JSON only:
-{{
-  "use_context": true,
-  "reason": "brief reason"
-}}
-
-Rules:
-- use_context must be true only when the retrieved knowledge directly and specifically answers the message.
-- use_context must be false for greetings, small talk, emotional support, or unrelated knowledge.
-- use_context must be false if the retrieved text is too weak, unrelated, generic, only keyword-matched, or does not contain the named person/entity asked about.
-""".strip()
-
-    try:
-        response = client.chat(
-            model=MODEL_NAME,
+            model=model_name,
             format="json",
             messages=[
                 {"role": "system", "content": "You return valid JSON only."},
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": build_emotion_prompt(transcribed_text)},
             ],
-            options={"temperature": 0.0, "num_predict": 120, "num_ctx": 3072},
+            options={"temperature": 0.1, "num_predict": 120, "num_ctx": 2048},
             stream=False,
         )
-        data = safe_json_extract(response.get("message", {}).get("content", ""))
-        if not isinstance(data, dict):
-            return False, "Retrieval judge returned unparseable output."
-        return bool(data.get("use_context", False)), str(data.get("reason", "")).strip()
     except Exception as exc:
-        print_ts(f"Self-RAG relevance grading failed: {exc}")
-        return False, f"Retrieval judge failed: {exc}"
-
-
-def build_self_rag_context(client: Client, store: SelfRAGStore, user_text: str) -> SelfRAGContext:
-    if not store.enabled:
-        return self_rag_disabled_context(user_text, "Self-RAG store is not enabled.", store.error)
-
-    force_rag = force_self_rag_for_entity(user_text)
-
-    should_skip, skip_reason = is_social_or_support_message(user_text)
-    if should_skip and not force_rag:
-        return SelfRAGContext(
-            available=True,
-            used=False,
-            query=user_text,
-            context_text="",
-            sources=[],
-            reason=skip_reason,
+        print_ts(f"Text emotion classification LLM call failed: {exc}")
+        return EmotionResult(
+            emotion="neutral",
+            confidence=0.0,
+            reason=f"LLM call failed: {exc}",
         )
 
-    candidates = retrieve_self_rag_candidates(store, user_text)
-    if not candidates:
-        person_lookup_name = extract_person_lookup_name(user_text)
-        if person_lookup_name:
-            return SelfRAGContext(
-                available=True,
-                used=False,
-                query=user_text,
-                context_text="",
-                sources=[],
-                reason=(
-                    f"No direct local knowledge was found for person lookup: {person_lookup_name}. "
-                    "Generic RRLab pages were not used because they do not directly answer the question."
-                ),
-            )
-        return self_rag_disabled_context(user_text, "No sufficiently relevant local knowledge was retrieved.")
-
-    should_use, reason = grade_self_rag_context(client, user_text, candidates)
-    if not should_use:
-        return SelfRAGContext(
-            available=True,
-            used=False,
-            query=user_text,
-            context_text="",
-            sources=[{k: v for k, v in item.items() if k != "text"} for item in candidates],
-            reason=reason or "Retrieved context was judged not useful.",
+    raw = response.get("message", {}).get("content", "")
+    data = safe_json_extract(raw)
+    if not isinstance(data, dict):
+        return EmotionResult(
+            emotion="neutral",
+            confidence=0.0,
+            reason="Could not parse model output for text emotion.",
         )
 
-    context_parts: list[str] = []
-    sources: list[dict[str, Any]] = []
-    remaining = SELF_RAG_MAX_CONTEXT_CHARS
+    emotion = str(data.get("emotion", "")).strip().lower()
+    try:
+        confidence = max(0.0, min(1.0, float(data.get("confidence", 0.0))))
+    except Exception:
+        confidence = 0.0
+    reason = str(data.get("reason", "")).strip() or "Emotion inferred from transcript."
 
-    for idx, item in enumerate(candidates, start=1):
-        source = str(item.get("source") or "unknown")
-        expanded_text = get_source_page_text(
-            store=store,
-            source=source,
-            center_chunk_index=item.get("chunk_index"),
-            max_chars=min(3500, max(1200, remaining)),
-        )
-        text = expanded_text or clean_knowledge_text(item["text"])
-        if not text:
-            continue
-        clipped = text[:remaining]
-        if not clipped:
-            break
-        context_parts.append(f"[Source {idx}: {source}]\n{clipped}")
-        source_info = {k: v for k, v in item.items() if k != "text"}
-        source_info["expanded_source_context"] = bool(expanded_text)
-        sources.append(source_info)
-        remaining -= len(clipped)
-        if remaining <= 0:
-            break
+    if emotion not in FUSION_EMOTIONS:
+        emotion = "neutral"
+        confidence = min(confidence, 0.3)
+        reason = "Invalid emotion label returned; neutral fallback used."
 
-    return SelfRAGContext(
-        available=True,
-        used=bool(context_parts),
-        query=user_text,
-        context_text="\n\n".join(context_parts),
-        sources=sources,
-        reason=reason or "Retrieved context was judged useful.",
-    )
+    return EmotionResult(emotion=emotion, confidence=confidence, reason=reason)
 
 
-def build_self_rag_prompt_block(self_rag_context: Optional[SelfRAGContext]) -> str:
-    if not self_rag_context or not self_rag_context.used:
-        return "SELF-RAG CONTEXT\nNo local knowledge was used for this turn."
+# =============================================================================
+# Prosody-based emotion analysis
+# =============================================================================
 
-    return f"""
-SELF-RAG CONTEXT
-The following local knowledge was retrieved and judged relevant. Use it as grounding evidence.
-If the knowledge is insufficient, say what is missing instead of inventing details.
-Do not expose raw source metadata unless the user asks.
-
-{self_rag_context.context_text}
-""".strip()
-
-
-# =========================
-# Prosody and adaptive reliability-aware fusion helpers
-# =========================
-
-def analyze_prosody_from_audio(audio_16k: np.ndarray, sample_rate: int = TARGET_SAMPLE_RATE) -> ProsodyEmotionResult:
+def analyze_prosody_from_audio(
+    audio_16k: np.ndarray,
+    sample_rate: int = TARGET_SAMPLE_RATE,
+) -> ProsodyEmotionResult:
     if audio_16k is None or audio_16k.size == 0:
         return ProsodyEmotionResult(
             available=False,
-            emotion="trust",
+            emotion="neutral",
             confidence=0.0,
             reason="No audio available for prosody analysis.",
             features={},
@@ -3690,7 +627,9 @@ def analyze_prosody_from_audio(audio_16k: np.ndarray, sample_rate: int = TARGET_
                 frame_rms.append(float(np.sqrt(np.mean(frame ** 2))))
 
         energy_std = float(np.std(frame_rms)) if frame_rms else 0.0
-        zero_crossing_rate = float(np.mean(np.abs(np.diff(np.signbit(audio))))) if audio.size > 1 else 0.0
+        zero_crossing_rate = (
+            float(np.mean(np.abs(np.diff(np.signbit(audio))))) if audio.size > 1 else 0.0
+        )
 
         features = {
             "peak": peak,
@@ -3712,15 +651,15 @@ def analyze_prosody_from_audio(audio_16k: np.ndarray, sample_rate: int = TARGET_
         if rms > 0.025 or energy_std > 0.018:
             return ProsodyEmotionResult(
                 available=True,
-                emotion="anticipation",
+                emotion="surprise",
                 confidence=0.30,
-                reason="Higher or more variable vocal energy suggests engagement or arousal, not necessarily fear.",
+                reason="Higher or more variable vocal energy suggests heightened arousal.",
                 features=features,
             )
 
         return ProsodyEmotionResult(
             available=True,
-            emotion="trust",
+            emotion="neutral",
             confidence=0.25,
             reason="Prosody suggests calm conversational speech.",
             features=features,
@@ -3729,124 +668,69 @@ def analyze_prosody_from_audio(audio_16k: np.ndarray, sample_rate: int = TARGET_
     except Exception as exc:
         return ProsodyEmotionResult(
             available=False,
-            emotion="trust",
+            emotion="neutral",
             confidence=0.0,
             reason=f"Prosody analysis failed: {exc}",
             features={},
         )
 
 
+# =============================================================================
+# Adaptive reliability-aware fusion
+# =============================================================================
+
 def one_hot_emotion_distribution(emotion: str, confidence: float) -> dict[str, float]:
-    emotion = emotion if emotion in PLUTCHIK_EMOTIONS and emotion != "neutral" else "trust"
+    emotion = emotion if emotion in FUSION_EMOTIONS else "neutral"
     confidence = max(0.0, min(1.0, float(confidence)))
-    emotions = [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]
     remaining = max(0.0, 1.0 - confidence)
-    other = remaining / max(1, len(emotions) - 1)
-    return {emo: confidence if emo == emotion else other for emo in emotions}
+    other = remaining / max(1, len(FUSION_EMOTIONS) - 1)
+    return {emo: confidence if emo == emotion else other for emo in FUSION_EMOTIONS}
 
 
-def face_json_to_distribution(face_emotion_json: Optional[dict]) -> dict[str, float]:
-    emotions = [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]
-    scores = {emo: 0.0 for emo in emotions}
-
-    if not face_emotion_json or not face_emotion_json.get("available"):
+def deepface_result_to_distribution(result: Optional[dict[str, Any]]) -> dict[str, float]:
+    """
+    Normalizes a DeepFace facial-emotion reading into a distribution over
+    FUSION_EMOTIONS. Previously dropped DeepFace's "neutral" score entirely
+    (since Plutchik has no neutral category) -- now that FUSION_EMOTIONS is
+    Ekman-based and includes "neutral", it's kept, since it was often the
+    single highest-confidence category DeepFace actually returned.
+    """
+    scores = {emo: 0.0 for emo in FUSION_EMOTIONS}
+    if not result or not result.get("scores"):
         return scores
 
-    raw_scores = face_emotion_json.get("averaged_scores", {}) or {}
-    for emo in emotions:
+    for ekman_label, value in result["scores"].items():
+        mapped = DEEPFACE_TO_PROFILE_EMOTION.get(str(ekman_label).strip().lower())
+        if not mapped:
+            continue
         try:
-            scores[emo] = max(0.0, float(raw_scores.get(emo, 0.0))) / 100.0
+            scores[mapped] += float(value)
         except Exception:
-            scores[emo] = 0.0
+            continue
 
     total = sum(scores.values())
-    if total <= 0.0:
-        dom = face_emotion_json.get("dominant_emotion")
-        if dom in scores:
-            scores[dom] = 1.0
+    if total <= 0:
         return scores
-
     return {emo: value / total for emo, value in scores.items()}
 
 
-def explicit_emotion_from_text(text: str) -> Optional[str]:
-    t = text.lower()
-
-    patterns = {
-        "anger": [
-            "angry", "annoyed", "frustrated", "furious", "irritated",
-            "hate this", "i hate", "so annoying", "this is annoying",
-        ],
-        "sadness": [
-            "sad", "exhausted", "tired", "burned out", "overwhelmed",
-            "depressed", "unhappy", "crying",
-        ],
-        "fear": [
-            "afraid", "scared", "terrified", "anxious", "worried",
-            "panic", "nervous",
-        ],
-        "joy": [
-            "happy", "excited", "glad", "great", "amazing", "i love",
-        ],
-        "surprise": [
-            "oh my god", "wow", "surprised", "unexpected", "shocked",
-        ],
-        "disgust": [
-            "disgusting", "gross", "revolting",
-        ],
-        "anticipation": [
-            "looking forward", "curious", "interested", "expecting",
-        ],
-    }
-
-    for emotion, terms in patterns.items():
-        if any(term in t for term in terms):
-            return emotion
-
-    return None
+def text_reliability_score(text_emotion: EmotionResult) -> float:
+    return max(0.0, min(1.0, float(text_emotion.confidence)))
 
 
-def face_reliability_score(face_emotion_json: Optional[dict]) -> float:
-    if not face_emotion_json or not face_emotion_json.get("available"):
+def visual_reliability_score(result: Optional[dict[str, Any]]) -> float:
+    if not result or not result.get("scores"):
         return 0.0
-
-    scores = face_emotion_json.get("averaged_scores", {}) or {}
-    values = []
-    for emotion in [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]:
-        try:
-            values.append(float(scores.get(emotion, 0.0)))
-        except Exception:
-            values.append(0.0)
-
+    values = [float(v) for v in result["scores"].values()]
     if not values:
         return 0.0
-
     ordered = sorted(values, reverse=True)
     top = ordered[0]
     second = ordered[1] if len(ordered) > 1 else 0.0
     margin = max(0.0, top - second)
-
-    top_score_component = min(1.0, top / 100.0)
+    top_component = min(1.0, top / 100.0)
     margin_component = min(1.0, margin / 60.0)
-
-    frame_count = float(face_emotion_json.get("sampled_frame_count", 0) or 0)
-    frame_component = min(1.0, frame_count / max(1.0, float(FACE_MULTI_FRAME_COUNT)))
-
-    declared_reliable = 1.0 if face_emotion_json.get("reliable") else 0.65
-
-    return max(0.0, min(1.0, (0.45 * top_score_component) + (0.35 * margin_component) + (0.20 * frame_component))) * declared_reliable
-
-
-def text_reliability_score(text_emotion: EmotionResult, user_text: str = "") -> float:
-    base = max(0.0, min(1.0, float(text_emotion.confidence)))
-    explicit = explicit_emotion_from_text(user_text)
-
-    if explicit and explicit == text_emotion.emotion:
-        base = max(base, 0.90)
-    elif explicit and explicit != text_emotion.emotion:
-        base = max(base, 0.75)
-
-    return max(0.0, min(1.0, base))
+    return max(0.0, min(1.0, (0.6 * top_component) + (0.4 * margin_component)))
 
 
 def prosody_reliability_score(prosody_emotion: Optional[ProsodyEmotionResult]) -> float:
@@ -3857,74 +741,49 @@ def prosody_reliability_score(prosody_emotion: Optional[ProsodyEmotionResult]) -
 
 def adaptive_reliability_aware_fusion(
     text_emotion: EmotionResult,
-    face_emotion_json: Optional[dict],
+    facial_result: Optional[dict[str, Any]],
     prosody_emotion: Optional[ProsodyEmotionResult],
-    user_text: str = "",
-    modality_response_times: Optional[dict[str, Optional[float]]] = None,
 ) -> FusedEmotionResult:
-    emotions = [emo for emo in PLUTCHIK_EMOTIONS if emo != "neutral"]
-
     text_dist = one_hot_emotion_distribution(text_emotion.emotion, text_emotion.confidence)
-    visual_dist = face_json_to_distribution(face_emotion_json)
+    visual_dist = deepface_result_to_distribution(facial_result)
 
     if prosody_emotion and prosody_emotion.available:
         prosody_dist = one_hot_emotion_distribution(prosody_emotion.emotion, prosody_emotion.confidence)
     else:
-        prosody_dist = {emo: 0.0 for emo in emotions}
+        prosody_dist = {emo: 0.0 for emo in FUSION_EMOTIONS}
 
-    explicit_text_emotion = explicit_emotion_from_text(user_text)
-
-    text_rel = text_reliability_score(text_emotion, user_text)
-    visual_rel = face_reliability_score(face_emotion_json)
+    text_rel = text_reliability_score(text_emotion)
+    visual_rel = visual_reliability_score(facial_result)
     prosody_rel = prosody_reliability_score(prosody_emotion)
 
-    visual_emotion = face_emotion_json.get("dominant_emotion") if face_emotion_json else None
+    raw_text = FUSION_TEXT_WEIGHT * text_rel
+    raw_visual = FUSION_VISUAL_WEIGHT * visual_rel
+    raw_prosody = FUSION_PROSODY_WEIGHT * prosody_rel
+    total = raw_text + raw_visual + raw_prosody
 
-    if explicit_text_emotion:
-        text_rel = max(text_rel, 0.95)
-        if visual_emotion and visual_emotion != explicit_text_emotion:
-            visual_rel *= 0.45
-        prosody_rel = min(prosody_rel, 0.25)
-
-    if text_emotion.emotion == "anger" and visual_emotion == "sadness":
-        visual_rel *= 0.40
-        text_rel = max(text_rel, 0.92)
-
-    question_like = user_text.strip().endswith("?") or any(
-        phrase in user_text.lower()
-        for phrase in ["who is", "what is", "do you know", "can you tell", "where is", "how do"]
-    )
-    if question_like:
-        visual_rel *= 0.35
-        text_rel = max(text_rel, 0.80)
-
-    raw_text_weight = FUSION_TEXT_WEIGHT * text_rel
-    raw_visual_weight = FUSION_VISUAL_WEIGHT * visual_rel
-    raw_prosody_weight = FUSION_PROSODY_WEIGHT * prosody_rel
-
-    total = raw_text_weight + raw_visual_weight + raw_prosody_weight
     if total <= 0:
         wt, wv, wp = 1.0, 0.0, 0.0
     else:
-        wt = raw_text_weight / total
-        wv = raw_visual_weight / total
-        wp = raw_prosody_weight / total
+        wt, wv, wp = raw_text / total, raw_visual / total, raw_prosody / total
 
-    fused_scores = {}
-    for emo in emotions:
-        fused_scores[emo] = (
+    fused_scores = {
+        emo: (
             wt * text_dist.get(emo, 0.0)
             + wv * visual_dist.get(emo, 0.0)
             + wp * prosody_dist.get(emo, 0.0)
         )
+        for emo in FUSION_EMOTIONS
+    }
 
     dominant = max(fused_scores.items(), key=lambda item: item[1])[0]
     confidence = max(0.0, min(1.0, fused_scores[dominant]))
 
+    facial_label = (facial_result or {}).get("emotion")
+
     reason = (
         f"Adaptive reliability-aware fusion selected {dominant}: "
         f"text={text_emotion.emotion} rel={text_rel:.2f}, "
-        f"visual={visual_emotion} rel={visual_rel:.2f}, "
+        f"visual={facial_label} rel={visual_rel:.2f}, "
         f"prosody={prosody_emotion.emotion if prosody_emotion else None} rel={prosody_rel:.2f}."
     )
 
@@ -3949,7 +808,7 @@ def adaptive_reliability_aware_fusion(
             "confidence": text_emotion.confidence,
             "reason": text_emotion.reason,
         },
-        visual_emotion=face_emotion_json or default_face_emotion_json(),
+        visual_emotion=facial_result or {},
         prosody_emotion=prosody_emotion.as_json if prosody_emotion else {
             "available": False,
             "emotion": None,
@@ -3957,1103 +816,2751 @@ def adaptive_reliability_aware_fusion(
             "reason": "No prosody result provided.",
             "features": {},
         },
-        response_times=modality_response_times or {},
     )
 
 
-# =========================
-# Emotion detection
-# =========================
+# =============================================================================
+# One-sentence emotion response / Q&A answer generation
+# =============================================================================
 
-def build_emotion_prompt(
-    transcribed_text: str,
-    facial_emotion_hint: Optional[str] = None,
+def generate_one_sentence_emotion_response(
+    client: Optional[Client],
+    transcript: str,
+    emotion: str,
+    confidence: float,
+    model_name: str = EMOTION_MODEL_NAME,
 ) -> str:
-    emotions = ", ".join(PLUTCHIK_EMOTIONS.keys())
-    facial_section = (
-        f"Facial-expression hint captured during speech: {facial_emotion_hint}\n"
-        if facial_emotion_hint
-        else "No facial-expression hint was available.\n"
+    confidence_pct = round(max(0.0, min(1.0, confidence)) * 100)
+    fallback = (
+        f"I sense a bit of {emotion} in that, at about {confidence_pct} percent "
+        "confidence -- thanks for sharing that with me."
     )
 
-    return f"""
-        You are an emotion classification system for a human-robot interaction chat system.
-
-        Classify the user's emotional state from the text below.
-
-        You must map the emotion to exactly one of Plutchik's 8 primary emotions:
-
-        {emotions}
-
-        Use the user's words as the primary signal.
-        Use the facial-expression hint only as a weak supporting signal.
-        If the words and facial-expression hint conflict, trust the words more.
-        Do not make strong claims from facial-expression analysis alone.
-
-        Return JSON only.
-
-        Required JSON schema:
-        {{
-        "emotion": "joy | trust | fear | surprise | sadness | disgust | anger | anticipation",
-        "confidence": 0.0,
-        "reason": "short explanation"
-        }}
-
-        Rules:
-        - confidence must be a number between 0.0 and 1.0
-        - choose the best single emotion, even if the message is mixed
-        - do not add markdown
-        - do not add extra text outside JSON
-        - For greetings such as "hello", "hi", or "good morning", return:
-        {{"emotion": "trust", "confidence": 0.6, "reason": "The user is opening a friendly social interaction."}}
-        - For farewells such as "bye", "goodbye", "take care", or "talk later", return:
-        {{"emotion": "trust", "confidence": 0.7, "reason": "The user is closing the conversation politely."}}
-
-        User text:
-        {transcribed_text}
-
-        {facial_section}
-        """.strip()
-
-
-def simple_emotion_fallback(transcribed_text: str) -> Optional[EmotionResult]:
-    text = transcribed_text.strip().lower()
-
-    greetings = {"hello", "hi", "hey", "good morning", "good afternoon", "good evening"}
-    farewells = {"bye", "goodbye", "see you", "see you later", "talk later", "have a good day", "have a nice day"}
-
-    if text.rstrip(".!?") in greetings:
-        return EmotionResult(
-            emotion="trust",
-            confidence=0.6,
-            reason="The user is opening a friendly social interaction.",
-        )
-
-    if any(phrase in text for phrase in farewells):
-        return EmotionResult(
-            emotion="trust",
-            confidence=0.7,
-            reason="The user is closing the conversation politely.",
-        )
-
-    if "today's date" in text or "todays date" in text or "what is the date" in text:
-        return EmotionResult(
-            emotion="anticipation",
-            confidence=0.5,
-            reason="The user is asking for current date information.",
-        )
-
-    return None
-
-
-def detect_emotion(
-    client: Client,
-    transcribed_text: str,
-    facial_emotion_hint: Optional[str] = None,
-) -> EmotionResult:
-    fallback = simple_emotion_fallback(transcribed_text)
-    if fallback:
+    if client is None:
         return fallback
 
-    try:
-        response = client.chat(
-            model=MODEL_NAME,
-            format="json",
-            messages=[
-                {"role": "system", "content": "You return valid JSON only."},
-                {
-                    "role": "user",
-                    "content": build_emotion_prompt(
-                        transcribed_text=transcribed_text,
-                        facial_emotion_hint=facial_emotion_hint,
-                    ),
-                },
-            ],
-            stream=False,
-            options={
-                "temperature": 0.1,
-                "num_predict": 120,
-                "num_ctx": 2048,
-            },
-        )
-    except Exception as exc:
-        print_ts(f"Emotion detection LLM call failed ({exc}); using neutral-social fallback.")
-        return EmotionResult(
-            emotion="trust",
-            confidence=0.3,
-            reason=f"Emotion model call failed ({exc}); neutral-social fallback used.",
-        )
+    prompt = f"""
+You are Ameca, a humanoid robot. A multimodal emotion-recognition system
+just detected the participant's emotion as "{emotion}" with about
+{confidence_pct}% confidence, based on what they said below.
 
-    raw = response["message"]["content"]
-    data = safe_json_extract(raw)
+Participant's words:
+{transcript}
 
-    if not data:
-        return EmotionResult(
-            emotion="trust",
-            confidence=0.3,
-            reason="Could not parse model output, so a neutral-social fallback was used.",
-        )
-
-    emotion = str(data.get("emotion", "")).strip().lower()
-    reason = str(data.get("reason", "")).strip()
-
-    try:
-        confidence = float(data.get("confidence", 0.0))
-    except Exception:
-        confidence = 0.0
-
-    confidence = max(0.0, min(1.0, confidence))
-
-    if emotion not in PLUTCHIK_EMOTIONS:
-        emotion = "trust"
-        confidence = min(confidence, 0.3)
-        reason = "Invalid emotion returned, so fallback emotion was used."
-
-    return EmotionResult(
-        emotion=emotion,
-        confidence=confidence,
-        reason=reason or "Emotion inferred from the transcribed message.",
-    )
-
-
-# =========================
-# Emoji enforcement
-# =========================
-
-def remove_all_emojis_except_allowed_faces(text: str) -> str:
-    result = []
-
-    for char in text:
-        if char in ALLOWED_FACE_EMOJIS:
-            result.append(char)
-            continue
-
-        code = ord(char)
-
-        is_emoji_or_symbol = (
-            0x1F300 <= code <= 0x1FAFF
-            or 0x2600 <= code <= 0x27BF
-            or code in {0x200D, 0xFE0F}
-        )
-
-        if is_emoji_or_symbol:
-            continue
-
-        result.append(char)
-
-    return "".join(result)
-
-
-def remove_allowed_face_emojis(text: str) -> str:
-    return "".join(char for char in text if char not in ALLOWED_FACE_EMOJIS)
-
-
-def truncate_to_max_sentences(text: str, max_sentences: int = MAX_REPLY_SENTENCES) -> str:
-    """
-    Hard cap on reply length, expressed as a maximum number of sentences.
-
-    This exists as a backstop against the LLM ignoring the "keep it short"
-    instruction in the system prompt -- it is not a substitute for that
-    instruction, just a guarantee that even a rambling model output gets
-    cut down to something reasonable to speak out loud over TTS.
-
-    Uses a simple regex-based sentence split (on '.', '!', '?' followed by
-    whitespace). This is not a full sentence tokenizer, but is good enough
-    for the short, single-paragraph replies this pipeline generates.
-    """
-    text = text.strip()
-    if not text:
-        return text
-
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    sentences = [s for s in sentences if s.strip()]
-
-    if len(sentences) <= max_sentences:
-        return text
-
-    return " ".join(sentences[:max_sentences]).strip()
-
-
-def normalize_reply(raw_reply: str, emotion: str) -> str:
-    required_emoji = PLUTCHIK_EMOTIONS[emotion]
-
-    cleaned = remove_all_emojis_except_allowed_faces(raw_reply)
-    cleaned = remove_allowed_face_emojis(cleaned)
-
-    cleaned = re.sub(r"[:;=8][\-^]?[)(DPp/\\|]+", "", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    cleaned = re.sub(r"\s+([,.!?;:])", r"\1", cleaned)
-    cleaned = truncate_to_max_sentences(cleaned)
-
-    if not cleaned:
-        cleaned = "I'm here with you."
-
-    return f"{cleaned} {required_emoji}"
-
-
-# =========================
-# Date / time helpers
-# =========================
-
-def runtime_context() -> str:
-    return f"""
-        RUNTIME CONTEXT
-        Current local date and time: {now_ts()}.
-        Use this date/time when the user asks about today, now, or the current date.
-        """.strip()
-
-
-def deterministic_reply_if_applicable(user_text: str, emotion: str) -> Optional[str]:
-    text = user_text.strip().lower()
-    emoji = PLUTCHIK_EMOTIONS.get(emotion, "🙂")
-
-    if "today's date" in text or "todays date" in text or "what is the date" in text:
-        return f"Today is {datetime.now().strftime('%A, %B %d, %Y')}. {emoji}"
-
-    if "what is the time" in text or "what time is it" in text or "current time" in text:
-        return f"The current time is {datetime.now().strftime('%H:%M')}. {emoji}"
-
-    farewell_words = {"bye", "goodbye", "see you", "see you later", "talk later", "have a nice day", "have a good day"}
-    if any(phrase in text for phrase in farewell_words):
-        return "Thank you, and take care. 🙂"
-
-    return None
-
-
-# =========================
-# General vision queries (ZED vision module)
-# =========================
-
-VISION_QUERY_KEYWORDS = [
-    "what do you see",
-    "what can you see",
-    "can you see anything",
-    "describe the image",
-    "describe the picture",
-    "describe what you see",
-    "look around",
-    "take a look around",
-    "what is in the image",
-    "what is in the picture",
-]
-
-
-def is_vision_query(user_query: str) -> bool:
-    q = user_query.strip().lower()
-    return any(k in q for k in VISION_QUERY_KEYWORDS) or ("see" in q and "what" in q)
-
-
-def build_zed_vision_prompt(user_query: str) -> str:
-    return f"""
-Look at the image and answer like a human observer.
-
-Rules:
-- Maximum 12 words.
-- One sentence only.
-- Mention only the most important visible objects.
-- No speculation.
-- No explanations.
-- No environment descriptions unless directly relevant.
-- If a person is visible, mention the person first.
-
-Examples:
-"One person is sitting behind a computer."
-"A humanoid robot is standing in the room."
-"Two people are talking near a desk."
-
-User question: {user_query}
+Write exactly ONE short, warm sentence that both (a) tells them what
+emotion you detected and your confidence level, and (b) responds naturally
+to what they said. Plain text only, no markdown, no more than 25 words.
 """.strip()
 
-
-def query_zed_vision(
-    client: Client,
-    vision_module: Any,
-    user_query: str,
-) -> str:
-    """
-    Answer a general "what do you see" question using a frame saved by the
-    ZED vision module, independent of the Qwen2.5-VL facial-emotion sampler.
-    """
-    if vision_module is None:
-        return "I am unable to access a current camera image right now. 🙂"
-
-    image_path = None
     try:
-        image_path = vision_module.save_latest_frame()
+        response = client.chat(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.4, "num_predict": 60, "num_ctx": 1024},
+            stream=False,
+        )
+        text = response.get("message", {}).get("content", "").strip()
+        text = re.sub(r"\s+", " ", text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        text = sentences[0].strip() if sentences and sentences[0].strip() else text
+        return text or fallback
     except Exception as exc:
-        print_ts(f"[ZED] Could not save latest frame: {exc}")
+        print_ts(f"One-sentence emotion response generation failed: {exc}")
+        return fallback
 
-    if not image_path:
-        return "I am unable to access a current camera image right now. 🙂"
+
+NO_MORE_QUESTIONS_PHRASES = {
+    "no", "nothing", "no thank you", "nothing thanks", "that's all",
+    "i'm good", "im good", "no questions", "nope", "i don't have any",
+    "i have no questions", "no i'm good", "not really",
+}
+
+
+def indicates_no_further_questions(text: str) -> bool:
+    lowered = text.strip().lower().rstrip(".!?")
+    if not lowered:
+        return True
+    if lowered in NO_MORE_QUESTIONS_PHRASES:
+        return True
+    return any(
+        phrase in lowered
+        for phrase in ["no more questions", "that's it", "i'm good", "im good"]
+    )
+
+
+def generate_qa_answer(
+    client: Optional[Client],
+    question: str,
+    model_name: str = EMOTION_MODEL_NAME,
+) -> str:
+    fallback = (
+        "That's a great question -- I don't have a confident answer for that "
+        "right now, but I'm happy to keep chatting."
+    )
+    if client is None or not question.strip():
+        return fallback
+
+    prompt = f"""
+You are Ameca, a friendly humanoid robot acting as a teacher for a
+human-robot interaction study. Answer the participant's question about
+yourself, robots, or the upcoming experiment naturally and warmly.
+
+Question:
+{question}
+
+Keep your answer to 1-2 short sentences. Plain text only, no markdown.
+""".strip()
 
     try:
         response = client.chat(
-            model=ZED_VISION_MODEL_NAME,
-            messages=[
-                {
-                    "role": "user",
-                    "content": build_zed_vision_prompt(user_query),
-                    "images": [image_path],
-                }
-            ],
-            options={
-                "temperature": 0.2,
-                "num_predict": 60,
-            },
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.5, "num_predict": 90, "num_ctx": 1024},
             stream=False,
         )
-        content = response.get("message", {}).get("content", "")
-        reply = clean_text_for_tts(content)
-        if not reply:
-            reply = "I could not make out anything useful in the current image."
-        if not reply.rstrip().endswith(("🙂", "😊", "😌", "😔", "😟", "🤔", "😮", "😢", "😠", "🤢")):
-            reply = f"{reply} 🙂"
-        return reply
+        text = response.get("message", {}).get("content", "").strip()
+        text = re.sub(r"\s+", " ", text)
+        return text or fallback
     except Exception as exc:
-        print_ts(f"[ZED] Vision query failed: {exc}")
-        return "I'm sorry, I couldn't process that image request right now. 🙂"
+        print_ts(f"Q&A answer generation failed: {exc}")
+        return fallback
 
 
-# =========================
-# Response generation
-# =========================
+# =============================================================================
+# Tritium TTS and echo guard, plus the turn-end nod gesture
+# =============================================================================
 
-def build_response_system_prompt(
-    emotion_result: EmotionResult,
-    user_profile: Optional[dict] = None,
-    face_emotion_json: Optional[dict] = None,
-    self_rag_context: Optional[SelfRAGContext] = None,
-) -> str:
-    emoji = PLUTCHIK_EMOTIONS[emotion_result.emotion]
-    memory_context = build_user_memory_context(user_profile)
-
-    if face_emotion_json is None:
-        face_emotion_json = default_face_emotion_json()
-
-    text_emotion_json = {
-        "emotion": emotion_result.emotion,
-        "confidence": emotion_result.confidence,
-        "reason": emotion_result.reason,
-    }
-
-    return f"""
-        {AMECA_SYSTEM_PROMPT}
-
-        {runtime_context()}
-
-        {memory_context}
-
-        {build_self_rag_prompt_block(self_rag_context)}
-
-        You are generating Ameca's next conversational response.
-
-        PRIVATE EMOTION CONTEXT
-        Use this context only for tone control only. Do not mention it directly.
-
-        Fused emotion JSON:
-        {json.dumps(text_emotion_json, indent=2)}
-
-        Face/Qwen2.5-VL emotion JSON:
-        {json.dumps(face_emotion_json, indent=2)}
-
-        Interpretation rules:
-        - The active emotion was produced by adaptive reliability-aware late fusion.
-        - The base fusion weights are text=0.5, visual=0.4, prosody=0.1 and are adjusted by modality reliability.
-        - Use the fused emotion only to adjust tone.
-        - Do not mention camera, Qwen2.5-VL, prosody, fusion, detected emotion, or private emotion context to the user.
-        - Do not say things like "you look sad", "your face shows", or "I detected".
-
-        Return JSON only in this exact shape:
-        {{
-        "reply": "assistant response without emoji",
-        "emoji": "one facial emoji",
-        "tone": "short tone label"
-        }}
-
-        Speech recognition note:
-        - If the user says their name, update the profile silently and greet them by the corrected name.
-
-        Self-RAG grounding rules:
-        - If SELF-RAG CONTEXT is provided, answer factual or lab/domain-specific questions ONLY from that retrieved context.
-        - Do not invent names, titles, degrees, conference details, personal relationships, or project claims that are not explicitly in the retrieved context.
-        - If the retrieved context does not directly answer the question, say that you could not verify it from the local lab knowledge.
-        - For person lookup questions, only confirm a person if their name appears in the retrieved context.
-        - Do not say "I know" someone personally. Say "The local lab knowledge mentions..." or "I found a lab page for...".
-        - Do not mention Self-RAG, vector databases, embeddings, ChromaDB, or retrieval unless the user explicitly asks how the system works.
-
-        Conversation behavior rules:
-        - Always ensure your response is context appropriate.
-        - Always respond like a helpful assistant
-        - Use the private emotion context only to adjust tone.
-        - Use the recent conversation history to understand context and avoid repeating yourself.
-        - Do not greet repeatedly. After the first greeting, respond directly to what the user said.
-        - Do not say phrases like "your detected emotion", "you seem sad", "trust is present", or "you are anticipating".
-        - Do not reintroduce yourself unless the user asks who you are.
-        - Never begin with "As Ameca" or "As a humanoid social robot".
-        - Use the user's name occasionally, not in every response.
-        - Do not immediately give a list of advice unless the user asks for advice.
-        - Speak directly and naturally.
-        - Do not introduce unrelated topics such as Lego, Legoland, legal advice, or robotics toys unless the user explicitly mentions them.
-        - Do not mention emotion labels unless the user explicitly asks.
-        - Do not use markdown, bullets, numbered lists, or long advice unless the user asks for detail.
-        - Do not repeat advice already given in the recent conversation.
-        - STRICT: reply in 1-2 short sentences only. Longer replies get cut off automatically, so make every sentence count.
-        - Do not list any steps unless the user asks for detailed guidance.
-        - If the user asks who can help, suggest concrete people: supervisor, co-supervisor, lab colleagues, thesis coordinator, or university writing center.
-
-        Emoji rules:
-        - Always end sentences with exactly one context appriopriate facial emoji.
-        - Use gentle emojis for negative emotions.
-        - Do not use emoji symbols
-        - Do not overreact emotionally.
-        - Use only one of these emojis: 🙂 😊 😌 😔 😟 🤔 😮 😢 😠 🤢
-        - Emoji must appear only at the end of the sentences.
-
-        Tone examples:
-        - User: "I'm so tired and exhausted." -> reply should validate softly; emoji could be 😔 or 😌.
-        - User: "I am very happy today." -> reply should celebrate the positive mood; emoji could be 😊.
-        - User: "Well, I don't know." -> reply should stay with the uncertainty and ask gently; emoji could be 😟 or 🙂.
-        """.strip()
+def clean_text_for_tts(text: str) -> str:
+    text = re.sub(r"[*_`~]", "", text or "")
+    return "".join(
+        character
+        for character in text
+        if unicodedata.category(character)[0] != "C"
+    ).strip()
 
 
-def limit_text_length(text: str, max_chars: int = 1500) -> str:
-    return text[:max_chars]
+def estimate_speech_duration_seconds(
+    text: str,
+    words_per_minute: float = 150.0,
+    min_seconds: float = 1.0,
+    padding_seconds: float = 0.6,
+) -> float:
+    words = len(text.split())
+    if words == 0:
+        return min_seconds
+    seconds = (words / words_per_minute) * 60.0
+    return max(min_seconds, seconds) + padding_seconds
 
 
-def limit_system_prompt(prompt: str, max_chars: int = 9000) -> str:
-    return prompt[:max_chars]
+class RobotSpeaker:
+    """
+    Tritium TTS wrapper with an optional TTS-activity monitor for a tighter
+    echo guard, and a urllib fallback if requests.put() fails outright.
+    """
 
+    def __init__(
+        self,
+        url: str,
+        token: str = "",
+        speaking_cooldown_s: float = 0.3,
+        activity_debounce_seconds: float = 1.5,
+        startup_grace_seconds: float = 2.0,
+    ) -> None:
+        self.url = url
+        self.token = token
+        self.speaking_cooldown_s = speaking_cooldown_s
+        self._speaking_until = 0.0
+        self._last_active_at: Optional[float] = None
+        # How long a gap in detected TTS audio activity must persist before
+        # treating the robot as "done speaking". This needs to comfortably
+        # exceed a normal inter-sentence pause (breath/punctuation) in
+        # Tritium/Acapela's speech -- too short a window (0.6s was found to
+        # be too short in practice) causes wait_until_finished() to return
+        # early during a mid-response pause, firing the turn-end nod (and,
+        # via bump_speaking_tail's echo guard lifting early, potentially
+        # opening the barge-in window) while Ameca is still talking.
+        self.activity_debounce_seconds = activity_debounce_seconds
+        # Cap on the word-count-based "definitely still speaking" floor
+        # (see say()) when a real TTS-activity monitor is available. That
+        # floor's only real job is bridging the gap between issuing the
+        # PUT request and audio actually starting to register as active --
+        # it does NOT need to scale with utterance length, since real
+        # activity detection (plus activity_debounce_seconds) governs
+        # actual completion once it kicks in. Using the FULL word-count
+        # estimate as the floor for long utterances was adding dead time
+        # beyond when Ameca had actually finished speaking, since
+        # wait_until_finished() waits for whichever is later.
+        self.startup_grace_seconds = startup_grace_seconds
 
-def trim_history(history: list[dict]) -> list[dict]:
-    return history[-MAX_HISTORY_MESSAGES:]
+    def bump_speaking_tail(self, extra: Optional[float] = None) -> None:
+        tail = self.speaking_cooldown_s if extra is None else extra
+        self._speaking_until = max(self._speaking_until, time.time() + tail)
 
+    def is_speaking_or_cooling_down(self) -> bool:
+        activity_flag = False
+        if HAS_TTS_ACTIVITY_MONITOR:
+            try:
+                activity_flag = is_tts_active()
+            except Exception:
+                activity_flag = False
+            if activity_flag:
+                self._last_active_at = time.time()
 
-def prompt_ready_history(history: list[dict]) -> list[dict]:
-    return [{"role": item["role"], "content": item["content"]} for item in history]
-
-
-def generate_response(
-    client: Client,
-    user_text: str,
-    emotion_result: EmotionResult,
-    history: list[dict],
-    user_profile: Optional[dict] = None,
-    face_emotion_json: Optional[dict] = None,
-    self_rag_context: Optional[SelfRAGContext] = None,
-) -> str:
-    deterministic = deterministic_reply_if_applicable(
-        user_text=user_text,
-        emotion=emotion_result.emotion,
-    )
-
-    if deterministic:
-        return deterministic
-
-    safe_user_text = limit_text_length(user_text)
-    system_prompt = limit_system_prompt(
-        build_response_system_prompt(
-            emotion_result=emotion_result,
-            user_profile=user_profile,
-            face_emotion_json=face_emotion_json,
-            self_rag_context=self_rag_context,
+        debounced_activity = (
+            self._last_active_at is not None
+            and (time.time() - self._last_active_at) < self.activity_debounce_seconds
         )
+        cooling_down = time.time() < self._speaking_until
+        return debounced_activity or cooling_down
+
+    def wait_until_finished(self, timeout_seconds: float = 20.0) -> None:
+        deadline = time.time() + timeout_seconds
+        while self.is_speaking_or_cooling_down() and time.time() < deadline:
+            time.sleep(0.1)
+
+    def say(self, text: str) -> None:
+        spoken = clean_text_for_tts(text)
+        if not spoken:
+            return
+
+        print(f"\nAMECA: {spoken}", flush=True)
+
+        estimated_duration = estimate_speech_duration_seconds(spoken)
+        if HAS_TTS_ACTIVITY_MONITOR:
+            # Real audio-activity detection (see is_speaking_or_cooling_down())
+            # governs actual completion via activity_debounce_seconds once
+            # it kicks in; this floor only needs to bridge TTS startup lag,
+            # not the whole estimated utterance length -- otherwise a long
+            # sentence pays dead time beyond when it actually finished
+            # playing, since wait_until_finished() waits for whichever
+            # signal clears last.
+            floor = min(estimated_duration, self.startup_grace_seconds)
+        else:
+            # No real detection available; the word-count estimate is the
+            # only completion signal we have, so use it in full.
+            floor = estimated_duration
+        self.bump_speaking_tail(extra=floor)
+
+        headers = {"Content-Type": "text/plain; charset=utf-8"}
+        if self.token:
+            headers["X-Tritium-Auth-Token"] = self.token
+
+        try:
+            response = requests.put(
+                self.url,
+                data=spoken.encode("utf-8"),
+                headers=headers,
+                timeout=5,
+            )
+            if 200 <= response.status_code < 300:
+                return
+            print_ts(
+                f"[TTS warning] Tritium returned {response.status_code}: "
+                f"{response.text[:200]!r}"
+            )
+        except requests.RequestException as exc:
+            print_ts(f"[TTS warning] requests.put failed: {exc}")
+
+        try:
+            import urllib.request
+            import urllib.error
+
+            req = urllib.request.Request(
+                self.url,
+                method="PUT",
+                data=spoken.encode("utf-8"),
+                headers=headers,
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                print_ts(f"[TTS] urllib fallback responded {resp.status}.")
+        except urllib.error.HTTPError as exc2:
+            body = ""
+            try:
+                body = exc2.read().decode("utf-8", errors="ignore")[:300]
+            except Exception:
+                pass
+            print_ts(f"[TTS warning] urllib fallback HTTP error {exc2.code}: {body!r}")
+        except Exception as exc2:
+            print_ts(f"[TTS warning] urllib fallback also failed: {exc2}")
+
+
+class RobotGesture:
+    """
+    Tritium sequence_player wrapper used purely as a turn-end cue (e.g. a
+    double-nod after Ameca finishes speaking), giving the participant a
+    clear visual signal that it's their turn -- reducing barge-in.
+    """
+
+    def __init__(self, host: str, token: str = "", timeout: float = 3.0) -> None:
+        self.host = host.rstrip("/")
+        self.token = token
+        self.timeout = timeout
+
+    def play(self, sequence_name: str) -> bool:
+        uri = f"{self.host}/tritium/sequence_player/play/{sequence_name}"
+        headers = {"Accept": "application/json"}
+        if self.token:
+            headers["X-Tritium-Auth-Token"] = self.token
+        try:
+            response = requests.put(uri, headers=headers, timeout=self.timeout)
+            ok = 200 <= response.status_code < 300
+            print_ts(
+                f"[GESTURE] PUT {uri} -> status={response.status_code} "
+                f"{'OK' if ok else 'FAILED'}"
+            )
+            return ok
+        except Exception as exc:
+            print_ts(f"[GESTURE] Failed to play '{sequence_name}': {exc}")
+            return False
+
+
+class Narrator:
+    """
+    Bundles a RobotSpeaker + RobotGesture + the configured nod sequence, so
+    call sites just do narrator.say(text) instead of threading
+    speaker/gesture/sequence-name through every helper function.
+    """
+
+    def __init__(self, speaker: RobotSpeaker, gesture: Optional[RobotGesture], nod_sequence: str) -> None:
+        self.speaker = speaker
+        self.gesture = gesture
+        self.nod_sequence = nod_sequence
+
+    def say(self, text: str) -> None:
+        """Speak, wait for playback to finish, then play the double-nod
+        turn-end cue. This runs after EVERY utterance, not just selected
+        ones -- the nod is how the participant knows Ameca is done talking."""
+        self.speaker.say(text)
+        self.speaker.wait_until_finished()
+        if self.gesture is not None:
+            self.gesture.play(self.nod_sequence)
+
+    def say_and_nod(self, text: str) -> None:
+        """Alias for say() -- kept at call sites that want to emphasize
+        the nod explicitly. Behavior is identical to say(); nodding always
+        happens after every utterance regardless of which name is used."""
+        self.say(text)
+
+    def say_brief(self, text: str) -> None:
+        """
+        For short transitional acknowledgments (e.g. "Next.") where Ameca
+        immediately continues speaking afterward rather than waiting on
+        the participant -- so there's no turn-taking purpose to a nod
+        here, and no need for the full activity-debounce-based completion
+        check (say()'s wait_until_finished() requires activity_debounce_
+        seconds, default 1.5s, of confirmed silence, which -- paid once
+        for this ack and again for the very next prompt right after --
+        was making round-to-round transitions feel sluggish). This just
+        waits roughly as long as the phrase takes to speak, so the next
+        utterance doesn't start talking over it, without the extra tail.
+        """
+        self.speaker.say(text)
+        time.sleep(estimate_speech_duration_seconds(text))
+
+
+# =============================================================================
+# Silero VAD + faster-whisper speech pipeline (with barge-in guard)
+# =============================================================================
+
+def get_input_samplerate(input_device: Optional[int]) -> int:
+    info = sd.query_devices(input_device, "input")
+    sample_rate = int(round(float(info["default_samplerate"])))
+    return sample_rate if sample_rate > 0 else TARGET_SAMPLE_RATE
+
+
+def resample_audio(
+    audio: np.ndarray,
+    original_sr: int,
+    target_sr: int,
+) -> np.ndarray:
+    audio = np.asarray(audio, dtype=np.float32)
+    if original_sr == target_sr or audio.size == 0:
+        return audio
+
+    duration = len(audio) / float(original_sr)
+    target_length = max(1, int(round(duration * target_sr)))
+    old_times = np.linspace(0.0, duration, len(audio), endpoint=False)
+    new_times = np.linspace(0.0, duration, target_length, endpoint=False)
+    return np.interp(new_times, old_times, audio).astype(np.float32)
+
+
+def save_audio_to_temp_wav(audio_16k: np.ndarray) -> Optional[str]:
+    if audio_16k.size == 0:
+        return None
+
+    peak = float(np.max(np.abs(audio_16k)))
+    rms = float(np.sqrt(np.mean(np.square(audio_16k))))
+    print_ts(f"Captured utterance audio level: peak={peak:.4f}, rms={rms:.4f}")
+
+    if peak < MIN_PEAK_THRESHOLD or rms < MIN_RMS_THRESHOLD:
+        print_ts("Captured audio was too quiet or silent.")
+        return None
+
+    gain = min(0.9 / max(peak, 1e-6), 10.0)
+    normalized = np.clip(audio_16k * gain, -1.0, 1.0)
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        wav_path = tmp.name
+    sf.write(wav_path, normalized, TARGET_SAMPLE_RATE)
+    return wav_path
+
+
+def load_audio_for_prosody(wav_path: str, target_sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
+    try:
+        audio, sr_in = sf.read(wav_path, dtype="float32")
+        if audio is None or len(audio) == 0:
+            return np.array([], dtype=np.float32)
+        if getattr(audio, "ndim", 1) > 1:
+            audio = np.mean(audio, axis=1)
+        audio = audio.astype(np.float32, copy=False)
+        if int(sr_in) != int(target_sr):
+            audio = resample_audio(audio, int(sr_in), int(target_sr))
+        return audio.astype(np.float32, copy=False)
+    except Exception as exc:
+        print_ts(f"Could not load audio for prosody: {exc}")
+        return np.array([], dtype=np.float32)
+
+
+def transcribe_with_faster_whisper(
+    wav_path: str,
+    whisper_model: WhisperModel,
+) -> str:
+    segments, _ = whisper_model.transcribe(
+        wav_path,
+        language=FAST_WHISPER_CONFIG["language"],
+        beam_size=int(FAST_WHISPER_CONFIG["beam_size"]),
+        vad_filter=bool(FAST_WHISPER_CONFIG["vad_filter"]),
+        condition_on_previous_text=False,
+    )
+    text = " ".join(segment.text.strip() for segment in segments).strip()
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text.split()) <= 1 and len(text) < 3:
+        return ""
+    return text
+
+
+class FrameCollector:
+    """
+    Continuously reads the camera and retains sampled frames during speech.
+
+    NOTE: this deliberately does NOT call cv2.imshow()/cv2.waitKey(). A new
+    FrameCollector (and therefore a new thread) is created for every single
+    utterance, and OpenCV's Qt-based HighGUI backend on Linux is not safe
+    to drive from a different thread each time a window is reused -- doing
+    so was observed to work for the first utterance only, then silently
+    stop delivering frames for every subsequent one. Saved debug frames
+    (VISION_DEBUG) provide the same visual-inspection capability without
+    this hazard.
+    """
+
+    def __init__(self, camera: "Camera") -> None:
+        self.camera = camera
+        self.frames: list[np.ndarray] = []
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        next_sample = 0.0
+        while not self._stop.is_set():
+            frame = self.camera.read()
+            if frame is None:
+                time.sleep(0.01)
+                continue
+
+            now = time.monotonic()
+            if now >= next_sample:
+                self.frames.append(frame.copy())
+                next_sample = now + CAMERA_SAMPLE_EVERY_SECONDS
+
+    def stop(self) -> list[np.ndarray]:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+        return self.frames
+
+
+def sharpness(frame: np.ndarray) -> float:
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+
+def listen_for_utterance_with_silero_vad(
+    input_device: Optional[int],
+    silero_model: Any,
+    prompt_label: str,
+    robot_speaker: Optional[RobotSpeaker] = None,
+    camera: Optional["Camera"] = None,
+) -> tuple[Optional[str], list[np.ndarray]]:
+    """
+    Silero-VAD listening with the barge-in echo guard: rather than fully
+    discarding audio while Ameca is speaking/cooling down, a short rolling
+    buffer is kept (BARGE_IN_TAIL_SECONDS) so genuine speech starting right
+    at the edge of the gate isn't lost. Buffered audio older than
+    BARGE_IN_MAX_AGE_SECONDS with no speech detected is discarded as
+    Ameca's own trailing voice rather than a real barge-in.
+    """
+    input_sample_rate = get_input_samplerate(input_device)
+    input_block_size = max(1, int(input_sample_rate * 0.05))
+    audio_queue: queue.Queue[np.ndarray] = queue.Queue()
+
+    vad_iterator = VADIterator(
+        silero_model,
+        threshold=SILERO_THRESHOLD,
+        sampling_rate=SILERO_SAMPLE_RATE,
+        min_silence_duration_ms=SILERO_MIN_SILENCE_DURATION_MS,
+        speech_pad_ms=SILERO_SPEECH_PAD_MS,
     )
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        *prompt_ready_history(trim_history(history[-6:])),
-        {"role": "user", "content": safe_user_text},
+    pre_roll_max_chunks = max(
+        1,
+        int(VAD_PRE_ROLL_SECONDS * SILERO_SAMPLE_RATE / SILERO_CHUNK_SIZE),
+    )
+    pre_roll_chunks: deque[np.ndarray] = deque(maxlen=pre_roll_max_chunks)
+    recorded_chunks: list[np.ndarray] = []
+
+    barge_in_max_chunks = max(
+        1,
+        int(BARGE_IN_TAIL_SECONDS * SILERO_SAMPLE_RATE / SILERO_CHUNK_SIZE),
+    )
+    pending_barge_in_chunks: deque[np.ndarray] = deque(maxlen=barge_in_max_chunks)
+    barge_in_captured_at: Optional[float] = None
+    barge_in_leftover_16k = np.array([], dtype=np.float32)
+
+    is_recording = False
+    speech_started_at: Optional[float] = None
+    leftover_16k = np.array([], dtype=np.float32)
+    frame_collector: Optional[FrameCollector] = None
+
+    def audio_callback(indata, frames, callback_time, status) -> None:
+        if status:
+            print_ts(f"Audio callback status: {status}")
+        audio_queue.put(indata[:, 0].copy())
+
+    print_ts(
+        f"Listening automatically for {prompt_label}. "
+        "Speak when ready. Press Ctrl+C to quit."
+    )
+    print_ts(
+        f"Silero VAD settings: threshold={SILERO_THRESHOLD}, "
+        f"min_silence={SILERO_MIN_SILENCE_DURATION_MS}ms, "
+        f"max_utterance={VAD_MAX_UTTERANCE_SECONDS}s"
+    )
+
+    try:
+        sd.check_input_settings(
+            device=input_device,
+            samplerate=input_sample_rate,
+            channels=1,
+            dtype="float32",
+        )
+
+        with sd.InputStream(
+            samplerate=input_sample_rate,
+            channels=1,
+            dtype="float32",
+            device=input_device,
+            blocksize=input_block_size,
+            callback=audio_callback,
+        ):
+            while True:
+                if robot_speaker is not None and robot_speaker.is_speaking_or_cooling_down():
+                    try:
+                        while True:
+                            gated_block = audio_queue.get_nowait()
+                            gated_16k = resample_audio(
+                                gated_block, input_sample_rate, SILERO_SAMPLE_RATE
+                            )
+                            gated_combined = np.concatenate(
+                                [barge_in_leftover_16k, gated_16k]
+                            ).astype(np.float32, copy=False)
+                            gated_usable_len = (
+                                len(gated_combined) // SILERO_CHUNK_SIZE
+                            ) * SILERO_CHUNK_SIZE
+                            if gated_usable_len == 0:
+                                barge_in_leftover_16k = gated_combined
+                                continue
+                            gated_chunks = gated_combined[:gated_usable_len].reshape(
+                                -1, SILERO_CHUNK_SIZE
+                            )
+                            barge_in_leftover_16k = gated_combined[gated_usable_len:]
+                            for gated_chunk in gated_chunks:
+                                pending_barge_in_chunks.append(
+                                    gated_chunk.astype(np.float32, copy=False)
+                                )
+                            barge_in_captured_at = time.time()
+                    except queue.Empty:
+                        pass
+                    time.sleep(0.05)
+                    continue
+
+                if pending_barge_in_chunks and barge_in_captured_at is not None:
+                    if time.time() - barge_in_captured_at > BARGE_IN_MAX_AGE_SECONDS:
+                        pending_barge_in_chunks.clear()
+                        barge_in_captured_at = None
+
+                try:
+                    source = audio_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+
+                audio_16k = resample_audio(
+                    source,
+                    input_sample_rate,
+                    SILERO_SAMPLE_RATE,
+                )
+
+                if leftover_16k.size:
+                    audio_16k = np.concatenate((leftover_16k, audio_16k))
+                    leftover_16k = np.array([], dtype=np.float32)
+
+                full_length = (
+                    len(audio_16k) // SILERO_CHUNK_SIZE
+                ) * SILERO_CHUNK_SIZE
+
+                if full_length == 0:
+                    leftover_16k = audio_16k
+                    continue
+
+                processable = audio_16k[:full_length]
+                leftover_16k = audio_16k[full_length:]
+
+                chunks = np.split(
+                    processable,
+                    full_length // SILERO_CHUNK_SIZE,
+                )
+
+                for chunk in chunks:
+                    chunk = chunk.astype(np.float32, copy=False)
+
+                    if not is_recording:
+                        pre_roll_chunks.append(chunk.copy())
+                    else:
+                        recorded_chunks.append(chunk.copy())
+
+                    event = vad_iterator(
+                        torch.from_numpy(chunk),
+                        return_seconds=True,
+                    )
+                    now = time.time()
+
+                    if event and "start" in event and not is_recording:
+                        is_recording = True
+                        speech_started_at = now
+
+                        if pending_barge_in_chunks:
+                            barge_in_seconds = (
+                                len(pending_barge_in_chunks)
+                                * SILERO_CHUNK_SIZE
+                                / SILERO_SAMPLE_RATE
+                            )
+                            recorded_chunks = list(pending_barge_in_chunks) + list(pre_roll_chunks)
+                            print_ts(
+                                f"Barge-in detected: prepending ~{barge_in_seconds:.2f}s of "
+                                "audio captured while Ameca was still speaking."
+                            )
+                        else:
+                            recorded_chunks = list(pre_roll_chunks)
+
+                        recorded_chunks.append(chunk.copy())
+                        pre_roll_chunks.clear()
+                        pending_barge_in_chunks.clear()
+                        barge_in_captured_at = None
+
+                        if camera is not None:
+                            frame_collector = FrameCollector(camera)
+                            frame_collector.start()
+
+                        print()
+                        print_ts("Speech detected. Recording utterance...")
+
+                    if event and "end" in event and is_recording:
+                        duration = now - (speech_started_at or now)
+                        if duration >= VAD_MIN_UTTERANCE_SECONDS:
+                            print_ts("Speech ended. Processing utterance...")
+                            raise StopIteration
+
+                    if (
+                        is_recording
+                        and speech_started_at is not None
+                        and now - speech_started_at
+                        >= VAD_MAX_UTTERANCE_SECONDS
+                    ):
+                        print_ts(
+                            "Maximum utterance length reached. "
+                            "Processing utterance..."
+                        )
+                        raise StopIteration
+
+    except StopIteration:
+        pass
+    except KeyboardInterrupt:
+        raise
+    except Exception as exc:
+        print_ts(f"Silero VAD/audio error: {exc}")
+        return None, []
+    finally:
+        try:
+            vad_iterator.reset_states()
+        except Exception:
+            pass
+
+    frames = frame_collector.stop() if frame_collector else []
+    if not recorded_chunks:
+        return None, frames
+
+    audio = np.concatenate(recorded_chunks).astype(np.float32, copy=False)
+    return save_audio_to_temp_wav(audio), frames
+
+
+def capture_and_transcribe(
+    whisper_model: WhisperModel,
+    silero_model: Any,
+    input_device: Optional[int],
+    robot_speaker: RobotSpeaker,
+    label: str,
+    camera: Optional["Camera"] = None,
+    attempts: int = 3,
+) -> tuple[str, list[np.ndarray], np.ndarray]:
+    """
+    Returns (transcript, frames, audio_for_prosody). audio_for_prosody is
+    the normalized utterance audio reloaded from the saved WAV, used by
+    the prosody-emotion modality; empty array if nothing usable was
+    captured.
+    """
+    for attempt in range(1, attempts + 1):
+        wav_path, frames = listen_for_utterance_with_silero_vad(
+            input_device=input_device,
+            silero_model=silero_model,
+            prompt_label=label,
+            robot_speaker=robot_speaker,
+            camera=camera,
+        )
+        if not wav_path:
+            if attempt < attempts:
+                robot_speaker.say(
+                    "I did not hear that clearly. Please try again."
+                )
+            continue
+
+        audio_for_prosody = load_audio_for_prosody(wav_path)
+
+        try:
+            transcript = transcribe_with_faster_whisper(
+                wav_path,
+                whisper_model,
+            )
+        finally:
+            try:
+                os.remove(wav_path)
+            except OSError:
+                pass
+
+        print_ts(f"Transcript [faster-whisper]: {transcript!r}")
+        if transcript:
+            return transcript, frames, audio_for_prosody
+
+        if attempt < attempts:
+            robot_speaker.say(
+                "I could not transcribe that clearly. Please try again."
+            )
+
+    return "", [], np.array([], dtype=np.float32)
+
+
+# =============================================================================
+# Name capture (single utterance: spelled, then spoken)
+# =============================================================================
+
+LETTER_WORDS = {
+    "AY": "A", "A": "A",
+    "BEE": "B", "BE": "B", "B": "B",
+    "SEE": "C", "SEA": "C", "C": "C",
+    "DEE": "D", "D": "D",
+    "E": "E",
+    "EFF": "F", "F": "F",
+    "GEE": "G", "G": "G",
+    "AITCH": "H", "H": "H",
+    "EYE": "I", "I": "I",
+    "JAY": "J", "J": "J",
+    "KAY": "K", "K": "K",
+    "EL": "L", "L": "L",
+    "EM": "M", "M": "M",
+    "EN": "N", "N": "N",
+    "OH": "O", "O": "O",
+    "PEE": "P", "P": "P",
+    "QUEUE": "Q", "CUE": "Q", "Q": "Q",
+    "ARE": "R", "R": "R",
+    "ESS": "S", "S": "S",
+    "TEE": "T", "TEA": "T", "T": "T",
+    "YOU": "U", "U": "U",
+    "VEE": "V", "V": "V",
+    "DOUBLE U": "W", "W": "W",
+    "EX": "X", "X": "X",
+    "WHY": "Y", "Y": "Y",
+    "ZEE": "Z", "ZED": "Z", "Z": "Z",
+}
+
+
+def clean_spoken_name(text: str) -> str:
+    text = text.strip()
+    patterns = [
+        r"^my name is\s+",
+        r"^my name's\s+",
+        r"^i am\s+",
+        r"^i'm\s+",
+        r"^this is\s+",
+        r"^it is\s+",
+        r"^it's\s+",
+        r"^call me\s+",
     ]
+    for pattern in patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"[^A-Za-zÀ-ÖØ-öø-ÿ' -]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:40].title()
 
-    if self_rag_context and self_rag_context.used:
-        grounded_reply = generate_grounded_self_rag_answer(
-            client=client,
-            user_text=safe_user_text,
-            self_rag_context=self_rag_context,
-            emotion=emotion_result.emotion,
+
+def clean_spelled_name(text: str) -> str:
+    cleaned = text.upper()
+    cleaned = re.sub(
+        r"\b(MY NAME IS|THE SPELLING IS|IT IS|THAT IS|SPELLING)\b",
+        " ",
+        cleaned,
+    )
+    cleaned = re.sub(r"[^A-Z ]", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    def double_replacement(match: re.Match[str]) -> str:
+        token = match.group(1)
+        letter = LETTER_WORDS.get(token, token if len(token) == 1 else "")
+        return f"{letter} {letter}" if letter else ""
+
+    cleaned = re.sub(
+        r"\bDOUBLE\s+([A-Z]+)\b",
+        double_replacement,
+        cleaned,
+    )
+
+    tokens = cleaned.split()
+    letters: list[str] = []
+    for token in tokens:
+        if token in LETTER_WORDS:
+            letters.append(LETTER_WORDS[token])
+        elif len(token) == 1 and token.isalpha():
+            letters.append(token)
+
+    if len(letters) >= 2:
+        return "".join(letters).title()
+
+    words = [
+        word
+        for word in re.findall(r"[A-Z]+", cleaned)
+        if word not in {"MY", "NAME", "IS", "IT", "THE"}
+    ]
+    if len(words) == 1 and len(words[0]) >= 2:
+        return words[0].title()
+    return ""
+
+
+def parse_full_name_from_utterance(transcript: str) -> str:
+    """
+    Parses a name from a single utterance that may contain a spelled-out
+    name followed by the natural pronunciation, e.g. "My name is A M E C A,
+    Ameca." Falls back gracefully if the participant just says their name
+    normally, without spelling it, or spells it without a trailing comma.
+    """
+    text = transcript.strip()
+    if not text:
+        return ""
+
+    if "," in text:
+        candidate = clean_spoken_name(text.split(",")[-1])
+        if candidate:
+            return candidate
+
+    spelled = clean_spelled_name(text)
+    if spelled:
+        return spelled
+
+    return clean_spoken_name(text)
+
+
+def capture_participant_name(
+    narrator: Narrator,
+    whisper_model: WhisperModel,
+    silero_model: Any,
+    input_device: Optional[int],
+) -> tuple[str, str]:
+    """Step 1-2: ask once, in a single utterance, for the participant's
+    name -- spelled out, then said naturally. Returns (display_name,
+    raw_transcript)."""
+    prompt_text = (
+        "Hi, what is your name? Please spell it out for me -- for example, "
+        "my name is A M E C A, Ameca."
+    )
+    narrator.say_and_nod(prompt_text)
+
+    transcript, _, _ = capture_and_transcribe(
+        whisper_model,
+        silero_model,
+        input_device,
+        narrator.speaker,
+        "participant name",
+        attempts=3,
+    )
+
+    display_name = parse_full_name_from_utterance(transcript)
+    if not display_name:
+        print(
+            "\nASR could not obtain a usable name after multiple attempts.",
+            flush=True,
         )
-        if grounded_reply:
-            return grounded_reply
+        display_name = input(
+            "Enter the participant's name manually: "
+        ).strip().title()
+        display_name = display_name or "Participant"
 
+    return display_name, transcript
+
+
+# =============================================================================
+# Camera
+# =============================================================================
+
+class Camera:
+    def __init__(self, device: int) -> None:
+        backend = cv2.CAP_V4L2 if sys.platform.startswith("linux") else cv2.CAP_ANY
+        self.capture = cv2.VideoCapture(device, backend)
+        self._lock = threading.Lock()
+
+        if not self.capture.isOpened():
+            raise RuntimeError(f"Could not open camera device {device}.")
+
+        self.capture.set(
+            cv2.CAP_PROP_FOURCC,
+            cv2.VideoWriter_fourcc(*"MJPG"),
+        )
+        self.capture.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
+        self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
+        self.capture.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
+
+        for _ in range(15):
+            self.read()
+            time.sleep(0.03)
+
+        width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        print_ts(f"Camera ready on /dev/video{device}: {width}x{height}")
+
+    def read(self) -> Optional[np.ndarray]:
+        with self._lock:
+            ok, frame = self.capture.read()
+        if not ok or frame is None or frame.size == 0:
+            return None
+        if USE_ZED_HALF_FRAME_CROP and frame.shape[1] >= 2000:
+            frame = frame[:, : frame.shape[1] // 2]
+        return frame
+
+    def close(self) -> None:
+        with self._lock:
+            self.capture.release()
+        cv2.destroyAllWindows()
+
+
+class SessionVideoRecorder:
+    """
+    Continuously records frames from the shared Camera instance for the
+    whole warm-up session, writing to a single video file under
+    warm_up_videos/{participant_folder}/.
+
+    Uses the same thread-safe Camera.read() that FrameCollector uses for
+    per-utterance frame sampling, so this can run concurrently with it.
+    NOTE: since both consumers poll the same underlying capture device,
+    running this alongside an active FrameCollector effectively splits
+    the camera's real frame rate between the two -- e.g. a ~30fps device
+    ends up delivering roughly half its frames to each consumer while
+    both are reading. This is usually still plenty for both the archival
+    video and DeepFace/local-detector candidate-frame selection, but is
+    worth knowing if either seems starved of frames.
+    """
+
+    def __init__(
+        self,
+        camera: "Camera",
+        output_path: Path,
+        fps: float = VIDEO_RECORD_FPS,
+        fourcc: str = VIDEO_FOURCC,
+    ) -> None:
+        self.camera = camera
+        self.output_path = output_path
+        self.fps = max(1.0, fps)
+        self.fourcc = fourcc
+        self._writer: Optional[cv2.VideoWriter] = None
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._frame_count = 0
+
+    def start(self) -> None:
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        interval = 1.0 / self.fps
+        next_write = 0.0
+        fourcc_code = cv2.VideoWriter_fourcc(*self.fourcc)
+
+        while not self._stop.is_set():
+            frame = self.camera.read()
+            if frame is None:
+                time.sleep(0.01)
+                continue
+
+            if self._writer is None:
+                height, width = frame.shape[:2]
+                try:
+                    self._writer = cv2.VideoWriter(
+                        str(self.output_path), fourcc_code, self.fps, (width, height)
+                    )
+                except Exception as exc:
+                    print_ts(f"[WARN] Could not create video writer: {exc}")
+                    return
+                if not self._writer.isOpened():
+                    print_ts(
+                        f"[WARN] Video writer failed to open for {self.output_path} "
+                        f"(fourcc={self.fourcc!r}); session video will not be recorded. "
+                        "Try a different --video_fourcc (e.g. 'XVID' with a .avi path) "
+                        "if this codec isn't available on this system."
+                    )
+                    self._writer = None
+                    return
+                print_ts(
+                    f"Recording session video to: {self.output_path} "
+                    f"({width}x{height} @ {self.fps}fps)"
+                )
+
+            now = time.monotonic()
+            if now >= next_write:
+                try:
+                    self._writer.write(frame)
+                    self._frame_count += 1
+                except Exception as exc:
+                    print_ts(f"[WARN] Failed to write a video frame: {exc}")
+                next_write = now + interval
+
+    def stop(self) -> Optional[Path]:
+        self._stop.set()
+        try:
+            if self._thread is not None:
+                self._thread.join(timeout=3)
+        except KeyboardInterrupt:
+            pass
+        if self._writer is not None:
+            self._writer.release()
+            print_ts(
+                f"Session video saved: {self.output_path} ({self._frame_count} frames)"
+            )
+            return self.output_path
+        return None
+
+
+class SessionMediaVideoDriver:
+    """
+    Feeds frames from the shared Camera into a gaze_speaker_utils.SessionMedia
+    instance's write_frame() on a background thread, at a target fps.
+    SessionMedia itself owns audio capture (via its own sounddevice
+    InputStream) and produces the final muxed audio+video MP4 via ffmpeg
+    on close(); this class only supplies the video side, mirroring how
+    SessionVideoRecorder drives frames in the video-only fallback path.
+
+    NOTE: SessionMedia opens its own continuous microphone stream for the
+    whole session, running concurrently with the per-utterance Silero-VAD
+    listening stream that's active almost the entire session. Whether two
+    simultaneous input-device opens work depends on the audio backend --
+    if SessionMedia's stream fails to start, that's surfaced as an
+    exception from SessionMedia.__init__ (caught by the caller, which
+    falls back to SessionVideoRecorder), not from this class.
+    """
+
+    def __init__(self, camera: "Camera", session_media: "SessionMedia", fps: float) -> None:
+        self.camera = camera
+        self.session_media = session_media
+        self.fps = max(1.0, fps)
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._frame_count = 0
+
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        interval = 1.0 / self.fps
+        next_write = 0.0
+
+        while not self._stop.is_set():
+            frame = self.camera.read()
+            if frame is None:
+                time.sleep(0.01)
+                continue
+
+            now = time.monotonic()
+            if now >= next_write:
+                try:
+                    self.session_media.write_frame(frame)
+                    self._frame_count += 1
+                except Exception as exc:
+                    print_ts(f"[WARN] Failed to write a frame to SessionMedia: {exc}")
+                next_write = now + interval
+
+    def stop(self) -> Optional[Path]:
+        self._stop.set()
+        try:
+            if self._thread is not None:
+                self._thread.join(timeout=3)
+        except KeyboardInterrupt:
+            pass
+
+        try:
+            out_path, muxed_ok = self.session_media.close_and_mux()
+        except KeyboardInterrupt:
+            print_ts("[WARN] Interrupted while finalizing SessionMedia recording.")
+            return None
+        except Exception as exc:
+            print_ts(f"[WARN] Error finalizing SessionMedia recording: {exc}")
+            return None
+
+        if muxed_ok:
+            print_ts(
+                f"Session audio+video saved (muxed): {out_path} ({self._frame_count} frames)"
+            )
+        else:
+            print_ts(
+                f"[WARN] Audio+video mux failed or ffmpeg unavailable; video-only file "
+                f"saved instead: {out_path} ({self._frame_count} frames). Raw audio, if "
+                f"captured, is still at: {self.session_media.wav_path}"
+            )
+        return Path(out_path)
+
+
+# =============================================================================
+# Isolated DeepFace worker (used only for steps 7-9, NOT steps 4-6)
+# =============================================================================
+
+@dataclass
+class DeepFaceResult:
+    ok: bool
+    no_face: bool
+    scores: dict[str, float]
+    dominant_emotion: Optional[str] = None
+    region: Optional[dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+class DeepFaceClient:
+    def __init__(
+        self,
+        python_executable: str,
+        worker_script: str,
+        startup_timeout: float,
+        request_timeout: float,
+    ) -> None:
+        self.python_executable = python_executable
+        self.worker_script = worker_script
+        self.startup_timeout = startup_timeout
+        self.request_timeout = request_timeout
+        self.proc: Optional[subprocess.Popen[str]] = None
+        self.responses: "queue.Queue[dict[str, Any]]" = queue.Queue()
+        self._request_counter = 0
+        self._ready = False
+        self._start_worker()
+
+    def _start_worker(self) -> None:
+        if not self.python_executable:
+            raise RuntimeError(
+                "--deepface_python is required. Pass the Python interpreter "
+                "from the separate DeepFace conda environment."
+            )
+        if not Path(self.python_executable).is_file():
+            raise RuntimeError(
+                f"DeepFace Python executable not found: {self.python_executable}"
+            )
+        if not Path(self.worker_script).is_file():
+            raise RuntimeError(
+                f"DeepFace worker script not found: {self.worker_script}"
+            )
+
+        self.proc = subprocess.Popen(
+            [self.python_executable, self.worker_script],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        threading.Thread(target=self._drain_stderr, daemon=True).start()
+
+        ready_queue: "queue.Queue[str]" = queue.Queue()
+
+        def read_ready() -> None:
+            assert self.proc is not None and self.proc.stdout is not None
+            ready_queue.put(self.proc.stdout.readline().strip())
+
+        threading.Thread(target=read_ready, daemon=True).start()
+        try:
+            ready = ready_queue.get(timeout=self.startup_timeout)
+        except queue.Empty as exc:
+            self.shutdown()
+            raise RuntimeError(
+                "DeepFace worker did not become ready within "
+                f"{self.startup_timeout:.1f} seconds."
+            ) from exc
+
+        if ready != "READY":
+            self.shutdown()
+            raise RuntimeError(
+                f"Unexpected DeepFace worker startup response: {ready!r}"
+            )
+
+        self._ready = True
+        threading.Thread(target=self._read_responses, daemon=True).start()
+        print_ts("DeepFace worker ready.")
+
+    def _drain_stderr(self) -> None:
+        if not self.proc or not self.proc.stderr:
+            return
+        for line in self.proc.stderr:
+            line = line.rstrip()
+            if line:
+                print_ts(f"[DeepFace worker] {line}")
+
+    def _read_responses(self) -> None:
+        if not self.proc or not self.proc.stdout:
+            return
+        for line in self.proc.stdout:
+            try:
+                self.responses.put(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    def is_alive(self) -> bool:
+        return (
+            self._ready
+            and self.proc is not None
+            and self.proc.poll() is None
+        )
+
+    def analyze(self, frame: np.ndarray) -> Optional[DeepFaceResult]:
+        if not self.is_alive():
+            return None
+
+        fd, image_path = tempfile.mkstemp(
+            suffix=".jpg",
+            prefix="warmup_deepface_",
+        )
+        os.close(fd)
+
+        try:
+            write_ok = cv2.imwrite(image_path, frame)
+            path = Path(image_path)
+            if (
+                not write_ok
+                or not path.exists()
+                or path.stat().st_size == 0
+            ):
+                print_ts("Could not create temporary DeepFace image.")
+                return None
+
+            self._request_counter += 1
+            request_id = f"warmup_{self._request_counter}"
+            request = {
+                "request_id": request_id,
+                "cmd": "analyze",
+                "image_path": image_path,
+            }
+
+            assert self.proc is not None and self.proc.stdin is not None
+            self.proc.stdin.write(json.dumps(request) + "\n")
+            self.proc.stdin.flush()
+
+            deadline = time.time() + self.request_timeout
+            while time.time() < deadline:
+                remaining = max(0.05, deadline - time.time())
+                try:
+                    response = self.responses.get(timeout=remaining)
+                except queue.Empty:
+                    break
+
+                if response.get("request_id") != request_id:
+                    continue
+
+                if not response.get("ok"):
+                    print_ts(
+                        "DeepFace worker error: "
+                        f"{response.get('error', 'unknown error')}"
+                    )
+                    return None
+
+                return DeepFaceResult(
+                    ok=True,
+                    no_face=bool(response.get("no_face")),
+                    scores={
+                        str(key): float(value)
+                        for key, value in (
+                            response.get("scores", {}) or {}
+                        ).items()
+                    },
+                    dominant_emotion=response.get("dominant_emotion"),
+                    region=response.get("region"),
+                )
+
+            print_ts(
+                f"DeepFace request timed out after "
+                f"{self.request_timeout:.1f} seconds."
+            )
+            return None
+        finally:
+            try:
+                os.remove(image_path)
+            except OSError:
+                pass
+
+    def shutdown(self) -> None:
+        if self.proc is None:
+            return
+        try:
+            if self.proc.stdin:
+                self.proc.stdin.write(
+                    json.dumps({"cmd": "shutdown"}) + "\n"
+                )
+                self.proc.stdin.flush()
+            self.proc.wait(timeout=3)
+        except KeyboardInterrupt:
+            # A second Ctrl+C landing during this short wait shouldn't
+            # produce a traceback on the way out -- just make sure the
+            # worker process is actually terminated and move on.
+            try:
+                self.proc.terminate()
+            except Exception:
+                pass
+        except Exception:
+            try:
+                self.proc.terminate()
+            except Exception:
+                pass
+        self._ready = False
+
+
+def crop_face(
+    frame: np.ndarray,
+    region: dict[str, Any],
+) -> np.ndarray:
     try:
-        response = client.chat(
-            model=MODEL_NAME,
-            messages=messages,
-            options={
-                "temperature": 0.25 if self_rag_context and self_rag_context.used else 0.4,
-                # Kept deliberately small so the model has less room to
-                # ramble before hitting the hard sentence cap in
-                # normalize_reply(); reduces how often replies get
-                # truncated mid-thought.
-                "num_predict": 90,
-                "repeat_penalty": 1.25,
-                "num_ctx": 8192,
-            },
-            stream=False,
+        x = max(0, int(region.get("x", 0)))
+        y = max(0, int(region.get("y", 0)))
+        width = max(1, int(region.get("w", frame.shape[1])))
+        height = max(1, int(region.get("h", frame.shape[0])))
+        pad_x = int(width * 0.25)
+        pad_y = int(height * 0.25)
+        x1 = max(0, x - pad_x)
+        y1 = max(0, y - pad_y)
+        x2 = min(frame.shape[1], x + width + pad_x)
+        y2 = min(frame.shape[0], y + height + pad_y)
+        crop = frame[y1:y2, x1:x2]
+        return crop if crop.size else frame
+    except Exception:
+        return frame
+
+
+_FACE_CASCADE: Optional["cv2.CascadeClassifier"] = None
+_EYE_CASCADE: Optional["cv2.CascadeClassifier"] = None
+
+# Explicit override for the face cascade used in local face-region
+# detection (see _resolve_face_cascade_path()). Empty by default, which
+# resolves to OpenCV's bundled default cascade -- see that function's
+# docstring for why alt/RRLab's cascade is no longer the automatic choice.
+FACE_CASCADE_PATH_OVERRIDE = os.environ.get("FACE_CASCADE_PATH", "")
+
+# Detection parameters. scaleFactor defaults to the value RRLab's own
+# mFaceIdentification.cpp uses against this same camera:
+#   faceDetector.detectMultiScale(frame, faces, 1.1, 4, CASCADE_SCALE_IMAGE, cv::Size(112, 112));
+# minNeighbors and minSize are NOT taken from that reference -- see notes
+# below; both were found empirically to need different values on this
+# script's actual frame size/detection pipeline.
+FACE_CASCADE_SCALE_FACTOR = float(os.environ.get("FACE_CASCADE_SCALE_FACTOR", "1.1"))
+# minNeighbors=4 (the C++ reference value) was tried and produced no
+# obvious recall/precision difference worth keeping over the slightly
+# stricter value that was already working in earlier sessions; reverted
+# to that known-good value.
+FACE_CASCADE_MIN_NEIGHBORS = int(os.environ.get("FACE_CASCADE_MIN_NEIGHBORS", "5"))
+# NOTE: mFaceIdentification.cpp's minSize=(112,112) was calibrated for
+# whatever frame resolution/distance its own ZED pipeline uses, which is
+# NOT necessarily this script's 1280x720 half-crop. In practice it caused
+# a total detection failure here (0/12 frames across a full session,
+# despite DeepFace's own detector finding a face confidently on every
+# single one) -- so the default is reverted to the smaller size that was
+# previously working for this camera/seating distance, while staying
+# tunable via env var in case a different framing calls for 112 later.
+FACE_CASCADE_MIN_SIZE = (
+    int(os.environ.get("FACE_CASCADE_MIN_SIZE_WIDTH", "60")),
+    int(os.environ.get("FACE_CASCADE_MIN_SIZE_HEIGHT", "60")),
+)
+
+# Whether a candidate face box must also contain an eye-like feature
+# (see _region_contains_eye()) to be accepted. This was added to reject a
+# door-handle false positive, but eye cascades are considerably less
+# reliable than face cascades -- across a full session with this gate
+# enabled, only 1 of 20 candidate frames passed (the one round with the
+# most exaggerated expression, eyes wide open), while DeepFace's own
+# detector found a face confidently on nearly every single frame in the
+# same session. That recall cost is worse than the false positive it was
+# meant to prevent, so it now defaults OFF; maxSize + aspect-ratio + area
+# filtering are the active defense against false positives instead.
+REQUIRE_EYE_CONFIRMATION = os.environ.get("REQUIRE_EYE_CONFIRMATION", "0") == "1"
+
+# Whether a candidate face box must also clear a skin-tone color check
+# (see _region_has_skin_tone()) to be accepted. Unlike the eye-confirmation
+# gate above, this is a much cheaper, lower-recall-risk filter -- a door
+# handle or wall clock has essentially no skin-tone pixels, while even a
+# poorly-lit or partially-obscured real face crop still typically clears
+# a low threshold easily. Defaults ON.
+REQUIRE_SKIN_TONE_CONFIRMATION = os.environ.get("REQUIRE_SKIN_TONE_CONFIRMATION", "1") == "1"
+SKIN_TONE_MIN_FRACTION = float(os.environ.get("SKIN_TONE_MIN_FRACTION", "0.15"))
+
+
+def _resolve_face_cascade_path() -> str:
+    """
+    Resolution order: explicit override only, else OpenCV's bundled
+    default cascade.
+
+    haarcascade_frontalface_alt.xml (RRLab's mFaceIdentification.cpp
+    cascade) was tried as the automatic default, on the theory that it
+    has a lower false-positive rate than the generic default cascade.
+    In practice, on this camera setup, it also had a MUCH lower true
+    positive rate: across a full session, DeepFace's own detector (which
+    uses the default cascade internally) found a face confidently on
+    every single frame it analyzed, while our alt-cascade detector found
+    a usable face on only 1 of 12+ candidate frames -- catching just the
+    most exaggerated expression (wide eyes + open mouth on "surprise")
+    and missing everything subtler. Trading that much recall away isn't
+    worth the reduced false-positive rate here, so default is the
+    automatic choice again; the maxSize/aspect/area filtering and the
+    eye-confirmation check (see detect_face_region_local() /
+    _region_contains_eye()) are what actually reject false positives now,
+    rather than relying on a stingier cascade to avoid producing them in
+    the first place. Pass --face_cascade_path (or set FACE_CASCADE_PATH)
+    to explicitly opt into alt, the RRLab path, or any other cascade file.
+    """
+    if FACE_CASCADE_PATH_OVERRIDE and os.path.isfile(FACE_CASCADE_PATH_OVERRIDE):
+        return FACE_CASCADE_PATH_OVERRIDE
+    return os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
+
+
+def _get_face_cascade() -> "cv2.CascadeClassifier":
+    global _FACE_CASCADE
+    if _FACE_CASCADE is None:
+        cascade_path = _resolve_face_cascade_path()
+        cascade = cv2.CascadeClassifier(cascade_path)
+        if cascade.empty():
+            # CascadeClassifier does not raise on a bad/missing path -- it
+            # just silently yields a classifier that always detects
+            # nothing, which would otherwise look identical to "no face in
+            # frame" forever. Fall back explicitly and say so.
+            print_ts(
+                f"[WARN] Face cascade failed to load from {cascade_path}; "
+                "falling back to OpenCV's bundled default cascade."
+            )
+            fallback_path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
+            cascade = cv2.CascadeClassifier(fallback_path)
+            cascade_path = fallback_path
+        print_ts(f"Face cascade loaded: {cascade_path}")
+        _FACE_CASCADE = cascade
+    return _FACE_CASCADE
+
+
+def _get_eye_cascade() -> "cv2.CascadeClassifier":
+    global _EYE_CASCADE
+    if _EYE_CASCADE is None:
+        cascade_path = os.path.join(cv2.data.haarcascades, "haarcascade_eye.xml")
+        _EYE_CASCADE = cv2.CascadeClassifier(cascade_path)
+    return _EYE_CASCADE
+
+
+def _region_has_skin_tone(
+    frame: np.ndarray,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    min_fraction: float = 0.15,
+) -> bool:
+    """
+    Cheap color-based sanity check: a real face crop should contain a
+    meaningful fraction of skin-tone pixels (a standard YCrCb skin-locus
+    range). Haar false positives observed on this camera setup -- a door
+    handle against a green door, a wall clock -- have color distributions
+    nothing like skin, so this catches a broad class of false positives
+    that pure geometry (size/aspect) can't, at a much lower recall cost
+    than requiring an eye detection (see REQUIRE_EYE_CONFIRMATION):
+    min_fraction is deliberately set low, since even a face crop with
+    plenty of hair/background/shadow at the edges should still clear it
+    easily, while a door handle or clock should have close to 0% skin-tone
+    pixels.
+    """
+    try:
+        roi = frame[y:y + h, x:x + w]
+        if roi.size == 0:
+            return False
+        ycrcb = cv2.cvtColor(roi, cv2.COLOR_BGR2YCrCb)
+        cr = ycrcb[:, :, 1]
+        cb = ycrcb[:, :, 2]
+        skin_mask = (cr >= 133) & (cr <= 173) & (cb >= 77) & (cb <= 127)
+        fraction = float(np.mean(skin_mask))
+        return fraction >= min_fraction
+    except Exception:
+        return False
+
+
+def _region_contains_eye(gray: np.ndarray, x: int, y: int, w: int, h: int) -> bool:
+    """
+    Confirms a candidate face box actually contains at least one eye-like
+    feature, using OpenCV's bundled eye Haar cascade as a cheap secondary
+    check. The face cascade alone was observed (via saved session images)
+    to consistently false-positive on a high-contrast dark object in the
+    room -- a door handle against a green door -- which is small and
+    roughly square enough to pass the size/aspect-ratio sanity filter on
+    its own. A door handle's edge pattern doesn't resemble an eye, so
+    requiring an eye detection inside the candidate region rejects that
+    specific false-positive class without needing to hardcode anything
+    about this particular room's layout.
+    """
+    try:
+        roi = gray[y:y + h, x:x + w]
+        if roi.size == 0:
+            return False
+        eye_cascade = _get_eye_cascade()
+        eyes = eye_cascade.detectMultiScale(
+            roi,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(max(10, w // 8), max(10, h // 8)),
         )
+        return len(eyes) > 0
+    except Exception:
+        return False
+
+
+_MEDIAPIPE_FACE_MESH = None
+_MEDIAPIPE_UNAVAILABLE_LOGGED = False
+# Set True the first time MediaPipe actually errors out at runtime (as
+# opposed to genuinely finding no face in a given frame) -- e.g. an
+# installed mediapipe build that's missing the legacy `solutions` API
+# (`module 'mediapipe' has no attribute 'solutions'`), which otherwise
+# raises on literally every single call. Once set, MediaPipe is skipped
+# for the rest of the process and the Haar cascade is used instead --
+# without this distinction, a broken MediaPipe install silently zeroes
+# out every image for the whole session (every call "fails," and the
+# code was treating any failure as "no face here," never falling back).
+_MEDIAPIPE_BROKEN = False
+
+
+def _get_mediapipe_face_mesh():
+    global _MEDIAPIPE_FACE_MESH
+    if _MEDIAPIPE_FACE_MESH is None:
+        # static_image_mode=True: each call here analyzes an independent
+        # candidate frame from a different moment, not a continuous video
+        # stream, so MediaPipe's temporal tracking mode (which assumes
+        # frame-to-frame continuity) isn't appropriate.
+        _MEDIAPIPE_FACE_MESH = mp.solutions.face_mesh.FaceMesh(
+            static_image_mode=True,
+            refine_landmarks=False,
+            max_num_faces=1,
+            min_detection_confidence=0.5,
+        )
+        print_ts("MediaPipe FaceMesh loaded for local face-region detection.")
+    return _MEDIAPIPE_FACE_MESH
+
+
+def detect_face_region_mediapipe(frame: np.ndarray) -> Optional[dict[str, Any]]:
+    """
+    Face-bounding-box detection via MediaPipe FaceMesh (ported from
+    RRLab's gaze_speaker_utils.py, FaceVerifier/LipLandmarks), used as the
+    primary local detector instead of a Haar cascade.
+
+    FaceMesh only reports a match when it can locate genuine facial
+    structure (468 3D landmarks across eyes, nose, mouth, jawline), which
+    makes it far more resistant to the false positives Haar cascades
+    produced on this camera setup (a door handle, background clutter, a
+    box spanning most of the frame) while also tending to have better
+    recall on off-angle or partially turned faces than a Haar cascade
+    tuned strictly enough to avoid those false positives.
+
+    Returns None both when MediaPipe finds no face AND when it errors --
+    callers must check _MEDIAPIPE_BROKEN (set here on error) to tell the
+    two apart, since only the latter should trigger a Haar fallback.
+    """
+    global _MEDIAPIPE_BROKEN
+    if not HAS_MEDIAPIPE or _MEDIAPIPE_BROKEN:
+        return None
+    try:
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_mesh = _get_mediapipe_face_mesh()
+        result = face_mesh.process(rgb)
+        if not result.multi_face_landmarks:
+            return None
+
+        landmarks = result.multi_face_landmarks[0].landmark
+        frame_h, frame_w = frame.shape[:2]
+        xs = [landmark.x * frame_w for landmark in landmarks]
+        ys = [landmark.y * frame_h for landmark in landmarks]
+        x1, x2 = min(xs), max(xs)
+        y1, y2 = min(ys), max(ys)
+        return {
+            "x": int(max(0, x1)),
+            "y": int(max(0, y1)),
+            "w": int(max(1, x2 - x1)),
+            "h": int(max(1, y2 - y1)),
+        }
     except Exception as exc:
-        print_ts(f"Response generation LLM call failed ({exc}); using apologetic fallback reply.")
-        return normalize_reply(
-            "I'm having trouble reaching my language model right now, so I can't respond properly to that.",
-            emotion_result.emotion,
+        print_ts(
+            f"[WARN] MediaPipe face-region detection failed ({exc}); this "
+            "usually means an incompatible mediapipe build/version in this "
+            "environment. Disabling MediaPipe for the rest of this run and "
+            "falling back to the Haar cascade."
+        )
+        _MEDIAPIPE_BROKEN = True
+        return None
+
+
+def detect_face_region_local(frame: np.ndarray) -> Optional[dict[str, Any]]:
+    """
+    Local, in-process face-bounding-box detection, deliberately
+    independent of the DeepFace worker subprocess (whose region field was
+    confirmed, via saved session JSON, to always come back empty even on
+    confident detections).
+
+    Tries MediaPipe FaceMesh first (see detect_face_region_mediapipe()).
+    Falls back to the Haar cascade (_detect_face_region_haar()) if
+    MediaPipe isn't available/importable, OR if it just errored out for
+    the first time this run (_MEDIAPIPE_BROKEN) -- but NOT simply because
+    MediaPipe ran successfully and found no face in this particular frame,
+    since falling back in that case would reintroduce the false-positive
+    classes MediaPipe was chosen to avoid.
+    """
+    global _MEDIAPIPE_UNAVAILABLE_LOGGED, _MEDIAPIPE_BROKEN
+    if HAS_MEDIAPIPE and not _MEDIAPIPE_BROKEN:
+        region = detect_face_region_mediapipe(frame)
+        if region is not None:
+            return region
+        if not _MEDIAPIPE_BROKEN:
+            # MediaPipe ran fine and genuinely found no face this frame.
+            return None
+        # Otherwise MediaPipe just failed for the first time above --
+        # fall through to Haar for this call (and all subsequent ones).
+
+    if not _MEDIAPIPE_UNAVAILABLE_LOGGED:
+        print_ts("[INFO] Using Haar cascade for face-region detection.")
+        _MEDIAPIPE_UNAVAILABLE_LOGGED = True
+    return _detect_face_region_haar(frame)
+
+
+def _detect_face_region_haar(frame: np.ndarray) -> Optional[dict[str, Any]]:
+    """
+    Fallback face-bounding-box detection via OpenCV's Haar cascade, used
+    only when MediaPipe FaceMesh (see detect_face_region_mediapipe()) is
+    unavailable or fails to import. Deliberately independent of the
+    DeepFace worker subprocess.
+
+    The worker's analyze() responses were confirmed (via saved session
+    JSON) to always return an empty region ({}), even on frames where
+    DeepFace itself confidently classified an emotion (no_face=False,
+    high confidence). Cropping therefore can't rely on that field; this
+    detects a face directly in-process instead, on the same frame DeepFace
+    already analyzed (or, for baseline capture, on its own -- baseline
+    never calls the DeepFace worker at all).
+
+    Sanity filtering: Haar cascades occasionally false-positive on
+    background clutter. Three distinct failure modes were observed in
+    practice: (1) a large, non-face-shaped box that amounted to saving
+    the entire uncropped room; (2) a small, plausibly face-sized box that
+    was actually a high-contrast object elsewhere in the room (a door
+    handle, a wall clock). (1) is always caught by the maxSize cap plus
+    aspect-ratio/area filtering below. (2) is caught by a skin-tone color
+    check (see _region_has_skin_tone(), gated behind
+    REQUIRE_SKIN_TONE_CONFIRMATION, default ON) -- a much cheaper and
+    lower-recall-risk filter than requiring an eye-like feature inside the
+    box (see _region_contains_eye(), gated behind REQUIRE_EYE_CONFIRMATION,
+    default OFF), since eye cascades proved unreliable enough in practice
+    to reject the large majority of genuine faces along with the false
+    positives they were meant to catch.
+    """
+    try:
+        frame_h, frame_w = frame.shape[:2]
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        cascade = _get_face_cascade()
+        faces = cascade.detectMultiScale(
+            gray,
+            scaleFactor=FACE_CASCADE_SCALE_FACTOR,
+            minNeighbors=FACE_CASCADE_MIN_NEIGHBORS,
+            flags=cv2.CASCADE_SCALE_IMAGE,
+            minSize=FACE_CASCADE_MIN_SIZE,
+            maxSize=(int(frame_w * 0.6), int(frame_h * 0.9)),
+        )
+        if len(faces) == 0:
+            return None
+
+        frame_area = float(frame_w * frame_h)
+        plausible: list[tuple[int, int, int, int]] = []
+        for (x, y, w, h) in faces:
+            if h == 0:
+                continue
+            aspect = w / float(h)
+            area_fraction = (w * h) / frame_area
+            if area_fraction > 0.5:
+                continue
+            if not (0.6 <= aspect <= 1.6):
+                continue
+            if REQUIRE_SKIN_TONE_CONFIRMATION and not _region_has_skin_tone(
+                frame, x, y, w, h, SKIN_TONE_MIN_FRACTION
+            ):
+                continue
+            if REQUIRE_EYE_CONFIRMATION and not _region_contains_eye(gray, x, y, w, h):
+                continue
+            plausible.append((x, y, w, h))
+
+        if not plausible:
+            return None
+
+        x, y, w, h = max(plausible, key=lambda box: box[2] * box[3])
+        return {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
+    except Exception as exc:
+        print_ts(f"[WARN] Local face-region detection failed: {exc}")
+        return None
+
+
+# How many sharpest candidate frames to try (in order) when looking for
+# usable face crops, per utterance. Deliberately larger than the number
+# of images actually needed (2 for baseline, 1 for test/Q&A): picking
+# only the top-2 sharpest frames and giving up if neither has a clean,
+# forward-facing shot was found to zero out an entire round even when a
+# perfectly good frame existed elsewhere in the same utterance (sharpness
+# measures blur, not whether a face is actually well-framed in that
+# instant). Widening the pool gives the detector more chances without
+# needing more frames to be *captured* -- FrameCollector already samples
+# every CAMERA_SAMPLE_EVERY_SECONDS across the whole utterance; this only
+# changes how many of those already-captured frames get checked.
+FACE_CROP_MAX_CANDIDATES_TO_TRY = int(os.environ.get("FACE_CROP_MAX_CANDIDATES_TO_TRY", "6"))
+
+
+def find_local_face_crops(
+    frames: list[np.ndarray],
+    max_needed: int,
+    max_candidates: int = FACE_CROP_MAX_CANDIDATES_TO_TRY,
+    preferred_frame: Optional[np.ndarray] = None,
+    preferred_region: Optional[dict[str, Any]] = None,
+) -> list[tuple[np.ndarray, dict[str, Any]]]:
+    """
+    Returns up to max_needed (frame, region) pairs with a usable local
+    face-detection region, trying the preferred frame first (e.g.
+    DeepFace's already-classified best frame, with its own region if any),
+    then the max_candidates sharpest remaining frames in order. Stops as
+    soon as max_needed matches are found rather than checking every
+    candidate, to avoid unnecessary work once enough crops are in hand.
+    """
+    found: list[tuple[np.ndarray, dict[str, Any]]] = []
+
+    if preferred_frame is not None:
+        region = preferred_region or detect_face_region_local(preferred_frame)
+        if region:
+            found.append((preferred_frame, region))
+
+    if len(found) >= max_needed:
+        return found[:max_needed]
+
+    for frame in sorted(frames, key=sharpness, reverse=True)[:max_candidates]:
+        if len(found) >= max_needed:
+            break
+        if preferred_frame is not None and frame is preferred_frame:
+            continue
+        region = detect_face_region_local(frame)
+        if region:
+            found.append((frame, region))
+
+    return found[:max_needed]
+
+
+def detect_best_emotion_sample(
+    frames: list[np.ndarray],
+    deepface: DeepFaceClient,
+    debug_dir: Optional[Path] = None,
+    requested_emotion: str = "unknown",
+) -> tuple[Optional[np.ndarray], Optional[dict[str, Any]]]:
+    """
+    Analyze the sharpest candidate frames with DeepFace and pick the most
+    confident face+emotion reading. Every candidate frame's outcome is
+    logged (and, if VISION_DEBUG, saved to debug_dir tagged with the round
+    name, frame index, and outcome) so that a (None, None) result is
+    diagnosable instead of silent. Only used for steps 7-9 -- baseline
+    rounds (4-6) never call this.
+    """
+    if not frames:
+        print_ts(
+            "DeepFace: no candidate frames were captured during this "
+            "utterance (camera/frame-collector issue?)."
+        )
+        return None, None
+
+    ordered = sorted(frames, key=sharpness, reverse=True)
+    ordered = ordered[:FACE_MAX_CANDIDATE_FRAMES]
+    analyzed: list[tuple[np.ndarray, dict[str, Any]]] = []
+
+    no_face_count = 0
+    unmapped_count = 0
+    failed_count = 0
+
+    for idx, frame in enumerate(ordered):
+        result = deepface.analyze(frame)
+
+        if result is None:
+            failed_count += 1
+            if debug_dir is not None:
+                _save_debug_frame(
+                    frame, debug_dir, f"{requested_emotion}_frame{idx}_failed_or_timeout"
+                )
+            continue
+
+        if result.no_face or not result.scores:
+            no_face_count += 1
+            if debug_dir is not None:
+                _save_debug_frame(
+                    frame, debug_dir, f"{requested_emotion}_frame{idx}_noface"
+                )
+            continue
+
+        raw = (
+            result.dominant_emotion
+            or max(result.scores.items(), key=lambda item: item[1])[0]
+        )
+        raw = str(raw).strip().lower()
+        mapped = DEEPFACE_TO_PROFILE_EMOTION.get(raw)
+        if not mapped:
+            unmapped_count += 1
+            if debug_dir is not None:
+                _save_debug_frame(
+                    frame, debug_dir, f"{requested_emotion}_frame{idx}_unmapped_{raw}"
+                )
+            continue
+
+        confidence = float(result.scores.get(raw, 0.0)) / 100.0
+        if debug_dir is not None:
+            _save_debug_frame(
+                frame,
+                debug_dir,
+                f"{requested_emotion}_frame{idx}_detected-{mapped}_{round(confidence * 100)}pct",
+            )
+
+        analyzed.append(
+            (
+                frame,
+                {
+                    "emotion": mapped,
+                    "deepface_emotion": raw,
+                    "confidence": confidence,
+                    "scores": result.scores,
+                    "region": result.region or {},
+                },
+            )
         )
 
-    raw_reply = response["message"]["content"]
-    data = safe_json_extract(raw_reply)
+    print_ts(
+        f"DeepFace candidate frames: considered={len(ordered)}, "
+        f"confident={len(analyzed)}, no_face={no_face_count}, "
+        f"unmapped={unmapped_count}, failed_or_timeout={failed_count}"
+    )
 
-    if data and isinstance(data, dict):
-        reply_text = str(data.get("reply", "")).strip()
-        emoji = str(data.get("emoji", "")).strip()
-
-        if emoji in {":)", ":-)", ""}:
-            emoji = PLUTCHIK_EMOTIONS.get(emotion_result.emotion, "🙂")
-
-        return normalize_reply(f"{reply_text} {emoji}", emotion_result.emotion)
-
-    final_reply = normalize_reply(raw_reply, emotion_result.emotion)
-    if self_rag_context and self_rag_context.used and context_has_placeholder_risk(final_reply):
-        return normalize_reply(
-            "I found a relevant local lab page, but I could not verify the exact name from the retrieved text, so I should not invent it. 🙂",
-            emotion_result.emotion,
+    if not analyzed:
+        print_ts(
+            "DeepFace did not produce a confident face+emotion reading on any "
+            "candidate frame this turn. "
+            + (
+                f"Check debug frames under: {debug_dir}"
+                if debug_dir is not None and VISION_DEBUG
+                else "Set VISION_DEBUG=1 to save per-frame debug images."
+            )
         )
-    return final_reply
+        return None, None
+
+    best_frame, best_result = max(analyzed, key=lambda item: item[1]["confidence"])
+    print_ts(
+        f"Best DeepFace reading: emotion={best_result['emotion']} "
+        f"confidence={best_result['confidence']:.2f} "
+        f"region={best_result.get('region')!r}"
+    )
+    return best_frame, best_result
 
 
-# =========================
-# CLI args (robot-specific)
-# =========================
+# =============================================================================
+# Step 4-6: baseline emotion rounds (no classification, capture only)
+# =============================================================================
 
-def parse_robot_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Ameca demo: Silero VAD + faster-whisper/Google STT + emotion fusion + Self-RAG, with Tritium TTS output and ZED vision."
+def capture_baseline_emotion_round(
+    *,
+    narrator: Narrator,
+    whisper_model: WhisperModel,
+    silero_model: Any,
+    input_device: Optional[int],
+    camera: Camera,
+    requested_emotion: str,
+    script_text: str,
+    participant_folder: str,
+    session: dict[str, Any],
+    script_attempts: int,
+) -> None:
+    """
+    Step 4-6: prompt for one target emotion, capture the reading, and save
+    the two sharpest frames CROPPED to a locally-detected face bounding
+    box (see detect_face_region_local()). No DeepFace worker call is made
+    here at all -- baseline capture needs no emotion classification, and
+    the worker's own region field was found to always come back empty
+    anyway. A candidate frame is skipped entirely (not saved) if no face
+    is detected in it, since only cropped, face-containing frames are
+    saved.
+    """
+    narrator.say_and_nod(
+        f"When you are ready, please read the next sentence and show me "
+        f"the emotion for {requested_emotion}."
     )
 
-    parser.add_argument(
-        "--chat_model",
-        default=MODEL_NAME,
-        help=f"Ollama model used for text chat, emotion detection, Self-RAG, and session summaries (default: {MODEL_NAME}).",
-    )
-    parser.add_argument(
-        "--face_vision_model",
-        default=VISION_MODEL_NAME,
-        help=f"Ollama vision-language model used for Qwen2.5-VL facial-emotion sampling (default: {VISION_MODEL_NAME}).",
-    )
-    parser.add_argument("--vision_model", default="llava:7b", help="Ollama vision-language model used for general ZED 'what do you see' queries (default: llava:7b).")
+    print("\n" + "=" * 76)
+    print(f"EMOTION TO EXPRESS: {requested_emotion.upper()}")
+    print("-" * 76)
+    print(script_text)
+    print("=" * 76, flush=True)
 
-    parser.add_argument("--tts_url", default=os.environ.get("TTS_URL", "http://emah/tritium/text_to_speech/say?voice=Lucy"))
-    parser.add_argument("--speaking_cooldown", type=float, default=0.3, help="Seconds of echo-guard cooldown after TTS finishes speaking.")
-    parser.add_argument("--tts_token", default="ZWNFuNQVIPyztWCfPPM5VLPslpj8rR")
-
-    parser.add_argument("--google_stt_language", default=os.environ.get("GOOGLE_STT_LANGUAGE", "en-US"))
-    parser.add_argument("--disable_google_fallback", action="store_true", help="Disable Google STT fallback; faster-whisper only.")
-
-    parser.add_argument("--videoIndex", type=int, default=int(os.environ.get("ZED_VIDEO_INDEX", "0")), help="ZED camera index. This is now the SINGLE camera handle, used both for Qwen2.5-VL facial-emotion sampling and for general 'what do you see' queries.")
-    parser.add_argument("--resolution", default=os.environ.get("ZED_RESOLUTION", "HD2K"))
-    parser.add_argument("--fps", type=int, default=int(os.environ.get("ZED_FPS", "15")))
-    parser.add_argument("--view", choices=["LEFT", "RIGHT"], default=os.environ.get("ZED_VIEW", "LEFT"))
-    parser.add_argument("--no_mjpeg", action="store_true")
-    parser.add_argument(
-        "--disable_general_vision_queries",
-        action="store_true",
-        help="Keep the ZED camera running for facial-emotion sampling, but disable routing 'what do you see' style questions to it.",
+    transcript, frames, _audio = capture_and_transcribe(
+        whisper_model=whisper_model,
+        silero_model=silero_model,
+        input_device=input_device,
+        robot_speaker=narrator.speaker,
+        label=f"baseline {requested_emotion}",
+        camera=camera,
+        attempts=script_attempts,
     )
 
-    return parser.parse_args()
+    saved_images: list[str] = []
+    if transcript and frames:
+        debug_dir = PROFILE_DIR / participant_folder / "debug"
+        matches = find_local_face_crops(frames, max_needed=2)
+        for idx, (frame, region) in enumerate(matches):
+            cropped = crop_face(frame, region)
+            image_id = allocate_image_id(session)
+            path = build_profile_image_path(
+                participant_folder, "baseline", image_id, emotion=requested_emotion
+            )
+            if save_frame_to_profile(cropped, path):
+                saved_images.append(str(path))
+                print_ts(f"Saved baseline image: {path}")
 
+        if not matches and VISION_DEBUG:
+            for idx, frame in enumerate(
+                sorted(frames, key=sharpness, reverse=True)[:FACE_CROP_MAX_CANDIDATES_TO_TRY]
+            ):
+                _save_debug_frame(
+                    frame, debug_dir, f"{requested_emotion}_frame{idx}_noface_local"
+                )
 
-# =========================
-# Main loop
-# =========================
+        if not matches:
+            print_ts(
+                f"No face detected (local detector) in any of up to "
+                f"{FACE_CROP_MAX_CANDIDATES_TO_TRY} candidate frames for "
+                f"'{requested_emotion}'; skipping (only cropped frames are saved)."
+            )
 
-def main() -> None:
-    global MODEL_NAME, VISION_MODEL_NAME, ZED_VISION_MODEL_NAME
-
-    args = parse_robot_args()
-
-    # CLI args take precedence over the env-var-based defaults set at module
-    # load time. These globals are read throughout the file (emotion
-    # detection, Self-RAG, response generation, facial sampling, ZED vision
-    # queries, session transcript metadata), so they must be set before any
-    # of that code runs.
-    MODEL_NAME = args.chat_model
-    VISION_MODEL_NAME = args.face_vision_model
-    ZED_VISION_MODEL_NAME = args.vision_model
-
-    print_ts("Starting integrated Ameca demo: Silero VAD + faster-whisper/Google STT + persistent memory + Self-RAG + adaptive fusion + Tritium TTS + ZED vision.")
-    print_ts(f"Python: {sys.version.split()[0]}")
-    print_ts(f"Ollama host: {OLLAMA_HOST}")
-    print_ts(f"Ollama chat model: {MODEL_NAME}")
-    print_ts(f"Ollama vision model (facial emotion): {VISION_MODEL_NAME}")
-    print_ts(f"Ollama vision model (ZED general queries): {ZED_VISION_MODEL_NAME}")
-    print_ts(f"Tritium TTS URL: {args.tts_url}")
-
-    # zed_vision_module is now the SINGLE owner of the ZED camera handle, used
-    # both for Qwen2.5-VL facial-emotion sampling and (optionally) general
-    # "what do you see" queries, so it is required rather than optional.
-    # Note: the patched zed_vision_module.py no longer imports
-    # tensorflow/deepface unless emotion_analysis is explicitly enabled (it
-    # is not, here), so this import no longer carries the TF-in-process
-    # segfault risk it used to.
-    try_import_zed_vision_module()
-    if not HAS_ZED_VISION:
-        raise RuntimeError(
-            "zed_vision_module could not be imported, but it is now required as the "
-            "single camera source for Qwen2.5-VL facial-emotion sampling. Make sure "
-            "zed_vision_module.py and gaze_speaker_utils.py are importable."
+        print_ts(
+            f"Baseline '{requested_emotion}' candidates: "
+            f"considered={min(len(frames), FACE_CROP_MAX_CANDIDATES_TO_TRY)}, "
+            f"cropped_and_saved={len(saved_images)}."
+        )
+    elif not frames:
+        print_ts(
+            f"No candidate frames were captured for the '{requested_emotion}' "
+            "baseline round (camera/frame-collector issue?)."
         )
 
-    print()
+    session["baseline_emotion_rounds"][requested_emotion] = {
+        "requested_emotion": requested_emotion,
+        "script": script_text,
+        "transcript": transcript,
+        "images": saved_images,
+        "captured_at": now_iso(),
+    }
+    append_turn(
+        session,
+        "user",
+        transcript or "(no usable speech captured)",
+        intent="baseline_emotion_reading",
+        requested_emotion=requested_emotion,
+    )
 
-    ensure_data_dirs()
+    narrator.say_brief("Next.")
+    append_turn(session, "assistant", "Next.", intent="baseline_ack")
 
-    check_ollama_available()
-    ensure_model_available(MODEL_NAME)
-    ensure_model_available(VISION_MODEL_NAME)
-    if ZED_VISION_MODEL_NAME != VISION_MODEL_NAME:
-        ensure_model_available(ZED_VISION_MODEL_NAME)
 
-    client = Client(host=OLLAMA_HOST)
+# =============================================================================
+# Step 7-8: free-choice test-emotion round (full multimodal fusion)
+# =============================================================================
 
-    self_rag_store = init_self_rag_store()
+def capture_test_emotion_round(
+    *,
+    narrator: Narrator,
+    whisper_model: WhisperModel,
+    silero_model: Any,
+    input_device: Optional[int],
+    camera: Camera,
+    deepface: DeepFaceClient,
+    ollama_client: Optional[Client],
+    emotion_model: str,
+    participant_folder: str,
+    session: dict[str, Any],
+    script_attempts: int,
+) -> None:
+    """
+    Step 7-8: the participant shows whichever emotion they might use most
+    during interaction with Ameca. Unlike steps 4-6, full multimodal
+    fusion (text + facial + prosody) IS applied here, one representative
+    image is saved, and Ameca responds with one sentence stating the
+    detected emotion/confidence plus a natural reply.
+    """
+    narrator.say(
+        "Please show me the emotion you might use most during your "
+        "interaction with me."
+    )
 
-    list_input_devices()
+    transcript, frames, audio_for_prosody = capture_and_transcribe(
+        whisper_model=whisper_model,
+        silero_model=silero_model,
+        input_device=input_device,
+        robot_speaker=narrator.speaker,
+        label="test emotion",
+        camera=camera,
+        attempts=script_attempts,
+    )
+
+    if not transcript:
+        fallback_text = "I couldn't quite catch that, but let's continue."
+        narrator.say_brief(fallback_text)
+        session["test_emotion_round"] = {
+            "transcript": "",
+            "fusion": None,
+            "image": None,
+            "response": fallback_text,
+            "captured_at": now_iso(),
+        }
+        append_turn(session, "assistant", fallback_text, intent="test_emotion_fallback")
+        return
+
+    debug_dir = PROFILE_DIR / participant_folder / "debug"
+    frame, facial_result = detect_best_emotion_sample(
+        frames, deepface, debug_dir=debug_dir, requested_emotion="test"
+    )
+
+    text_emotion_result = detect_text_emotion(ollama_client, transcript, model_name=emotion_model)
+    prosody_result = analyze_prosody_from_audio(audio_for_prosody)
+    fused_result = adaptive_reliability_aware_fusion(
+        text_emotion=text_emotion_result,
+        facial_result=facial_result,
+        prosody_emotion=prosody_result,
+    )
+
+    print_ts(
+        "Test-round fusion inputs: "
+        f"text={text_emotion_result.emotion}({text_emotion_result.confidence:.2f}) "
+        f"visual={(facial_result or {}).get('emotion')} "
+        f"prosody={prosody_result.emotion if prosody_result.available else None} "
+        f"-> fused={fused_result.emotion}({fused_result.confidence:.2f})"
+    )
+
+    image_path_str: Optional[str] = None
+    if frame is not None and facial_result is not None:
+        matches = find_local_face_crops(
+            frames,
+            max_needed=1,
+            preferred_frame=frame,
+            preferred_region=facial_result.get("region"),
+        )
+        if matches:
+            match_frame, region = matches[0]
+            cropped = crop_face(match_frame, region)
+            image_id = allocate_image_id(session)
+            path = build_profile_image_path(participant_folder, "test", image_id)
+            if save_frame_to_profile(cropped, path):
+                image_path_str = str(path)
+                print_ts(f"Saved test-emotion image: {path}")
+        else:
+            print_ts(
+                f"DeepFace found a face (confidence={facial_result.get('confidence', 0):.2f}) "
+                "in the test-emotion round, but no candidate frame produced a usable "
+                "bounding box; no image saved."
+            )
+    else:
+        print_ts(
+            "No face was detected in the test-emotion round; no image saved "
+            "(only cropped frames are saved)."
+        )
+
+    response_text = generate_one_sentence_emotion_response(
+        ollama_client,
+        transcript,
+        fused_result.emotion,
+        fused_result.confidence,
+        model_name=emotion_model,
+    )
+
+    session["test_emotion_round"] = {
+        "transcript": transcript,
+        "fusion": fused_result.as_json,
+        "image": image_path_str,
+        "response": response_text,
+        "captured_at": now_iso(),
+    }
+    append_turn(
+        session, "user", transcript, intent="test_emotion", fusion=fused_result.as_json
+    )
+    narrator.say_brief(response_text)
+    append_turn(session, "assistant", response_text, intent="test_emotion_response")
+
+
+# =============================================================================
+# Step 9: small talk / teacher Q&A (full multimodal fusion, max N questions)
+# =============================================================================
+
+def run_small_talk_qa_session(
+    *,
+    narrator: Narrator,
+    whisper_model: WhisperModel,
+    silero_model: Any,
+    input_device: Optional[int],
+    camera: Camera,
+    deepface: DeepFaceClient,
+    ollama_client: Optional[Client],
+    emotion_model: str,
+    participant_folder: str,
+    session: dict[str, Any],
+    max_questions: int,
+) -> None:
+    narrator.say(
+        "Now, think of me as your robot teacher for today. Before we start "
+        "the experiment, is there anything you would like to ask me? You "
+        "can ask up to three questions."
+    )
+
+    debug_dir = PROFILE_DIR / participant_folder / "debug"
+    asked = 0
+
+    while asked < max_questions:
+        transcript, frames, audio_for_prosody = capture_and_transcribe(
+            whisper_model=whisper_model,
+            silero_model=silero_model,
+            input_device=input_device,
+            robot_speaker=narrator.speaker,
+            label=f"question {asked + 1}",
+            camera=camera,
+            attempts=2,
+        )
+
+        if not transcript or indicates_no_further_questions(transcript):
+            break
+
+        frame, facial_result = detect_best_emotion_sample(
+            frames, deepface, debug_dir=debug_dir, requested_emotion="questions"
+        )
+        text_emotion_result = detect_text_emotion(ollama_client, transcript, model_name=emotion_model)
+        prosody_result = analyze_prosody_from_audio(audio_for_prosody)
+        fused_result = adaptive_reliability_aware_fusion(
+            text_emotion=text_emotion_result,
+            facial_result=facial_result,
+            prosody_emotion=prosody_result,
+        )
+
+        image_path_str: Optional[str] = None
+        if frame is not None and facial_result is not None:
+            matches = find_local_face_crops(
+                frames,
+                max_needed=1,
+                preferred_frame=frame,
+                preferred_region=facial_result.get("region"),
+            )
+            if matches:
+                match_frame, region = matches[0]
+                cropped = crop_face(match_frame, region)
+                image_id = allocate_image_id(session)
+                path = build_profile_image_path(participant_folder, "questions", image_id)
+                if save_frame_to_profile(cropped, path):
+                    image_path_str = str(path)
+                    print_ts(f"Saved question-round image: {path}")
+            else:
+                print_ts(
+                    f"DeepFace found a face (confidence={facial_result.get('confidence', 0):.2f}) "
+                    "for this question, but no candidate frame produced a usable "
+                    "bounding box; no image saved."
+                )
+        else:
+            print_ts(
+                "No face was detected for this question; no image saved "
+                "(only cropped frames are saved)."
+            )
+
+        answer = generate_qa_answer(ollama_client, transcript, model_name=emotion_model)
+
+        session["qa_session"].append({
+            "question": transcript,
+            "answer": answer,
+            "fusion": fused_result.as_json,
+            "image": image_path_str,
+            "captured_at": now_iso(),
+        })
+        append_turn(session, "user", transcript, intent="question", fusion=fused_result.as_json)
+        narrator.say_brief(answer)
+        append_turn(session, "assistant", answer, intent="answer")
+
+        asked += 1
+        save_session(session["participant_id"], session)
+
+        if asked < max_questions:
+            narrator.say("Do you have another question?")
+
+    narrator.say_and_nod("Great, let's begin the experiment.")
+
+
+# =============================================================================
+# Main warm-up orchestration
+# =============================================================================
+
+def run_warm_up(args: argparse.Namespace) -> None:
+    global FACE_CASCADE_PATH_OVERRIDE, REQUIRE_EYE_CONFIRMATION
+    global CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS
+    if args.face_cascade_path:
+        FACE_CASCADE_PATH_OVERRIDE = args.face_cascade_path
+    if args.require_eye_confirmation:
+        REQUIRE_EYE_CONFIRMATION = True
+
+    preset_width, preset_height, preset_fps = RESOLUTION_MAP[args.resolution]
+    if "CAMERA_WIDTH" not in os.environ:
+        CAMERA_WIDTH = preset_width
+    if "CAMERA_HEIGHT" not in os.environ:
+        CAMERA_HEIGHT = preset_height
+    if "CAMERA_FPS" not in os.environ:
+        CAMERA_FPS = preset_fps
+    print_ts(
+        f"ZED resolution preset: {args.resolution} "
+        f"(SBS {CAMERA_WIDTH}x{CAMERA_HEIGHT} @ {CAMERA_FPS}fps requested; "
+        f"per-eye ~{CAMERA_WIDTH // 2}x{CAMERA_HEIGHT} after half-frame crop)"
+    )
+
+    ensure_directories()
+
+    participant_id = (
+        args.name
+        or input("Participant number: ").strip()
+        or "unknown"
+    )
+    participant_folder = sanitize_participant_folder_name(participant_id)
+    session = new_session(participant_id, participant_folder)
+    save_session(participant_id, session)
+
+    speaker = RobotSpeaker(
+        args.tts_url,
+        args.tts_token,
+        speaking_cooldown_s=args.speaking_cooldown,
+        activity_debounce_seconds=args.tts_activity_debounce,
+        startup_grace_seconds=args.tts_startup_grace,
+    )
+    gesture = RobotGesture(host=args.gesture_host, token=args.tts_token)
+    narrator = Narrator(speaker, gesture, args.nod_sequence)
+
+    camera: Optional[Camera] = None
+    deepface: Optional[DeepFaceClient] = None
+    # Either a SessionMediaVideoDriver (audio+video, preferred) or a
+    # SessionVideoRecorder (video-only fallback) -- both expose start()/stop().
+    video_recorder: Optional[Any] = None
 
     print_ts("Loading Silero VAD...")
-    try:
-        silero_model = load_silero_vad()
-        print_ts("Silero VAD ready.")
-    except Exception as exc:
-        raise RuntimeError(
-            "Failed to load Silero VAD. Install it with:\n"
-            "pip install silero-vad torch\n\n"
-            f"Original error: {exc}"
-        )
+    silero_model = load_silero_vad()
+    print_ts("Silero VAD ready.")
 
-    print_ts(f"Name spelling enabled: {ENABLE_NAME_SPELLING}")
-    print_ts(f"Returning-user memory greeting enabled: {ENABLE_RETURNING_USER_MEMORY_GREETING}")
-
-    print_ts("Loading faster-whisper...")
+    print_ts(
+        "Loading faster-whisper "
+        f"model={FAST_WHISPER_CONFIG['model']}, "
+        f"device={FAST_WHISPER_CONFIG['device']}, "
+        f"compute_type={FAST_WHISPER_CONFIG['compute_type']}..."
+    )
     try:
         whisper_model = WhisperModel(
             FAST_WHISPER_CONFIG["model"],
             device=FAST_WHISPER_CONFIG["device"],
             compute_type=FAST_WHISPER_CONFIG["compute_type"],
         )
-        print_ts("faster-whisper ready.")
     except Exception as exc:
-        raise RuntimeError(
-            f"Failed to load faster-whisper with active config:\n"
-            f"{json.dumps(FAST_WHISPER_CONFIG, indent=2)}\n\n"
-            "Install it with:\n"
-            "pip install faster-whisper\n\n"
-            f"Original error: {exc}"
+        if (
+            FAST_WHISPER_CONFIG["device"] == "cuda"
+            and args.allow_cpu_fallback
+        ):
+            print_ts(
+                f"CUDA Whisper initialization failed: {exc}. "
+                "Falling back to CPU int8."
+            )
+            FAST_WHISPER_CONFIG["device"] = "cpu"
+            FAST_WHISPER_CONFIG["compute_type"] = "int8"
+            whisper_model = WhisperModel(
+                FAST_WHISPER_CONFIG["model"],
+                device="cpu",
+                compute_type="int8",
+            )
+        else:
+            raise
+    print_ts("faster-whisper ready.")
+
+    print_ts(f"Connecting to Ollama at {args.ollama_host} for text-based emotion classification...")
+    ollama_client: Optional[Client] = None
+    try:
+        ollama_client = Client(host=args.ollama_host)
+        ollama_client.list()
+        print_ts(f"Ollama reachable. Using model '{args.emotion_model}'.")
+    except Exception as exc:
+        print_ts(
+            f"[WARN] Ollama not reachable ({exc}); text-emotion classification and "
+            "LLM-generated responses will fall back to templated defaults."
         )
+        ollama_client = None
 
-    google_recognizer: Optional[sr.Recognizer] = None
-    if not args.disable_google_fallback:
-        google_recognizer = sr.Recognizer()
-        print_ts(f"Google STT fallback enabled (language={args.google_stt_language}).")
-    else:
-        print_ts("Google STT fallback disabled (--disable_google_fallback).")
-
-    # ---- Robot output: Tritium TTS ----
-    # NOTE: tts_token is intentionally not sourced from a CLI/env value here.
-    # If you need to send an auth token to Tritium, set it explicitly before
-    # this call (do not commit real tokens into this file):
-    #   robot_speaker = RobotSpeaker(tts_url=args.tts_url, tts_token="<token>", speaking_cooldown_s=args.speaking_cooldown)
-    robot_speaker = RobotSpeaker(
-        tts_url=args.tts_url,
-        tts_token=args.tts_token,
-        speaking_cooldown_s=args.speaking_cooldown,
-    )
-
-    # Optional TTS-activity monitor (avoids the robot hearing its own voice),
-    # mirroring AmecaRobotChat's setup. Best-effort; continues without it if
-    # the target audio device cannot be found.
     if HAS_TTS_ACTIVITY_MONITOR:
         try:
             import asyncio as _asyncio
             dev_id, name, scale = find_target_device()
             if dev_id:
-                tts_monitor_thread = threading.Thread(
+                threading.Thread(
                     target=lambda: _asyncio.run(listen_levels_for_device(dev_id, name, scale)),
                     daemon=True,
-                )
-                tts_monitor_thread.start()
+                ).start()
                 print_ts("[TTS] TTS activity monitor started.")
             else:
                 print_ts("[WARN] Acapela/Tritium output device not found; TTS activity monitor disabled.")
         except Exception as exc:
             print_ts(f"[WARN] Could not start TTS activity monitor: {exc}")
 
-    # ---- ZED vision module: SINGLE camera owner ----
-    # Used for Qwen2.5-VL facial-emotion sampling (always) and, unless
-    # disabled, also for general "what do you see" queries. DeepFace
-    # emotion analysis is explicitly OFF: Qwen2.5-VL is the sole source of
-    # truth for facial-expression recognition in this pipeline.
-    vision_module = ZedVisionModule(
-        video_index=args.videoIndex,
-        resolution=args.resolution,
-        fps=args.fps,
-        view=args.view,
-        no_mjpeg=args.no_mjpeg,
-        show_window=False,
-        enable_emotion_analysis=False,
-    )
-    vision_thread = threading.Thread(target=vision_module.start, daemon=True)
-    vision_thread.start()
-    print_ts(
-        "[ZED] Vision module started (DeepFace emotion analysis disabled; "
-        "Qwen2.5-VL is the sole source of truth for facial emotion)."
-    )
-
-    # Give the capture loop a moment to deliver its first frame before
-    # facial sampling/vision queries start relying on get_latest_frame().
-    time.sleep(max(0.0, CAMERA_WARMUP_SECONDS))
-
-    if args.disable_general_vision_queries:
-        print_ts("[ZED] General 'what do you see' vision queries disabled via --disable_general_vision_queries.")
-
-    user_key, user_profile, intro_reply = prompt_for_user_name(
-        client=client,
-        whisper_model=whisper_model,
-        silero_model=silero_model,
-        input_device=INPUT_DEVICE,
-        google_recognizer=google_recognizer,
-        robot_speaker=robot_speaker,
-    )
-
-    robot_speaker.say(intro_reply)
-
-    print()
-
-    if user_profile.get("conversation_summary"):
-        preview = compact_previous_summary_for_greeting(
-            str(user_profile.get("conversation_summary", "")),
-            max_chars=180,
-        )
-        print_ts("Loaded previous conversation summary for continuity.")
-        print_ts(f"Memory preview: {preview}")
-        print()
-
-    print("Automatic listening mode is active.")
-    print(
-        "Speak naturally. Silero VAD will detect speech, Qwen2.5-VL will analyze one cleaned facial "
-        "snapshot after speech ends, faster-whisper will transcribe it (falling back to Google STT if "
-        "needed), adaptive reliability-aware fusion will combine text/visual/prosody, and Ameca will "
-        "respond out loud via Tritium TTS."
-    )
-    print("Say '/exit' or press Ctrl+C to save the transcript and quit.")
-    print()
-
-    history: list[dict] = []
-    session_log: list[dict] = []
-
-    session_log.append({
-        "role": "assistant",
-        "content": intro_reply,
-        "timestamp": now_ts(),
-        "intent": "self_introduction",
-    })
-    history.append({"role": "assistant", "content": intro_reply})
-
     try:
-        while True:
-            wav_path, face_capture = listen_for_utterance_with_silero_vad_and_face_emotion(
-                input_device=INPUT_DEVICE,
+        deepface = DeepFaceClient(
+            python_executable=args.deepface_python,
+            worker_script=args.deepface_worker_script,
+            startup_timeout=args.deepface_startup_timeout,
+            request_timeout=args.deepface_timeout,
+        )
+
+        camera = Camera(args.camera)
+
+        if not args.disable_video_recording:
+            if HAS_SESSION_MEDIA and not args.disable_session_audio:
+                session_media_dir = VIDEOS_DIR / participant_folder
+                try:
+                    session_media = SessionMedia(
+                        base_dir=str(session_media_dir),
+                        fps=int(round(args.video_fps)),
+                        audio_sr=16000,
+                        audio_dev_index=args.session_audio_device,
+                    )
+                    video_recorder = SessionMediaVideoDriver(
+                        camera, session_media, fps=args.video_fps
+                    )
+                    video_recorder.start()
+                    session["video_path"] = str(session_media_dir / "session_muxed.mp4")
+                    print_ts(
+                        f"Recording session audio+video (SessionMedia) under: {session_media_dir}"
+                    )
+                except Exception as exc:
+                    print_ts(
+                        f"[WARN] SessionMedia failed to start ({exc}); falling back to "
+                        "video-only recording. This can happen if the microphone is "
+                        "already in use by the Silero-VAD listening stream on this "
+                        "audio backend -- try --session_audio_device to point it at a "
+                        "different input device, or --disable_session_audio to skip "
+                        "this path entirely."
+                    )
+                    video_recorder = None
+
+            if video_recorder is None:
+                # Either SessionMedia is unavailable/disabled, or it failed
+                # to start -- fall back to the original video-only recorder.
+                video_path = (
+                    VIDEOS_DIR
+                    / participant_folder
+                    / f"{participant_folder}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+                )
+                video_recorder = SessionVideoRecorder(
+                    camera, video_path, fps=args.video_fps, fourcc=args.video_fourcc
+                )
+                video_recorder.start()
+                session["video_path"] = str(video_path)
+
+            save_session(participant_id, session)
+
+        # ---- Steps 1-2: name capture ----
+        display_name, name_transcript = capture_participant_name(
+            narrator, whisper_model, silero_model, args.input_device,
+        )
+        session["display_name"] = display_name
+        append_turn(
+            session, "assistant",
+            "Hi, what is your name? Please spell it out for me -- for example, "
+            "my name is A M E C A, Ameca.",
+            intent="name_prompt",
+        )
+        append_turn(session, "user", name_transcript, intent="name_response")
+        save_session(participant_id, session)
+
+        # ---- Step 3: goals statement ----
+        goals_text = (
+            f"Nice to meet you, {display_name}. In this warm up session, I have "
+            f"two goals: one, to hold small talk with you, {display_name}; and "
+            "two, to have a baseline of your emotional faces."
+        )
+        narrator.say_brief(goals_text)
+        session["goals_stated"] = True
+        append_turn(session, "assistant", goals_text, intent="goals_statement")
+        save_session(participant_id, session)
+
+        # ---- Steps 4-6: baseline emotion rounds (no classification) ----
+        for requested_emotion in args.emotions:
+            script_text = EMOTION_SCRIPTS[requested_emotion]
+            capture_baseline_emotion_round(
+                narrator=narrator,
+                whisper_model=whisper_model,
                 silero_model=silero_model,
-                vision_client=client,
-                vision_module=vision_module,
-                prompt_label="utterance",
-                robot_speaker=robot_speaker,
+                input_device=args.input_device,
+                camera=camera,
+                requested_emotion=requested_emotion,
+                script_text=script_text,
+                participant_folder=participant_folder,
+                session=session,
+                script_attempts=args.script_attempts,
+            )
+            save_session(participant_id, session)
+
+        # ---- Steps 7-8: free-choice test-emotion round (full fusion) ----
+        capture_test_emotion_round(
+            narrator=narrator,
+            whisper_model=whisper_model,
+            silero_model=silero_model,
+            input_device=args.input_device,
+            camera=camera,
+            deepface=deepface,
+            ollama_client=ollama_client,
+            emotion_model=args.emotion_model,
+            participant_folder=participant_folder,
+            session=session,
+            script_attempts=args.script_attempts,
+        )
+        save_session(participant_id, session)
+
+        # ---- Step 9: small talk / teacher Q&A (full fusion) ----
+        run_small_talk_qa_session(
+            narrator=narrator,
+            whisper_model=whisper_model,
+            silero_model=silero_model,
+            input_device=args.input_device,
+            camera=camera,
+            deepface=deepface,
+            ollama_client=ollama_client,
+            emotion_model=args.emotion_model,
+            participant_folder=participant_folder,
+            session=session,
+            max_questions=args.max_questions,
+        )
+
+        session["ended_at"] = now_iso()
+        session_path = save_session(participant_id, session)
+
+        print_ts(f"Session saved: {session_path}")
+        print_ts(f"Images saved under: {PROFILE_DIR / participant_folder}")
+        if video_recorder is not None:
+            print_ts(
+                f"Session video recording to: {session.get('video_path')} "
+                "(still recording until shutdown)"
             )
 
-            if face_capture:
-                if face_capture.error:
-                    print_ts(f"Face emotion capture error: {face_capture.error}")
-                else:
-                    print_ts(f"Face emotion summary: {face_capture.summary_text}")
-
-            if not wav_path:
-                continue
-
-            audio_for_prosody = np.array([], dtype=np.float32)
-            engine_used = "none"
-            try:
-                audio_for_prosody = load_audio_for_prosody(wav_path)
-                user_text, engine_used = transcribe_with_fallback(
-                    wav_path, whisper_model, google_recognizer, args.google_stt_language
-                )
-            finally:
-                try:
-                    os.remove(wav_path)
-                except OSError:
-                    pass
-
-            if not user_text:
-                print_ts("No speech detected after transcription (faster-whisper and Google STT both empty).")
-                continue
-
-            print_ts(f"Transcript [{engine_used}]: {user_text}")
-
-            maybe_name = extract_name_from_text(user_text)
-            if maybe_name and not looks_like_invalid_name(maybe_name):
-                user_key, user_profile = rename_current_user(
-                    old_user_key=user_key,
-                    user_profile=user_profile,
-                    new_name=maybe_name,
-                )
-
-                reply = generate_introduction_response(
-                    client=client,
-                    user_name=user_profile["name"],
-                )
-
-                print_ts(f"Assistant: {reply}")
-                robot_speaker.say(reply)
-                print()
-
-                history.append({"role": "user", "content": user_text})
-                history.append({"role": "assistant", "content": reply})
-                history = trim_history(history)
-
-                session_log.append({
-                    "role": "user",
-                    "content": user_text,
-                    "timestamp": now_ts(),
-                    "input_mode": f"silero_vad_{engine_used}",
-                    "intent": "name_introduction",
-                })
-                session_log.append({
-                    "role": "assistant",
-                    "content": reply,
-                    "timestamp": now_ts(),
-                })
-
-                continue
-
-            command = normalize_command(user_text)
-
-            if command in {"exit", "quit"}:
-                print_ts("Goodbye.")
-                robot_speaker.say("Goodbye, and thank you for talking with me.")
-                break
-
-            if command == "clear":
-                history.clear()
-                print_ts("Conversation history cleared.")
-                continue
-
-            if command in {"rrlab crawl", "crawl rrlab", "scrape rrlab", "rrlab scrape"}:
-                ok = run_rrlab_scraper()
-                if ok:
-                    print_ts("RRLab website knowledge base rebuilt. Self-RAG will use the updated ChromaDB index.")
-                else:
-                    print_ts("RRLab website knowledge base was not rebuilt.")
-                continue
-
-            if command in {"rag reindex", "reindex rag", "selfrag reindex", "self-rag reindex"}:
-                if resolve_scrape_script_path():
-                    ok = run_rrlab_scraper()
-                    if ok:
-                        print_ts("Self-RAG RRLab website index rebuilt from scrape.py.")
-                    else:
-                        print_ts("scrape.py failed; falling back to local knowledge folder indexing.")
-                        index_self_rag_knowledge(self_rag_store)
-                else:
-                    index_self_rag_knowledge(self_rag_store)
-                    print_ts("Self-RAG local knowledge base reindexed.")
-                continue
-
-            # ---------- General ZED vision queries ----------
-            if is_vision_query(user_text) and not args.disable_general_vision_queries:
-                print_ts("[VISION QUERY] Routing to ZED vision module.")
-                vision_reply = query_zed_vision(client=client, vision_module=vision_module, user_query=user_text)
-
-                print_ts(f"Assistant: {vision_reply}")
-                robot_speaker.say(vision_reply)
-                print()
-
-                history.append({"role": "user", "content": user_text})
-                history.append({"role": "assistant", "content": vision_reply})
-                history = trim_history(history)
-
-                session_log.append({
-                    "role": "user",
-                    "content": user_text,
-                    "timestamp": now_ts(),
-                    "input_mode": f"silero_vad_{engine_used}",
-                    "intent": "zed_vision_query",
-                })
-                session_log.append({
-                    "role": "assistant",
-                    "content": vision_reply,
-                    "timestamp": now_ts(),
-                })
-
-                continue
-
-            try:
-                facial_hint = face_capture.summary_text if face_capture else None
-                face_emotion_json = face_capture.as_json if face_capture else default_face_emotion_json()
-
-                text_start = time.time()
-                text_emotion_result = detect_emotion(
-                    client=client,
-                    transcribed_text=user_text,
-                    facial_emotion_hint=facial_hint,
-                )
-                text_response_seconds = time.time() - text_start
-
-                prosody_start = time.time()
-                prosody_result = analyze_prosody_from_audio(audio_for_prosody, TARGET_SAMPLE_RATE)
-                prosody_response_seconds = time.time() - prosody_start
-
-                fused_emotion_result = adaptive_reliability_aware_fusion(
-                    text_emotion=text_emotion_result,
-                    face_emotion_json=face_emotion_json,
-                    prosody_emotion=prosody_result,
-                    user_text=user_text,
-                    modality_response_times={
-                        "text_seconds": text_response_seconds,
-                        "visual_seconds": face_capture.analysis_seconds if face_capture else None,
-                        "prosody_seconds": prosody_response_seconds,
-                    },
-                )
-
-                emotion_result = fused_emotion_result.to_emotion_result()
-
-                text_emotion_json = {
-                    "emotion": text_emotion_result.emotion,
-                    "confidence": text_emotion_result.confidence,
-                    "reason": text_emotion_result.reason,
-                }
-
-                prosody_json = prosody_result.as_json
-                emotion_json = fused_emotion_result.as_json
-
-                # print_ts("Text emotion JSON:")
-                # print(json.dumps(text_emotion_json, indent=2))
-                # print()
-
-                # print_ts("Face emotion JSON:")
-                # print(json.dumps(face_emotion_json, indent=2))
-                # print()
-
-                # print_ts("Prosody emotion JSON:")
-                # print(json.dumps(prosody_json, indent=2))
-                # print()
-
-                print_ts("Adaptive reliability-aware fusion JSON:")
-                print(json.dumps(emotion_json, indent=2))
-                print()
-
-                self_rag_context = build_self_rag_context(
-                    client=client,
-                    store=self_rag_store,
-                    user_text=user_text,
-                )
-                print_ts("Self-RAG JSON:")
-                print(json.dumps(self_rag_context.as_json, indent=2))
-                print()
-
-                reply = generate_response(
-                    client=client,
-                    user_text=user_text,
-                    emotion_result=emotion_result,
-                    history=history,
-                    user_profile=user_profile,
-                    face_emotion_json=face_emotion_json,
-                    self_rag_context=self_rag_context,
-                )
-
-                print_ts(f"Assistant: {reply}")
-                robot_speaker.say(reply)
-                print()
-
-                user_message = {
-                    "role": "user",
-                    "content": user_text,
-                    "timestamp": now_ts(),
-                    "emotion": emotion_json,
-                    "facial_emotion_hint": facial_hint,
-                    "face_emotion": face_emotion_json,
-                    "text_emotion": text_emotion_json,
-                    "prosody_emotion": prosody_json,
-                    "self_rag": self_rag_context.as_json,
-                    "input_mode": f"silero_vad_{engine_used}_qwen25vl_adaptive_reliability_aware_fusion_self_rag",
-                }
-
-                assistant_message = {
-                    "role": "assistant",
-                    "content": reply,
-                    "timestamp": now_ts(),
-                }
-
-                history.append({"role": "user", "content": user_text})
-                history.append({"role": "assistant", "content": reply})
-                history = trim_history(history)
-
-                session_log.append(user_message)
-                session_log.append(assistant_message)
-
-            except KeyboardInterrupt:
-                raise
-            except Exception as exc:
-                # Never let an unexpected error in emotion/fusion/Self-RAG/
-                # response generation kill the whole session. Log it, speak
-                # a short apology, record what we can in the session log,
-                # and move on to the next utterance.
-                print_ts(f"[ERROR] Unexpected error while processing this turn: {exc!r}")
-                import traceback as _traceback
-                _traceback.print_exc()
-
-                apology = "I'm sorry, something went wrong on my end with that. Could you try again?"
-                robot_speaker.say(apology)
-
-                session_log.append({
-                    "role": "user",
-                    "content": user_text,
-                    "timestamp": now_ts(),
-                    "input_mode": f"silero_vad_{engine_used}",
-                    "intent": "turn_processing_error",
-                    "error": repr(exc),
-                })
-                session_log.append({
-                    "role": "assistant",
-                    "content": apology,
-                    "timestamp": now_ts(),
-                    "intent": "turn_processing_error_fallback",
-                })
-
-    except KeyboardInterrupt:
-        print()
-        print_ts("Goodbye.")
+        print_ts(
+            "Warm-up complete. The camera and DeepFace worker are still "
+            "running -- press Ctrl+C when you're ready to shut them down."
+        )
+        try:
+            while True:
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            print_ts("Shutdown requested. Releasing camera and DeepFace worker...")
 
     finally:
-        if vision_module is not None:
-            try:
-                vision_module.stop()
-            except Exception:
-                pass
+        if video_recorder is not None:
+            saved_video_path = video_recorder.stop()
+            if saved_video_path is not None:
+                session["video_path"] = str(saved_video_path)
 
-        if session_log:
-            session_path = save_session_transcript(
-                user_key=user_key,
-                user_profile=user_profile,
-                session_log=session_log,
-            )
+        if camera is not None:
+            camera.close()
+        if deepface is not None:
+            deepface.shutdown()
+            print_ts("DeepFace worker shut down.")
 
-            update_user_after_session(
-                client=client,
-                user_key=user_key,
-                session_path=session_path,
-                session_log=session_log,
-            )
+        session["ended_at"] = session.get("ended_at") or now_iso()
+        try:
+            save_session(participant_id, session)
+        except Exception as exc:
+            print_ts(f"[WARN] Could not save final session state: {exc}")
 
-            print_ts(f"Conversation transcript saved to: {session_path}")
-        else:
-            print_ts("No conversation messages to save.")
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run Ameca's structured warm-up session: single-utterance name "
+            "capture, a goals statement, a 6-emotion facial baseline (no "
+            "classification), a free-choice test-emotion round (full "
+            "multimodal fusion), and a short teacher Q&A -- all logged to "
+            "one warm_up_sessions/{participant_id}.json file."
+        )
+    )
+    parser.add_argument(
+        "--name",
+        help="Participant identifier, e.g. A11320.",
+    )
+    parser.add_argument(
+        "--input_device",
+        type=int,
+        default=None,
+        help="SoundDevice microphone index. Omit to use the system default.",
+    )
+    parser.add_argument(
+        "--list_input_devices",
+        action="store_true",
+        help="List microphone devices and exit.",
+    )
+    parser.add_argument(
+        "--camera",
+        type=int,
+        default=int(os.environ.get("CAMERA_DEVICE", "0")),
+        help="OpenCV/ZED camera index. Default: 0.",
+    )
+    parser.add_argument(
+        "--resolution",
+        choices=list(RESOLUTION_MAP),
+        default=_DEFAULT_RESOLUTION,
+        help=(
+            "ZED camera resolution preset (SBS). Sets CAMERA_WIDTH/HEIGHT/FPS "
+            "unless those are explicitly overridden via environment variables. "
+            f"Default: {_DEFAULT_RESOLUTION}."
+        ),
+    )
+    parser.add_argument(
+        "--deepface_python",
+        default=DEEPFACE_PYTHON,
+        help=(
+            "Python executable in the separate DeepFace/TensorFlow conda "
+            "environment. Only used for steps 7-9 (baseline capture in "
+            "steps 4-6 never calls DeepFace)."
+        ),
+    )
+    parser.add_argument(
+        "--face_cascade_path",
+        default="",
+        help=(
+            "Path to a Haar cascade XML file for local face-region detection "
+            "(used for cropping in baseline/test/Q&A rounds). Defaults to "
+            "OpenCV's bundled haarcascade_frontalface_default.xml. Pass this "
+            "to try a different cascade, e.g. RRLab's "
+            "haarcascade_frontalface_alt.xml -- note that cascade was tested "
+            "and found to have much lower recall on this camera setup."
+        ),
+    )
+    parser.add_argument(
+        "--require_eye_confirmation",
+        action="store_true",
+        help=(
+            "Require an eye-like feature inside a candidate face box before "
+            "accepting it (rejects some false positives, e.g. a door handle, "
+            "but was found to also reject most genuine faces on this camera "
+            "setup -- off by default for that reason)."
+        ),
+    )
+    parser.add_argument(
+        "--deepface_worker_script",
+        default=DEEPFACE_WORKER_SCRIPT,
+        help="Path to deepface_worker.py.",
+    )
+    parser.add_argument(
+        "--deepface_startup_timeout",
+        type=float,
+        default=DEEPFACE_STARTUP_TIMEOUT_SECONDS,
+        help="DeepFace worker startup timeout in seconds.",
+    )
+    parser.add_argument(
+        "--deepface_timeout",
+        type=float,
+        default=DEEPFACE_REQUEST_TIMEOUT_SECONDS,
+        help="DeepFace timeout per candidate frame in seconds.",
+    )
+    parser.add_argument(
+        "--tts_url",
+        default=TTS_URL,
+        help="Tritium text-to-speech URL.",
+    )
+    parser.add_argument(
+        "--tts_token",
+        default=TTS_TOKEN,
+        help=(
+            "Tritium authentication token (used for both TTS and the nod "
+            "gesture). Prefer the TRITIUM_TOKEN environment variable "
+            "instead of passing it in shell history."
+        ),
+    )
+    parser.add_argument(
+        "--speaking_cooldown",
+        type=float,
+        default=0.3,
+        help="Seconds of echo-guard cooldown after TTS finishes speaking.",
+    )
+    parser.add_argument(
+        "--tts_activity_debounce",
+        type=float,
+        default=1.5,
+        help=(
+            "Seconds of silence in detected TTS audio activity required "
+            "before treating Ameca as done speaking. Must comfortably exceed "
+            "a normal inter-sentence pause, or wait_until_finished() (and "
+            "therefore the turn-end nod) can fire mid-response. Raise this "
+            "further if the nod still fires between sentences."
+        ),
+    )
+    parser.add_argument(
+        "--tts_startup_grace",
+        type=float,
+        default=2.0,
+        help=(
+            "Seconds to treat Ameca as 'definitely still speaking' right "
+            "after a TTS request is sent, before real activity detection has "
+            "necessarily kicked in. Only used as a cap when the TTS-activity "
+            "monitor is available (otherwise the full word-count duration "
+            "estimate is used as the only completion signal) -- keeping this "
+            "short (rather than scaling with utterance length) is what "
+            "prevents long utterances from waiting extra dead time past "
+            "when they actually finished speaking."
+        ),
+    )
+    parser.add_argument(
+        "--gesture_host",
+        default=EXPRESSION_HOST,
+        help="Tritium sequence_player host used for the turn-end nod gesture.",
+    )
+    parser.add_argument(
+        "--nod_sequence",
+        default=NOD_SEQUENCE_NAME,
+        help="Tritium sequence name played after key prompts as a turn-end cue.",
+    )
+    parser.add_argument(
+        "--ollama_host",
+        default=OLLAMA_HOST,
+        help="Ollama host URL used for text-based emotion classification and response generation.",
+    )
+    parser.add_argument(
+        "--emotion_model",
+        default=EMOTION_MODEL_NAME,
+        help="Ollama chat model used for text-based emotion classification and response generation.",
+    )
+    parser.add_argument(
+        "--emotions",
+        nargs="+",
+        choices=list(EMOTION_SCRIPTS),
+        default=list(EMOTION_SCRIPTS),
+        help="Baseline emotion scripts to run, in order (default: all 6, including neutral).",
+    )
+    parser.add_argument(
+        "--script_attempts",
+        type=int,
+        default=2,
+        help="Maximum automatic listening attempts per prompt.",
+    )
+    parser.add_argument(
+        "--max_questions",
+        type=int,
+        default=3,
+        help="Maximum number of participant questions in the closing Q&A.",
+    )
+    parser.add_argument(
+        "--video_fps",
+        type=float,
+        default=VIDEO_RECORD_FPS,
+        help="Frames per second for the recorded session video.",
+    )
+    parser.add_argument(
+        "--video_fourcc",
+        default=VIDEO_FOURCC,
+        help=(
+            "FourCC codec for the recorded session video (default: mp4v). "
+            "Try 'XVID' with a .avi output path if mp4v isn't available."
+        ),
+    )
+    parser.add_argument(
+        "--disable_video_recording",
+        action="store_true",
+        help="Disable recording a video of the session.",
+    )
+    parser.add_argument(
+        "--session_audio_device",
+        type=int,
+        default=None,
+        help=(
+            "SoundDevice input device index for SessionMedia's continuous "
+            "session audio capture. Defaults to the system default device. "
+            "Note this stream runs concurrently with the Silero-VAD listening "
+            "stream -- if your audio backend doesn't allow two simultaneous "
+            "opens of the same device, pointing this at a different input "
+            "device (see --list_input_devices) may help."
+        ),
+    )
+    parser.add_argument(
+        "--disable_session_audio",
+        action="store_true",
+        help=(
+            "Skip gaze_speaker_utils.SessionMedia even if available, and use "
+            "the video-only SessionVideoRecorder instead (no audio track)."
+        ),
+    )
+    parser.add_argument(
+        "--allow_cpu_fallback",
+        action="store_true",
+        help=(
+            "Fall back to CPU int8 if the original CUDA Whisper "
+            "configuration cannot initialize."
+        ),
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_arguments()
+    if args.list_input_devices:
+        list_input_devices()
+        return
+
+    try:
+        run_warm_up(args)
+    except KeyboardInterrupt:
+        # Ctrl+C landing anywhere in the flow (not just the designated
+        # end-of-session pause) still goes through run_warm_up's own
+        # finally block first, which saves the session and releases the
+        # camera/DeepFace worker -- this just prevents the resulting
+        # KeyboardInterrupt from propagating out as a raw traceback.
+        print_ts("Interrupted by user. Session state has been saved.")
 
 
 if __name__ == "__main__":

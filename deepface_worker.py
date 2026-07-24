@@ -1,78 +1,5 @@
 #!/usr/bin/env python3
-"""
-deepface_worker.py
 
-Standalone DeepFace analysis worker for the Ameca hybrid visual modality
-(Qwen2.5-VL + DeepFace). Meant to run in its OWN process, ideally from a
-SEPARATE conda environment from ameca_demo.py.
-
-WHY A SEPARATE PROCESS/ENVIRONMENT:
-DeepFace pulls in TensorFlow. Running TensorFlow computation in the same
-process as ameca_demo.py's PyTorch usage (Silero VAD, faster-whisper) has
-previously caused a silent native segfault with no Python traceback (this
-is the same class of bug documented around zed_vision_module's DeepFace
-import in ameca_demo.py). Isolating DeepFace into its own OS process --
-and ideally its own conda environment, so TF/Keras version pins can't
-collide with the main pipeline's dependencies -- removes that risk
-entirely. If this worker process crashes, it crashes alone; the main
-pipeline just treats DeepFace as unavailable for that turn and falls back
-to Qwen2.5-VL alone.
-
-SETUP (separate conda env, recommended):
-    conda create -n deepface_env python=3.10 -y
-    conda activate deepface_env
-    pip install deepface tensorflow tf-keras
-
-    # NOTE: don't also pip install opencv-python-headless here. deepface
-    # already pulls in regular opencv-python as a dependency, and having
-    # BOTH opencv-python and opencv-python-headless installed in the same
-    # env is a common source of a confusing failure: whichever one wins
-    # pip's install ordering determines which files end up on disk, and
-    # opencv-python-headless does NOT ship the Haar cascade XML data files
-    # that DeepFace's default "opencv" detector backend needs. This
-    # script sidesteps that specific issue by explicitly using the
-    # "mtcnn" detector backend (see DETECTOR_BACKEND below) regardless,
-    # but avoiding the double-install keeps things simpler.
-
-    # Then point ameca_demo.py at it, e.g.:
-    export DEEPFACE_PYTHON=/home/emah/miniconda3/envs/deepface_env/bin/python
-    # or: python ameca_demo.py --deepface_python /path/to/deepface_env/bin/python
-
-You do NOT run this script directly in normal use -- ameca_demo.py's
-DeepFaceClient launches it automatically as a subprocess using whatever
-interpreter DEEPFACE_PYTHON/--deepface_python points to. Running it
-manually (e.g. for testing) is also fine; see PROTOCOL below.
-
-PROTOCOL (line-delimited JSON over stdin/stdout):
-  Startup: this worker prints exactly one line "READY" to stdout once
-  DeepFace's model is loaded and warmed up, then enters the request loop.
-  ALL other logging goes to stderr, so stdout only ever contains the
-  "READY" line followed by one JSON response per line.
-
-  Request (one JSON object per line on stdin):
-    {"request_id": "...", "cmd": "analyze", "image_path": "/abs/path.jpg"}
-    {"request_id": "...", "cmd": "ping"}
-    {"cmd": "shutdown"}
-
-  Response (one JSON object per line on stdout):
-    analyze, face found:
-      {"request_id": "...", "ok": true, "no_face": false,
-       "dominant_emotion": "happy",
-       "scores": {"angry": 0.1, "disgust": 0.0, "fear": 0.2, "happy": 95.3,
-                   "sad": 0.1, "surprise": 3.9, "neutral": 0.4}}
-    analyze, no face detected:
-      {"request_id": "...", "ok": true, "no_face": true, "scores": {}}
-    analyze, other error:
-      {"request_id": "...", "ok": false, "error": "..."}
-    ping:
-      {"request_id": "...", "ok": true, "pong": true}
-    unknown cmd:
-      {"request_id": "...", "ok": false, "error": "unknown cmd: ..."}
-
-Manual test run:
-    python deepface_worker.py
-    (then paste a line like the analyze example above and press enter)
-"""
 from __future__ import annotations
 
 import json
@@ -88,19 +15,7 @@ def log_stderr(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
 
-# DeepFace's DEFAULT face detector backend is "opencv", which needs
-# cv2's bundled Haar cascade XML data file. If both opencv-python and
-# opencv-python-headless end up installed in the same env (headless does
-# NOT ship that data file), whichever one wins the install ordering can
-# silently leave that file missing -- the "opencv" backend then fails on
-# every real request (enforce_detection=True), even though warmup
-# (enforce_detection=False) only warns and looks harmless. Explicitly
-# picking a detector backend that doesn't depend on that file sidesteps
-# the issue entirely, regardless of which opencv package is installed.
-# "mtcnn" is a good CPU speed/accuracy tradeoff and is already installed
-# as a deepface dependency; override via DEEPFACE_DETECTOR_BACKEND if you
-# want a different one (e.g. "retinaface" for more accuracy at the cost
-# of speed, or "opencv" once you've confirmed the cascade file is present).
+
 DETECTOR_BACKEND = os.environ.get("DEEPFACE_DETECTOR_BACKEND", "opencv")
 
 
@@ -172,6 +87,34 @@ def main() -> None:
         )
 
 
+def _normalize_region(region: object) -> dict:
+    """
+    DeepFace.analyze() includes a "region" key (typically
+    {"x": int, "y": int, "w": int, "h": int}, sometimes with extra keys
+    like eye coordinates in newer versions) whenever it successfully
+    detects a face. This was previously never read or forwarded by this
+    worker at all -- analyze_image() only extracted "emotion" and
+    "dominant_emotion" -- so every response silently omitted the bounding
+    box, even on a confident detection. That forced the client side to
+    fall back to its own local face detectors (MediaPipe/Haar) purely to
+    get a crop region for an already-successful DeepFace detection.
+
+    Returns a plain {"x", "y", "w", "h"} dict with int values, or {} if
+    region is missing/malformed (e.g. no face was found).
+    """
+    if not isinstance(region, dict):
+        return {}
+    try:
+        return {
+            "x": int(region.get("x", 0)),
+            "y": int(region.get("y", 0)),
+            "w": int(region.get("w", 0)),
+            "h": int(region.get("h", 0)),
+        }
+    except (TypeError, ValueError):
+        return {}
+
+
 def analyze_image(DeepFace, image_path, request_id):
     if not image_path:
         return {"request_id": request_id, "ok": False, "error": "no image_path provided"}
@@ -189,11 +132,12 @@ def analyze_image(DeepFace, image_path, request_id):
         # recent versions, or a single dict in older versions. Handle both.
         if isinstance(result, list):
             if not result:
-                return {"request_id": request_id, "ok": True, "no_face": True, "scores": {}}
+                return {"request_id": request_id, "ok": True, "no_face": True, "scores": {}, "region": {}}
             result = result[0]
 
         emotion_scores = result.get("emotion", {}) or {}
         dominant = result.get("dominant_emotion")
+        region = _normalize_region(result.get("region"))
 
         return {
             "request_id": request_id,
@@ -201,6 +145,7 @@ def analyze_image(DeepFace, image_path, request_id):
             "no_face": False,
             "dominant_emotion": dominant,
             "scores": {str(k): float(v) for k, v in emotion_scores.items()},
+            "region": region,
         }
 
     except ValueError as exc:
@@ -211,7 +156,7 @@ def analyze_image(DeepFace, image_path, request_id):
         # regardless of whether a face is actually present.
         message = str(exc)
         if "face" in message.lower() and "detect" in message.lower():
-            return {"request_id": request_id, "ok": True, "no_face": True, "scores": {}}
+            return {"request_id": request_id, "ok": True, "no_face": True, "scores": {}, "region": {}}
         return {"request_id": request_id, "ok": False, "error": message}
 
     except Exception as exc:
