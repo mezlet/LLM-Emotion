@@ -1,0 +1,72 @@
+{
+  "legicia": {
+    "name": "Legicia",
+    "participant_id": "",
+    "created_at": "2026-07-26 16:26:28",
+    "last_seen": "2026-07-26 18:27:03",
+    "session_files": [
+      "conversation_data/sessions/legicia_20260726_163114.json",
+      "conversation_data/sessions/legicia_20260726_174627.json",
+      "conversation_data/sessions/legicia_20260726_182144.json",
+      "conversation_data/sessions/legicia_20260726_182703.json"
+    ],
+    "conversation_summary": "Here is an updated continuity summary:\n\n• Ongoing project: Exploring human-robot interaction and understanding concerns about robots taking over jobs.\n• Unresolved task: Clarifying Legicia's role in augmenting human capabilities.\n• Thesis/research/debugging topics discussed: AI and Robotics, human perception of artificial intelligence, and the limitations of robotic capabilities.\n• Important technical context: The head of the robotics research lab is Prof. Dr. Karsten Berns, and Ameca is a robot that can move its neck and clavicle.\n• Emotional state trends: Joy and surprise were prominent in this session, with a brief moment of anger towards the end.\n• Personal preferences or interaction style: Legicia tends to ask follow-up questions and engage in discussions about AI and Robotics topics.\n• Useful next-step cues for continuing the conversation: Explore the implications of human-robot interaction on job markets and discuss potential applications of robotic capabilities."
+  },
+  "ashita": {
+    "name": "ASHITA",
+    "participant_id": "",
+    "created_at": "2026-07-26 18:54:21",
+    "last_seen": "2026-07-26 18:54:21",
+    "session_files": [],
+    "conversation_summary": ""
+  },
+  "hello_how_are_you": {
+    "name": "Hello how are you",
+    "participant_id": "",
+    "created_at": "2026-07-26 19:03:20",
+    "last_seen": "2026-07-26 19:03:20",
+    "session_files": [],
+    "conversation_summary": ""
+  },
+  "a1234t": {
+    "name": "Legicia",
+    "participant_id": "A1234t",
+    "created_at": "2026-07-26 20:07:24",
+    "last_seen": "2026-07-26 20:21:01",
+    "session_files": [
+      "conversation_data/sessions/a1234t_20260726_201114.json",
+      "conversation_data/sessions/a1234t_20260726_202101.json"
+    ],
+    "conversation_summary": "Here is an updated continuity summary:\n\n• Ongoing project: Providing additional examples of robots to satisfy Legicia's request.\n• Unresolved task: Providing more information on how robots learn to speak and think independently.\n• Thesis topic: AI and Robotics, with a focus on speech recognition and generation.\n• Important technical context: Artificial intelligence (AI) training on large datasets of text and audio inputs.\n• Emotional state trend: Joyful interaction style.\n• Personal preference: Legicia prefers concise responses and may appreciate clarification when needed.\n• Useful next-step cue: Continuing the conversation by exploring more examples of robots and their applications."
+  },
+  "a15678": {
+    "name": "Legicia",
+    "participant_id": "A15678",
+    "created_at": "2026-07-26 20:22:33",
+    "last_seen": "2026-07-26 20:23:17",
+    "session_files": [
+      "conversation_data/sessions/a15678_20260726_202317.json"
+    ],
+    "conversation_summary": "- Previous continuity context: Recent user topics/questions: L-E-T-I-C-I-E; Nice to meet you too. Last assistant direction: I'm happy to help with any questions or topics related to Artificial Intelligence and Robotics. 😊 Recent affective context: joy\n- Recent user topics/questions: L-E-T-I-C-I-E; Nice to meet you too.\n- Last assistant direction: I'm happy to help with any questions or topics related to Artificial Intelligence and Robotics. 😊\n- Recent affective context: joy"
+  },
+  "b67896": {
+    "name": "Legicia",
+    "participant_id": "B67896",
+    "created_at": "2026-07-26 20:27:18",
+    "last_seen": "2026-07-26 20:30:02",
+    "session_files": [
+      "conversation_data/sessions/b67896_20260726_203002.json"
+    ],
+    "conversation_summary": "- Previous continuity context: Recent user topics/questions: L-E-T-I-C-I-A; Nice to meet you too Last assistant direction: I'm glad we met! As a teaching assistant for AI and Robotics topics, I'm excited to help you learn more about these fascinating fields. 😊 Recent affective context: joy\n- Recent user topics/questions: L-E-T-I-C-I-A; Nice to meet you too\n- Last assistant direction: I'm glad we met! As a teaching assistant for AI and Robotics topics, I'm excited to help you learn more about these fascinating fields. 😊\n- Recent affective context: joy"
+  },
+  "c7h676": {
+    "name": "ASHITA",
+    "participant_id": "C7h676",
+    "created_at": "2026-07-26 20:30:48",
+    "last_seen": "2026-07-26 20:33:14",
+    "session_files": [
+      "conversation_data/sessions/c7h676_20260726_203314.json"
+    ],
+    "conversation_summary": "- Previous continuity context: Recent user topics/questions: Huh?; Teach me something.; Could you please teach me one basic topic in AI and robotics?; Are you saying human robot interaction is basic? Knowledge/RAG topics used: Will you teach me today about AI and robotics?; Could you...\n- Recent user topics/questions: Huh?; Teach me something.; Could you please teach me one basic topic in AI and robotics?; Are you saying human robot interaction is basic?\n- Knowledge/RAG topics used: Will you teach me today about AI and robotics?; Could you please teach me one basic topic in AI and robotics?; Are you saying human robot interaction is basic?\n- Relevant retrieved sources included: Emah; Roman\n- Last assistant direction: Human robot interaction is not basic, as it involves complex communication methods such as gestures, mimics, and emotional expressions. 😠\n- Recent affective context: joy, surprise, anger"
+  }
+}
