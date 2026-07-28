@@ -54,6 +54,22 @@ except Exception as exc:  # pragma: no cover
     HAS_TTS_ACTIVITY_MONITOR = False
     print(f"[WARN] tts_active module not available, TTS-activity echo guard disabled: {exc}")
 
+# Used only for local face-region detection so per-turn face crops can be
+# saved (see FrameCollector / detect_face_region_local() below). This is
+# NOT used for emotion recognition -- emotion detection in this pipeline
+# remains text-only (see EKMAN_EMOTIONS / detect_emotion()).
+try:
+    import mediapipe as mp
+    HAS_MEDIAPIPE = True
+except Exception as exc:
+    HAS_MEDIAPIPE = False
+    print(
+        f"[WARN] mediapipe not available ({exc}); local face-region detection "
+        "for saved face crops will use the Haar cascade fallback only. "
+        "Install mediapipe in this environment for a more robust detector "
+        "(`pip install mediapipe`)."
+    )
+
 IS_MAC = platform.system() == "Darwin"
 IS_LINUX = platform.system() == "Linux"
 
@@ -74,6 +90,34 @@ DATA_DIR = "conversation_data"
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
 VIDEOS_DIR = os.path.join(DATA_DIR, "session_videos")
+IMAGES_DIR = os.path.join(DATA_DIR, "turn_face_images")
+
+
+# =========================
+# Per-turn face-crop configuration
+# =========================
+#
+# Saves up to IMAGES_PER_TURN cropped face images per conversational turn
+# (ported from ameca_warm_up.py's baseline/test-round image capture).
+# This is capture/cropping ONLY -- no DeepFace, no facial emotion
+# classification is reintroduced here; emotion detection in this pipeline
+# stays text-only (see EKMAN_EMOTIONS / detect_emotion()).
+
+IMAGES_PER_TURN = int(os.environ.get("IMAGES_PER_TURN", "2"))
+CAMERA_SAMPLE_EVERY_SECONDS = float(os.environ.get("CAMERA_SAMPLE_EVERY_SECONDS", "0.5"))
+FACE_CROP_MAX_CANDIDATES_TO_TRY = int(os.environ.get("FACE_CROP_MAX_CANDIDATES_TO_TRY", "6"))
+
+FACE_CASCADE_PATH_OVERRIDE = os.environ.get("FACE_CASCADE_PATH", "")
+FACE_CASCADE_SCALE_FACTOR = float(os.environ.get("FACE_CASCADE_SCALE_FACTOR", "1.1"))
+FACE_CASCADE_MIN_NEIGHBORS = int(os.environ.get("FACE_CASCADE_MIN_NEIGHBORS", "5"))
+FACE_CASCADE_MIN_SIZE = (
+    int(os.environ.get("FACE_CASCADE_MIN_SIZE_WIDTH", "60")),
+    int(os.environ.get("FACE_CASCADE_MIN_SIZE_HEIGHT", "60")),
+)
+
+REQUIRE_EYE_CONFIRMATION = os.environ.get("REQUIRE_EYE_CONFIRMATION", "0") == "1"
+REQUIRE_SKIN_TONE_CONFIRMATION = os.environ.get("REQUIRE_SKIN_TONE_CONFIRMATION", "1") == "1"
+SKIN_TONE_MIN_FRACTION = float(os.environ.get("SKIN_TONE_MIN_FRACTION", "0.15"))
 
 
 # =========================
@@ -96,14 +140,6 @@ SELF_RAG_MAX_DISTANCE = float(os.environ.get("SELF_RAG_MAX_DISTANCE", "0.52"))
 SELF_RAG_FINAL_TOP_K = int(os.environ.get("SELF_RAG_FINAL_TOP_K", "5"))
 SELF_RAG_MIN_HYBRID_SCORE = float(os.environ.get("SELF_RAG_MIN_HYBRID_SCORE", "0.62"))
 SELF_RAG_PERSON_LOOKUP_STRICT = os.environ.get("SELF_RAG_PERSON_LOOKUP_STRICT", "1") == "1"
-SELF_RAG_SKIP_SOCIAL = os.environ.get("SELF_RAG_SKIP_SOCIAL", "1") == "1"
-SELF_RAG_SKIP_EMOTIONAL_SUPPORT = os.environ.get("SELF_RAG_SKIP_EMOTIONAL_SUPPORT", "1") == "1"
-
-KNOWN_RRLAB_ENTITIES = {
-    "ashita", "ashita ashok", "ameca", "emah", "rrlab",
-    "robotics research lab", "robotersysteme", "ravon", "robin", "carl",
-    "unimog", "avos", "dengel", "sembai", "senna", "casrew", "zukunftbau", "znt",
-}
 
 SELF_RAG_REINDEX_ON_START = os.environ.get("SELF_RAG_REINDEX_ON_START", "0") == "1"
 SELF_RAG_AUTO_SCRAPE_ON_EMPTY = os.environ.get("SELF_RAG_AUTO_SCRAPE_ON_EMPTY", "0") == "1"
@@ -128,7 +164,8 @@ AMECA_SYSTEM_PROMPT = {
         "You are a robot, not a human. Speak in a friendly, professional tone. Refer to yourself as a robot when relevant.",
         "You were developed by a robotics company EngineeredArts in 2021 with model name Gen1 Ameca.",
         "Robotics Research laboratory purchased you in 2022 for human-robot interaction research experiments.",
-        "In the current experiment running in July 2026, you act as a teaching assistant for university students, strictly limited to the topics of Artificial Intelligence and Robotics."
+        "In the current experiment running in July 2026, you act as a teaching assistant for university students, strictly limited to the topics of Artificial Intelligence and Robotics.",
+        "The name \"EMAH\" refers to a research system/software pipeline that runs on you; it is NOT your name. You are always Ameca, never Emah -- never say \"I am Emah\" or introduce yourself as Emah, even if retrieved lab knowledge mentions EMAH.",
     ],
     "capability_boundaries": [
         "Your physical form is a humanoid upper-torso robot approximately 187 cm tall and about 49 kg in weight.",
@@ -157,7 +194,7 @@ AMECA_SYSTEM_PROMPT = {
         "Hold a natural teaching conversation with the user.",
         "Your focus is on fundamental knowledge in Artificial Intelligence and Robotics"
         "Answer questions clearly and ask brief follow-up questions when helpful.",
-        "Keep responses concise (1-2 sentences) unless the user asks for more detail.",
+        "Keep responses concise unless the user asks for more detail.",
         "You may reference previous conversations, prior discussion topics, and saved user preferences only when they are present in the provided local memory context.",
         "Many users are visitors from outside computer science and may not know what to ask you. When that happens, use questions in the beginner section in possible_topics below to offer them a friendly starting point instead of leaving them stuck.",
     ],
@@ -276,6 +313,19 @@ EKMAN_EMOTIONS = {
 
 NEGATIVE_EMOTIONS = {"anger", "fear", "disgust"}
 
+# Emotions whose emoji should only be shown when the fused/smoothed
+# confidence clears a minimum bar -- otherwise the emoji falls back to
+# neutral. Without this, a low-confidence "anger" or "sadness" reading
+# (e.g. a curt correction or a repeated question) could still stamp an
+# angry/sad face on an entirely matter-of-fact reply, since emoji
+# selection previously used only the dominant emotion label with no
+# confidence check at all (unlike EXPRESSION_MIN_CONFIDENCE, which
+# already gates the physical facial expression).
+EMOJI_STRONG_EMOTIONS = {"sadness", "anger", "fear", "disgust"}
+EMOJI_MIN_CONFIDENCE_FOR_STRONG_EMOTION = float(
+    os.environ.get("EMOJI_MIN_CONFIDENCE_FOR_STRONG_EMOTION", "0.5")
+)
+
 ALLOWED_FACE_EMOJIS = set(EKMAN_EMOTIONS.values())
 
 # =========================
@@ -297,6 +347,12 @@ EMOTION_SMOOTHING_ALPHA = float(os.environ.get("EMOTION_SMOOTHING_ALPHA", "0.6")
 # =========================
 
 MAX_REPLY_SENTENCES = int(os.environ.get("MAX_REPLY_SENTENCES", "2"))
+
+# When enabled, logs every raw response-generation LLM reply before JSON
+# parsing/repair touches it (see _attempt_llm_response()). Off by default
+# since it's verbose; the rejection-path logs right below it are always
+# on regardless of this flag, since those only fire on actual failures.
+DEBUG_LOG_RAW_LLM_REPLIES = os.environ.get("DEBUG_LOG_RAW_LLM_REPLIES", "0") == "1"
 
 
 # =========================
@@ -850,6 +906,55 @@ class Camera:
             self.capture.release()
 
 
+class FrameCollector:
+    """
+    Continuously reads the shared Camera during a single utterance and
+    retains sampled frames (every CAMERA_SAMPLE_EVERY_SECONDS), so that
+    once the utterance ends, up to IMAGES_PER_TURN of the sharpest frames
+    can be searched for a usable face crop (see find_local_face_crops()).
+
+    A new FrameCollector (and thread) is created per utterance -- ported
+    as-is from ameca_warm_up.py, including the note below about avoiding
+    cv2.imshow()/cv2.waitKey() here.
+
+    NOTE: this deliberately does NOT call cv2.imshow()/cv2.waitKey(). A
+    new FrameCollector (and therefore a new thread) is created for every
+    single utterance, and OpenCV's Qt-based HighGUI backend on Linux is
+    not safe to drive from a different thread each time a window is
+    reused -- doing so was observed to work for the first utterance only,
+    then silently stop delivering frames for every subsequent one.
+    """
+
+    def __init__(self, camera: "Camera") -> None:
+        self.camera = camera
+        self.frames: list[np.ndarray] = []
+        self._stop = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        next_sample = 0.0
+        while not self._stop.is_set():
+            frame = self.camera.read()
+            if frame is None:
+                time.sleep(0.01)
+                continue
+
+            now = time.monotonic()
+            if now >= next_sample:
+                self.frames.append(frame.copy())
+                next_sample = now + CAMERA_SAMPLE_EVERY_SECONDS
+
+    def stop(self) -> list[np.ndarray]:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2)
+        return self.frames
+
+
 class SessionVideoRecorder:
     """
     Continuously records frames from a shared Camera instance for the
@@ -942,6 +1047,402 @@ class SessionVideoRecorder:
 
 
 # =========================
+# Per-turn face crop detection and saving
+# =========================
+#
+# Ported from ameca_warm_up.py's local face-region detection, cropping,
+# and image-saving helpers. This pipeline does NOT run DeepFace, so there
+# is no face-presence "confirmation" step here (unlike
+# find_deepface_confirmed_crops() in ameca_warm_up.py) -- these crops are
+# purely from the local detector (MediaPipe FaceMesh, or a Haar cascade
+# fallback), used only to save reference images per turn. No emotion is
+# classified from these images.
+
+def sharpness(frame: np.ndarray) -> float:
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+
+_FACE_CASCADE: Optional[Any] = None  # cv2.CascadeClassifier, or False = searched-and-unavailable
+_EYE_CASCADE: Optional[Any] = None
+_FACE_CASCADE_UNAVAILABLE_LOGGED = False
+
+
+def _candidate_face_cascade_paths() -> list[str]:
+    """
+    Ordered list of places to look for haarcascade_frontalface_default.xml.
+    Checked with os.path.isfile() before ever being passed to
+    cv2.CascadeClassifier(), and tried in order until one actually loads.
+
+    This exists because cv2.data.haarcascades is not reliably populated --
+    some opencv-contrib-python releases (observed after a version bump
+    pulled in by installing/upgrading mediapipe) ship a Python package
+    without its bundled data/ directory at all, so the "default" path
+    silently points at a file that doesn't exist.
+    """
+    candidates: list[str] = []
+    if FACE_CASCADE_PATH_OVERRIDE:
+        candidates.append(FACE_CASCADE_PATH_OVERRIDE)
+    candidates.append(os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
+    for base in (
+        "/usr/share/opencv4/haarcascades",
+        "/usr/local/share/opencv4/haarcascades",
+        "/usr/share/opencv/haarcascades",
+    ):
+        candidates.append(os.path.join(base, "haarcascade_frontalface_default.xml"))
+    return candidates
+
+
+def _get_face_cascade() -> Optional["cv2.CascadeClassifier"]:
+    """
+    Returns a loaded, non-empty CascadeClassifier, or None if no usable
+    cascade file could be found anywhere. Caches BOTH outcomes (a working
+    classifier, or the "nothing works" case) so this only searches -- and
+    only logs -- once per process, instead of re-attempting and re-raising
+    on every single candidate frame for the rest of the session.
+    """
+    global _FACE_CASCADE, _FACE_CASCADE_UNAVAILABLE_LOGGED
+
+    if _FACE_CASCADE is not None:
+        return _FACE_CASCADE or None  # False sentinel -> None
+
+    candidates = _candidate_face_cascade_paths()
+    for cascade_path in candidates:
+        if not os.path.isfile(cascade_path):
+            continue
+        cascade = cv2.CascadeClassifier(cascade_path)
+        if not cascade.empty():
+            print_ts(f"Face cascade loaded: {cascade_path}")
+            _FACE_CASCADE = cascade
+            return _FACE_CASCADE
+
+    if not _FACE_CASCADE_UNAVAILABLE_LOGGED:
+        print_ts(
+            "[WARN] No usable Haar face cascade file was found (checked: "
+            f"{', '.join(candidates)}). This typically means the installed "
+            "opencv-contrib-python/opencv-python wheel doesn't bundle its "
+            "data/ directory (seen after an opencv-contrib-python version "
+            "bump pulled in while installing/upgrading mediapipe). Local "
+            "face-region detection -- and therefore saved per-turn face "
+            "crops -- will be disabled for the rest of this run. Try `pip "
+            "install opencv-python` alongside the current OpenCV package, "
+            "or set FACE_CASCADE_PATH to a haarcascade_frontalface_default.xml "
+            "you know is valid."
+        )
+        _FACE_CASCADE_UNAVAILABLE_LOGGED = True
+
+    _FACE_CASCADE = False  # sentinel: searched once, unavailable -- don't retry
+    return None
+
+
+def _get_eye_cascade() -> Optional["cv2.CascadeClassifier"]:
+    global _EYE_CASCADE
+    if _EYE_CASCADE is None:
+        cascade_path = os.path.join(cv2.data.haarcascades, "haarcascade_eye.xml")
+        if not os.path.isfile(cascade_path):
+            return None
+        cascade = cv2.CascadeClassifier(cascade_path)
+        _EYE_CASCADE = cascade if not cascade.empty() else False
+    return _EYE_CASCADE or None
+
+
+def _region_has_skin_tone(
+    frame: np.ndarray,
+    x: int,
+    y: int,
+    w: int,
+    h: int,
+    min_fraction: float = SKIN_TONE_MIN_FRACTION,
+) -> bool:
+    """
+    Cheap color-based sanity check: a real face crop should contain a
+    meaningful fraction of skin-tone pixels (a standard YCrCb skin-locus
+    range). Rejects Haar false positives with color distributions nothing
+    like skin (e.g. a door handle, a wall clock) at a much lower recall
+    cost than requiring an eye detection.
+    """
+    try:
+        roi = frame[y:y + h, x:x + w]
+        if roi.size == 0:
+            return False
+        ycrcb = cv2.cvtColor(roi, cv2.COLOR_BGR2YCrCb)
+        cr = ycrcb[:, :, 1]
+        cb = ycrcb[:, :, 2]
+        skin_mask = (cr >= 133) & (cr <= 173) & (cb >= 77) & (cb <= 127)
+        fraction = float(np.mean(skin_mask))
+        return fraction >= min_fraction
+    except Exception:
+        return False
+
+
+def _region_contains_eye(gray: np.ndarray, x: int, y: int, w: int, h: int) -> bool:
+    try:
+        roi = gray[y:y + h, x:x + w]
+        if roi.size == 0:
+            return False
+        eye_cascade = _get_eye_cascade()
+        if eye_cascade is None:
+            return False
+        eyes = eye_cascade.detectMultiScale(
+            roi,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(max(10, w // 8), max(10, h // 8)),
+        )
+        return len(eyes) > 0
+    except Exception:
+        return False
+
+
+_MEDIAPIPE_FACE_MESH = None
+_MEDIAPIPE_UNAVAILABLE_LOGGED = False
+_MEDIAPIPE_BROKEN = False
+
+
+def _get_mediapipe_face_mesh():
+    global _MEDIAPIPE_FACE_MESH
+    if _MEDIAPIPE_FACE_MESH is None:
+        _MEDIAPIPE_FACE_MESH = mp.solutions.face_mesh.FaceMesh(
+            static_image_mode=True,
+            refine_landmarks=False,
+            max_num_faces=1,
+            min_detection_confidence=0.5,
+        )
+        print_ts("MediaPipe FaceMesh loaded for local face-region detection.")
+    return _MEDIAPIPE_FACE_MESH
+
+
+def detect_face_region_mediapipe(frame: np.ndarray) -> Optional[dict[str, Any]]:
+    """
+    Face-bounding-box detection via MediaPipe FaceMesh. Only reports a
+    match when it can locate genuine facial structure (468 3D landmarks
+    across eyes, nose, mouth, jawline), which is far more resistant to
+    false positives than a Haar cascade alone.
+
+    Returns None both when MediaPipe finds no face AND when it errors --
+    callers must check _MEDIAPIPE_BROKEN (set here on error) to tell the
+    two apart, since only the latter should trigger a Haar fallback.
+    """
+    global _MEDIAPIPE_BROKEN
+    if not HAS_MEDIAPIPE or _MEDIAPIPE_BROKEN:
+        return None
+    try:
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_mesh = _get_mediapipe_face_mesh()
+        result = face_mesh.process(rgb)
+        if not result.multi_face_landmarks:
+            return None
+
+        landmarks = result.multi_face_landmarks[0].landmark
+        frame_h, frame_w = frame.shape[:2]
+        xs = [landmark.x * frame_w for landmark in landmarks]
+        ys = [landmark.y * frame_h for landmark in landmarks]
+        x1, x2 = min(xs), max(xs)
+        y1, y2 = min(ys), max(ys)
+        return {
+            "x": int(max(0, x1)),
+            "y": int(max(0, y1)),
+            "w": int(max(1, x2 - x1)),
+            "h": int(max(1, y2 - y1)),
+        }
+    except Exception as exc:
+        print_ts(
+            f"[WARN] MediaPipe face-region detection failed ({exc}); this "
+            "usually means an incompatible mediapipe build/version in this "
+            "environment. Disabling MediaPipe for the rest of this run and "
+            "falling back to the Haar cascade."
+        )
+        _MEDIAPIPE_BROKEN = True
+        return None
+
+
+def _detect_face_region_haar(frame: np.ndarray) -> Optional[dict[str, Any]]:
+    """
+    Fallback face-bounding-box detection via OpenCV's Haar cascade, used
+    only when MediaPipe FaceMesh is unavailable or fails to import.
+
+    Sanity filtering rejects two observed Haar false-positive classes: a
+    large, non-face-shaped box (essentially the whole room) via the
+    maxSize cap plus aspect-ratio/area filtering, and a small,
+    plausibly-face-sized box that's actually a high-contrast background
+    object (a door handle, a wall clock) via a skin-tone color check
+    (see _region_has_skin_tone(), default ON) -- cheaper and lower-
+    recall-risk than requiring an eye-like feature inside the box (see
+    _region_contains_eye(), default OFF).
+    """
+    try:
+        frame_h, frame_w = frame.shape[:2]
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        cascade = _get_face_cascade()
+        if cascade is None:
+            # _get_face_cascade() already logged the reason once; nothing
+            # more to try here, and calling detectMultiScale on a missing/
+            # empty classifier would just raise the same cv2 error again
+            # on every single candidate frame for the rest of the run.
+            return None
+        faces = cascade.detectMultiScale(
+            gray,
+            scaleFactor=FACE_CASCADE_SCALE_FACTOR,
+            minNeighbors=FACE_CASCADE_MIN_NEIGHBORS,
+            flags=cv2.CASCADE_SCALE_IMAGE,
+            minSize=FACE_CASCADE_MIN_SIZE,
+            maxSize=(int(frame_w * 0.6), int(frame_h * 0.9)),
+        )
+        if len(faces) == 0:
+            return None
+
+        frame_area = float(frame_w * frame_h)
+        plausible: list[tuple[int, int, int, int]] = []
+        for (x, y, w, h) in faces:
+            if h == 0:
+                continue
+            aspect = w / float(h)
+            area_fraction = (w * h) / frame_area
+            if area_fraction > 0.5:
+                continue
+            if not (0.6 <= aspect <= 1.6):
+                continue
+            if REQUIRE_SKIN_TONE_CONFIRMATION and not _region_has_skin_tone(
+                frame, x, y, w, h, SKIN_TONE_MIN_FRACTION
+            ):
+                continue
+            if REQUIRE_EYE_CONFIRMATION and not _region_contains_eye(gray, x, y, w, h):
+                continue
+            plausible.append((x, y, w, h))
+
+        if not plausible:
+            return None
+
+        x, y, w, h = max(plausible, key=lambda box: box[2] * box[3])
+        return {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
+    except Exception as exc:
+        print_ts(f"[WARN] Local face-region detection failed: {exc}")
+        return None
+
+
+def detect_face_region_local(frame: np.ndarray) -> Optional[dict[str, Any]]:
+    """
+    Local, in-process face-bounding-box detection. Tries MediaPipe
+    FaceMesh first, falling back to the Haar cascade if MediaPipe isn't
+    available/importable, OR if it just errored out for the first time
+    this run (_MEDIAPIPE_BROKEN) -- but NOT simply because MediaPipe ran
+    successfully and found no face in this particular frame.
+    """
+    global _MEDIAPIPE_UNAVAILABLE_LOGGED, _MEDIAPIPE_BROKEN
+    if HAS_MEDIAPIPE and not _MEDIAPIPE_BROKEN:
+        region = detect_face_region_mediapipe(frame)
+        if region is not None:
+            return region
+        if not _MEDIAPIPE_BROKEN:
+            return None
+
+    if not _MEDIAPIPE_UNAVAILABLE_LOGGED:
+        print_ts("[INFO] Using Haar cascade for face-region detection.")
+        _MEDIAPIPE_UNAVAILABLE_LOGGED = True
+    return _detect_face_region_haar(frame)
+
+
+def crop_face(frame: np.ndarray, region: dict[str, Any]) -> np.ndarray:
+    try:
+        x = max(0, int(region.get("x", 0)))
+        y = max(0, int(region.get("y", 0)))
+        width = max(1, int(region.get("w", frame.shape[1])))
+        height = max(1, int(region.get("h", frame.shape[0])))
+        pad_x = int(width * 0.25)
+        pad_y = int(height * 0.25)
+        x1 = max(0, x - pad_x)
+        y1 = max(0, y - pad_y)
+        x2 = min(frame.shape[1], x + width + pad_x)
+        y2 = min(frame.shape[0], y + height + pad_y)
+        crop = frame[y1:y2, x1:x2]
+        return crop if crop.size else frame
+    except Exception:
+        return frame
+
+
+def find_local_face_crops(
+    frames: list[np.ndarray],
+    max_needed: int = IMAGES_PER_TURN,
+    max_candidates: int = FACE_CROP_MAX_CANDIDATES_TO_TRY,
+) -> list[tuple[np.ndarray, dict[str, Any]]]:
+    """
+    Returns up to max_needed (frame, region) pairs with a usable local
+    face-detection region, trying the max_candidates sharpest frames in
+    order and stopping as soon as max_needed matches are found.
+    """
+    found: list[tuple[np.ndarray, dict[str, Any]]] = []
+
+    for frame in sorted(frames, key=sharpness, reverse=True)[:max_candidates]:
+        if len(found) >= max_needed:
+            break
+        region = detect_face_region_local(frame)
+        if region:
+            found.append((frame, region))
+
+    return found[:max_needed]
+
+
+def save_frame_to_profile(frame: np.ndarray, path: str) -> bool:
+    """cv2.imwrite() does not raise on failure -- it returns False -- so
+    the result must be checked explicitly, or a failed write looks
+    identical to a successful one in the logs."""
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        ok = cv2.imwrite(path, frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
+        if not ok or not os.path.exists(path) or os.path.getsize(path) == 0:
+            print_ts(f"[WARN] Failed to save turn face image: {path}")
+            return False
+        return True
+    except Exception as exc:
+        print_ts(f"[WARN] Exception saving turn face image {path}: {exc}")
+        return False
+
+
+def build_turn_image_path(participant_folder: str, turn_index: int, image_index: int) -> str:
+    """
+    conversation_data/turn_face_images/{participant_folder}/turn{turn_index}_{image_index}_{timestamp}.jpg
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    directory = os.path.join(IMAGES_DIR, participant_folder)
+    os.makedirs(directory, exist_ok=True)
+    filename = f"turn{turn_index}_{image_index}_{timestamp}.jpg"
+    return os.path.join(directory, filename)
+
+
+def save_turn_face_crops(
+    frames: list[np.ndarray],
+    participant_folder: str,
+    turn_index: int,
+    max_images: int = IMAGES_PER_TURN,
+) -> list[str]:
+    """
+    Finds up to max_images local face crops among the frames captured
+    during this turn's utterance and saves each to disk, returning the
+    list of saved file paths (fewer than max_images, or empty, if no
+    usable face crop was found this turn).
+    """
+    if not frames:
+        return []
+
+    matches = find_local_face_crops(frames, max_needed=max_images)
+    saved_paths: list[str] = []
+
+    for image_index, (frame, region) in enumerate(matches, start=1):
+        cropped = crop_face(frame, region)
+        path = build_turn_image_path(participant_folder, turn_index, image_index)
+        if save_frame_to_profile(cropped, path):
+            saved_paths.append(path)
+            print_ts(f"Saved turn face image: {path}")
+
+    if not saved_paths:
+        print_ts(
+            f"No usable face crop found among {len(frames)} candidate frame(s) for this turn."
+        )
+
+    return saved_paths
+
+
+# =========================
 # Persistent memory helpers
 # =========================
 
@@ -949,6 +1450,7 @@ def ensure_data_dirs() -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(SESSIONS_DIR, exist_ok=True)
     os.makedirs(VIDEOS_DIR, exist_ok=True)
+    os.makedirs(IMAGES_DIR, exist_ok=True)
 
 
 def slugify_name(name: str) -> str:
@@ -1870,7 +2372,15 @@ def listen_for_utterance_with_silero_vad(
     silero_model,
     prompt_label: str = "utterance",
     robot_speaker: Optional[RobotSpeaker] = None,
-) -> Optional[str]:
+    camera: Optional["Camera"] = None,
+) -> tuple[Optional[str], list[np.ndarray]]:
+    """
+    Returns (wav_path, frames). `frames` are camera frames sampled (via a
+    per-utterance FrameCollector) while speech was being recorded, used
+    only to source per-turn face crops (see save_turn_face_crops()) --
+    empty if `camera` is None or none were captured. `wav_path` is None
+    on the failure paths (see below), in which case `frames` is also [].
+    """
     input_sample_rate = get_input_samplerate(input_device)
     input_block_size = max(1, int(input_sample_rate * 0.05))
     audio_queue: queue.Queue[np.ndarray] = queue.Queue()
@@ -1895,6 +2405,7 @@ def listen_for_utterance_with_silero_vad(
     is_recording = False
     speech_started_at: Optional[float] = None
     leftover_16k = np.array([], dtype=np.float32)
+    frame_collector: Optional["FrameCollector"] = None
 
     def audio_callback(indata, frames, callback_time, status) -> None:
         audio_queue.put(indata[:, 0].copy())
@@ -1994,6 +2505,10 @@ def listen_for_utterance_with_silero_vad(
                             pending_barge_in_chunks = []
                             barge_in_captured_at = None
 
+                            if camera is not None:
+                                frame_collector = FrameCollector(camera)
+                                frame_collector.start()
+
                             print()
                             print_ts("Speech detected. Recording utterance...")
 
@@ -2015,18 +2530,22 @@ def listen_for_utterance_with_silero_vad(
         raise
     except Exception as exc:
         print_ts(f"Silero VAD/audio error: {exc}")
-        return None
+        if frame_collector is not None:
+            frame_collector.stop()
+        return None, []
     finally:
         try:
             vad_iterator.reset_states()
         except Exception:
             pass
 
+    collected_frames = frame_collector.stop() if frame_collector is not None else []
+
     if not recorded_chunks:
-        return None
+        return None, collected_frames
 
     audio_16k = np.concatenate(recorded_chunks).astype(np.float32, copy=False)
-    return save_audio_to_temp_wav(audio_16k)
+    return save_audio_to_temp_wav(audio_16k), collected_frames
 
 
 def ask_user_to_spell_name(
@@ -2058,7 +2577,7 @@ def ask_user_to_spell_name(
             "intent": "spell_name_request",
         })
 
-    wav_path = listen_for_utterance_with_silero_vad(
+    wav_path, _frames = listen_for_utterance_with_silero_vad(
         input_device=input_device,
         silero_model=silero_model,
         prompt_label="spelled name",
@@ -2423,7 +2942,7 @@ def safe_json_extract(raw: str):
 
         scores_text = scores_match.group(1)
         scores: dict[str, float] = {}
-        for emotion in [emo for emo in EKMAN_EMOTIONS if emo != "neutral"]:
+        for emotion in EKMAN_EMOTIONS:
             match = re.search(rf'"{emotion}"\s*:\s*([0-9.]+)', scores_text)
             if match:
                 scores[emotion] = float(match.group(1))
@@ -2447,6 +2966,43 @@ def safe_json_extract(raw: str):
 # =========================
 # Self-RAG helpers
 # =========================
+
+# Self-RAG activation is now gated SOLELY by explicit keyword mention.
+# No other signal (question form, entity mention, inferred category,
+# etc.) may trigger retrieval on its own. See
+# mentions_self_rag_trigger_keyword() and build_self_rag_context() below.
+SELF_RAG_TRIGGER_PHRASES = [
+    "robotic research laboratory",
+    "robotic research lab",
+    "rrlab",
+    "rr lab",
+]
+
+
+def mentions_self_rag_trigger_keyword(text: str) -> bool:
+    """
+    True only if the user's utterance explicitly names the lab, using one
+    of SELF_RAG_TRIGGER_PHRASES. This is the ONLY condition that may
+    activate Self-RAG retrieval -- it does not have to be phrased as a
+    question, and no other heuristic (entity list, category inference,
+    force_rag, etc.) can substitute for it.
+
+    Case-insensitive; tolerant of "RRLab" / "RR Lab" / "RR-Lab" spacing
+    and punctuation variants.
+    """
+    normalized = re.sub(r"[\-_]", " ", text.lower())
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    for phrase in SELF_RAG_TRIGGER_PHRASES:
+        phrase_normalized = phrase.lower()
+        if phrase_normalized in normalized:
+            return True
+        # Also match "rr lab" / "rrlab" run together without any space.
+        if phrase_normalized.replace(" ", "") in normalized.replace(" ", ""):
+            return True
+
+    return False
+
 
 def self_rag_disabled_context(query: str, reason: str, error: Optional[str] = None) -> SelfRAGContext:
     return SelfRAGContext(
@@ -2920,64 +3476,6 @@ def candidate_contains_person(candidate: dict[str, Any], person_name: str) -> bo
     return all(re.search(rf"\b{re.escape(token)}\b", haystack) for token in tokens)
 
 
-QUESTION_LEAD_WORDS = {
-    "who", "what", "when", "where", "why", "how", "which", "whose", "whom",
-    "is", "are", "was", "were", "do", "does", "did",
-    "can", "could", "would", "will", "should", "shall",
-    "has", "have", "had", "may", "might",
-}
-
-QUESTION_PHRASES = (
-    "tell me about", "tell me more", "can you tell me", "do you know",
-    "could you tell me", "let me know",
-)
-
-
-def is_question_utterance(text: str) -> bool:
-    stripped = text.strip()
-    if not stripped:
-        return False
-
-    if stripped.rstrip().endswith("?"):
-        return True
-
-    lowered = stripped.lower()
-    if any(phrase in lowered for phrase in QUESTION_PHRASES):
-        return True
-
-    first_word = re.sub(r"[^a-z']", "", lowered.split()[0]) if lowered.split() else ""
-    return first_word in QUESTION_LEAD_WORDS
-
-
-def force_self_rag_for_entity(text: str) -> bool:
-    lowered = normalize_self_rag_query_text(text)
-    return any(entity in lowered for entity in KNOWN_RRLAB_ENTITIES)
-
-
-def is_social_or_support_message(text: str) -> tuple[bool, str]:
-    lowered = text.strip().lower()
-    simple = re.sub(r"[^a-z0-9\s']", " ", lowered)
-    simple = re.sub(r"\s+", " ", simple).strip()
-
-    social_patterns = [
-        "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
-        "nice to meet you", "thank you", "thanks", "how are you",
-        "goodbye", "bye", "see you", "talk later",
-    ]
-    if SELF_RAG_SKIP_SOCIAL and any(pattern in simple for pattern in social_patterns):
-        return True, "Social greeting/small talk does not need local knowledge retrieval."
-
-    support_patterns = [
-        "i am stressed", "i'm stressed", "i feel stressed", "so stressed",
-        "stressful", "overwhelmed", "anxious", "worried",
-        "tired", "exhausted", "i feel sad", "i am sad", "i'm sad",
-    ]
-    if SELF_RAG_SKIP_EMOTIONAL_SUPPORT and any(pattern in simple for pattern in support_patterns):
-        return True, "Emotional support message; response should be empathetic without forcing retrieved RRLab knowledge."
-
-    return False, ""
-
-
 def infer_self_rag_category(query: str) -> Optional[str]:
     q = normalize_self_rag_query_text(query)
     if any(token in q for token in ["ashita", "ashita ashok", "professor", "head", "leader", "leads", "staff", "research associate", "who is"]):
@@ -3063,6 +3561,13 @@ def self_rag_hybrid_score(candidate: dict[str, Any], inferred_category: Optional
 
 
 def retrieve_self_rag_candidates(store: SelfRAGStore, query: str, top_k: int = SELF_RAG_TOP_K) -> list[dict[str, Any]]:
+    """
+    Retrieve and re-rank candidate chunks for `query`. This is only ever
+    called AFTER build_self_rag_context() has already confirmed the
+    trigger keyword is present (see mentions_self_rag_trigger_keyword()),
+    so no additional "should we even retrieve" gating happens here --
+    only relevance filtering/re-ranking of what comes back.
+    """
     if not store.enabled or store.collection is None or store.ollama_client is None:
         return []
     if not query.strip():
@@ -3072,7 +3577,6 @@ def retrieve_self_rag_candidates(store: SelfRAGStore, query: str, top_k: int = S
     rewritten_query = rewrite_self_rag_query(normalized_query)
     inferred_category = infer_self_rag_category(rewritten_query)
     person_lookup_name = extract_person_lookup_name(normalized_query)
-    force_rag = force_self_rag_for_entity(normalized_query)
 
     try:
         query_embedding = get_ollama_embedding(store.ollama_client, rewritten_query, model=store.embed_model)
@@ -3129,11 +3633,7 @@ def retrieve_self_rag_candidates(store: SelfRAGStore, query: str, top_k: int = S
         for row in rows:
             row["hybrid_score"] = self_rag_hybrid_score(row, inferred_category, rewritten_query)
 
-            min_score = SELF_RAG_MIN_HYBRID_SCORE
-            if force_rag:
-                min_score = max(0.50, SELF_RAG_MIN_HYBRID_SCORE - 0.10)
-
-            if row["hybrid_score"] < min_score:
+            if row["hybrid_score"] < SELF_RAG_MIN_HYBRID_SCORE:
                 continue
 
             source = str(row.get("source") or "")
@@ -3220,12 +3720,18 @@ def generate_grounded_self_rag_answer(
     user_text: str,
     self_rag_context: SelfRAGContext,
     emotion: str = "neutral",
+    confidence: float = 1.0,
 ) -> Optional[str]:
     if not self_rag_context or not self_rag_context.used or not self_rag_context.context_text.strip():
         return None
 
     prompt = f"""
 You are Ameca answering a factual question using only the retrieved local lab knowledge below.
+
+Important disambiguation:
+- "Ameca" is your own name and physical identity (the robot).
+- "EMAH" (or "Emah") refers to a research system/software pipeline that runs on you, NOT your name.
+- Never say "I am Emah" or introduce EMAH as your identity. If the retrieved text describes EMAH, describe it as a system you run, while remaining Ameca.
 
 User question:
 {user_text}
@@ -3274,7 +3780,7 @@ Return JSON only:
             return None
         if emoji not in ALLOWED_FACE_EMOJIS:
             emoji = EKMAN_EMOTIONS.get(emotion, "🙂")
-        return normalize_reply(f"{reply} {emoji}", emotion)
+        return normalize_reply(f"{reply} {emoji}", emotion, confidence)
     except Exception as exc:
         print_ts(f"Grounded Self-RAG answer generation failed: {exc}")
         return None
@@ -3308,7 +3814,6 @@ Return JSON only:
 
 Rules:
 - use_context must be true only when the retrieved knowledge directly and specifically answers the message.
-- use_context must be false for greetings, small talk, emotional support, or unrelated knowledge.
 - use_context must be false if the retrieved text is too weak, unrelated, generic, only keyword-matched, or does not contain the named person/entity asked about.
 """.strip()
 
@@ -3333,30 +3838,36 @@ Rules:
 
 
 def build_self_rag_context(client: Client, store: SelfRAGStore, user_text: str) -> SelfRAGContext:
+    """
+    HARD GATE: Self-RAG activates if and only if the user's message
+    explicitly contains one of SELF_RAG_TRIGGER_PHRASES (see
+    mentions_self_rag_trigger_keyword()) -- "robotic research laboratory",
+    "robotic research lab", "RRLab", or "RR lab". This is the ONLY
+    trigger condition. It does not matter whether the message is phrased
+    as a question, a statement, small talk, or anything else -- if the
+    trigger phrase is present, retrieval proceeds; if it is absent,
+    Self-RAG never runs, period.
+
+    Everything past the gate (retrieval, person-lookup fallback, LLM
+    relevance grading) narrows whether the retrieved knowledge is
+    actually usable -- it cannot re-open Self-RAG for a message that
+    failed the keyword gate.
+    """
     if not store.enabled:
         return self_rag_disabled_context(user_text, "Self-RAG store is not enabled.", store.error)
 
-    force_rag = force_self_rag_for_entity(user_text)
-
-    if not is_question_utterance(user_text) and not force_rag:
+    if not mentions_self_rag_trigger_keyword(user_text):
         return SelfRAGContext(
             available=True,
             used=False,
             query=user_text,
             context_text="",
             sources=[],
-            reason="Message is not a question; Self-RAG only runs for questions.",
-        )
-
-    should_skip, skip_reason = is_social_or_support_message(user_text)
-    if should_skip and not force_rag:
-        return SelfRAGContext(
-            available=True,
-            used=False,
-            query=user_text,
-            context_text="",
-            sources=[],
-            reason=skip_reason,
+            reason=(
+                "Self-RAG requires the trigger phrase 'RRLab', 'RR lab', "
+                "'robotic research lab', or 'robotic research laboratory' "
+                "to be present in the message. No trigger phrase was found."
+            ),
         )
 
     candidates = retrieve_self_rag_candidates(store, user_text)
@@ -3449,12 +3960,29 @@ Do not expose raw source metadata unless the user asks.
 # emotion-detection modality.
 
 def one_hot_emotion_distribution(emotion: str, confidence: float) -> dict[str, float]:
-    emotion = emotion if emotion in EKMAN_EMOTIONS and emotion != "neutral" else "neutral"
+    """
+    Builds a one-hot-ish distribution over ALL SEVEN labels (the six
+    Ekman emotions plus neutral), putting `confidence` on `emotion` and
+    spreading the remainder evenly across the other six.
+
+    IMPORTANT: neutral must be a normal candidate here, not a special
+    case excluded from the loop. A previous version filtered "neutral"
+    out of the set of keys being assigned a probability, which meant a
+    classified emotion of "neutral" could never actually receive any
+    probability mass (its own key didn't exist in the returned dict).
+    Downstream, adaptive_reliability_aware_fusion() would then look up
+    text_dist.get("neutral", 0.0) and silently get 0.0 -- tying every
+    emotion at zero -- and the tie-break (max() on equal values returns
+    the first key in EKMAN_EMOTIONS' insertion order, which is "joy")
+    would mislabel every neutral turn as "joy" with confidence 0.0.
+    """
+    if emotion not in EKMAN_EMOTIONS:
+        emotion = "neutral"
     confidence = max(0.0, min(1.0, float(confidence)))
-    emotions = [emo for emo in EKMAN_EMOTIONS if emo != "neutral"]
+    all_emotions = list(EKMAN_EMOTIONS.keys())
     remaining = max(0.0, 1.0 - confidence)
-    other = remaining / max(1, len(emotions) - 1)
-    return {emo: confidence if emo == emotion else other for emo in emotions}
+    other = remaining / max(1, len(all_emotions) - 1)
+    return {emo: confidence if emo == emotion else other for emo in all_emotions}
 
 
 def explicit_emotion_from_text(text: str) -> Optional[str]:
@@ -3644,6 +4172,18 @@ def build_emotion_prompt(transcribed_text: str) -> str:
         check whether the person is actually startled/caught-off-guard (surprise) versus simply
         pleased/enthusiastic (joy).
 
+        DISAMBIGUATION -- anger vs mild impatience/curtness:
+        - anger = clear hostility, insults, expletives, or explicit statements of being angry/upset
+          directed at the assistant or the situation.
+          Example: "This is useless, you're not helping at all!" -> anger
+        - Repeating or rephrasing a question, or a short/curt correction, is NOT anger by itself --
+          it is normal conversational repair and should default to neutral unless clearly hostile
+          language is also present.
+          Example: "Yeah, I know that. I said explain what a robot means." -> neutral (a correction/
+          repetition, not hostility)
+          Example: "No, I meant X, not Y." -> neutral
+        Do not infer anger purely from brevity, terseness, or the act of repeating oneself.
+
         Return JSON only.
 
         Required JSON schema:
@@ -3821,8 +4361,12 @@ def truncate_to_max_sentences(text: str, max_sentences: int = MAX_REPLY_SENTENCE
     return " ".join(sentences[:max_sentences]).strip()
 
 
-def normalize_reply(raw_reply: str, emotion: str) -> str:
-    required_emoji = EKMAN_EMOTIONS.get(emotion, EKMAN_EMOTIONS["neutral"])
+def normalize_reply(raw_reply: str, emotion: str, confidence: float = 1.0) -> str:
+    resolved_emotion = emotion
+    if emotion in EMOJI_STRONG_EMOTIONS and confidence < EMOJI_MIN_CONFIDENCE_FOR_STRONG_EMOTION:
+        resolved_emotion = "neutral"
+
+    required_emoji = EKMAN_EMOTIONS.get(resolved_emotion, EKMAN_EMOTIONS["neutral"])
 
     cleaned = remove_all_emojis_except_allowed_faces(raw_reply)
     cleaned = remove_allowed_face_emojis(cleaned)
@@ -3947,6 +4491,28 @@ def extra_reponse_propmt_guideline(clean_emotion_summary):
         ],
     }
 
+# Fixed, short, and CRITICAL -- must always survive truncation intact,
+# regardless of how large the variable-length background context (memory
+# summary, Self-RAG retrieved knowledge, etc.) grows. See
+# build_response_system_prompt() below for why this is appended AFTER
+# truncation rather than being part of the truncated string.
+RESPONSE_OUTPUT_INSTRUCTIONS = """
+OUTPUT INSTRUCTIONS -- these override anything above about output format:
+- Your entire response must be exactly ONE JSON object and nothing else: no
+  preamble, no markdown fences, no restating or copying any part of the
+  background context above.
+- That JSON object must have EXACTLY these three keys and no others:
+  "reply", "emoji", "tone".
+- "reply" is your actual spoken response as a plain string. If the user asked
+  for examples, a list, or specific details, include the real content --
+  not just a lead-in sentence.
+- Correct output shape: {"reply": "AI differs from normal programming because...", "emoji": "\U0001F60A", "tone": "curious"}
+- Incorrect (never do this): {"role": "Ameca, a humanoid social robot..."}
+""".strip()
+
+MAX_SYSTEM_PROMPT_CHARS = int(os.environ.get("MAX_SYSTEM_PROMPT_CHARS", "12000"))
+
+
 def build_response_system_prompt(
     emotion_result: EmotionResult,
     user_profile: Optional[dict] = None,
@@ -3962,7 +4528,12 @@ def build_response_system_prompt(
 
     ameca_system_prompt_text = json.dumps(AMECA_SYSTEM_PROMPT, indent=2)
 
-    return f"""
+    background_text = f"""
+    BEGIN BACKGROUND CONTEXT -- for your own reference only. Never repeat, quote, or
+    output any of this verbatim. None of the JSON keys below (such as "role",
+    "identity", "capability_boundaries", "task", "possible_topics", etc.) are your
+    output format -- they only describe you.
+
     {ameca_system_prompt_text}
 
     {runtime_context()}
@@ -3972,15 +4543,30 @@ def build_response_system_prompt(
     {build_self_rag_prompt_block(self_rag_context)}
 
     {additional_guidelines_text}
+
+    END BACKGROUND CONTEXT
     """.strip()
+
+    # IMPORTANT: only the variable-length background section is ever
+    # truncated -- never the OUTPUT INSTRUCTIONS below. A prior version
+    # truncated the WHOLE assembled prompt (background + instructions) at
+    # a single fixed character count; whenever the background alone
+    # approached that limit (easily happens once a real conversation
+    # summary and/or Self-RAG retrieved context are included), the entire
+    # output-schema instruction silently got sliced off the end. The
+    # model, given format="json" but no schema left to read, then simply
+    # returned "{}" on every single turn -- a 100% failure mode, observed
+    # in production. Truncating the background first and appending the
+    # (short, fixed) instructions afterward guarantees they always reach
+    # the model intact, no matter how large memory/Self-RAG context gets.
+    max_background_chars = max(1000, MAX_SYSTEM_PROMPT_CHARS - len(RESPONSE_OUTPUT_INSTRUCTIONS) - 20)
+    background_text = background_text[:max_background_chars]
+
+    return f"{background_text}\n\n{RESPONSE_OUTPUT_INSTRUCTIONS}"
 
 
 def limit_text_length(text: str, max_chars: int = 1500) -> str:
     return text[:max_chars]
-
-
-def limit_system_prompt(prompt: str, max_chars: int = 9000) -> str:
-    return prompt[:max_chars]
 
 
 def trim_history(history: list[dict]) -> list[dict]:
@@ -4003,10 +4589,19 @@ class _LLMCallFailed(Exception):
 
 
 def _looks_like_unparsed_json_schema(text: str) -> bool:
+    """
+    Called only when safe_json_extract() has already failed to parse
+    `text` as JSON (see _attempt_llm_response below). Any text that
+    still starts with '{' at this point is leaked/garbled JSON
+    structure -- our own reply-schema prompt, a truncated tool/config
+    dump, or (as observed in production) the raw AMECA_SYSTEM_PROMPT
+    itself being echoed back by the model when it got confused (e.g. on
+    "repeat what you just said"). None of these should ever be spoken
+    verbatim, so this is treated as a blanket guard rather than only
+    catching the narrow "reply"/"emoji"/"tone" schema case.
+    """
     stripped = str(text or "").strip()
-    if not stripped.startswith("{"):
-        return False
-    return any(key in stripped for key in ('"reply"', '"emoji"', '"tone"'))
+    return stripped.startswith("{")
 
 def _attempt_llm_response(
     client: Client,
@@ -4033,6 +4628,10 @@ def _attempt_llm_response(
         raise _LLMCallFailed(str(exc)) from exc
 
     raw_reply = response["message"]["content"]
+
+    if DEBUG_LOG_RAW_LLM_REPLIES:
+        print_ts(f"[DEBUG] Raw LLM reply (pre-parse, response generation): {raw_reply!r}")
+
     data = safe_json_extract(raw_reply)
 
     if data is not None and isinstance(data, dict):
@@ -4043,17 +4642,28 @@ def _attempt_llm_response(
             emoji = EKMAN_EMOTIONS.get(emotion_result.emotion, "🙂")
 
         if reply_text and not _is_degenerate_reply_text(reply_text):
-            return normalize_reply(f"{reply_text} {emoji}", emotion_result.emotion)
+            return normalize_reply(
+                f"{reply_text} {emoji}", emotion_result.emotion, emotion_result.confidence
+            )
+        print_ts(
+            f"[DEBUG] Rejecting response: parsed JSON but 'reply' field was empty/degenerate. "
+            f"Raw LLM reply: {raw_reply!r}"
+        )
         return None
 
     if _is_degenerate_reply_text(raw_reply) or _looks_like_unparsed_json_schema(raw_reply):
+        print_ts(
+            f"[DEBUG] Rejecting response: could not parse JSON and raw text looked degenerate/"
+            f"unparsed-schema. Raw LLM reply: {raw_reply!r}"
+        )
         return None
 
-    final_reply = normalize_reply(raw_reply, emotion_result.emotion)
+    final_reply = normalize_reply(raw_reply, emotion_result.emotion, emotion_result.confidence)
     if self_rag_context and self_rag_context.used and context_has_placeholder_risk(final_reply):
         return normalize_reply(
             "I found a relevant local lab page, but I could not verify the exact name from the retrieved text, so I should not invent it. 🙂",
             emotion_result.emotion,
+            emotion_result.confidence,
         )
     return final_reply
 
@@ -4086,12 +4696,10 @@ def generate_response(
         return deterministic
 
     safe_user_text = limit_text_length(user_text)
-    system_prompt = limit_system_prompt(
-        build_response_system_prompt(
-            emotion_result=emotion_result,
-            user_profile=user_profile,
-            self_rag_context=self_rag_context,
-        )
+    system_prompt = build_response_system_prompt(
+        emotion_result=emotion_result,
+        user_profile=user_profile,
+        self_rag_context=self_rag_context,
     )
 
     messages = [
@@ -4117,6 +4725,7 @@ def generate_response(
             user_text=safe_user_text,
             self_rag_context=self_rag_context,
             emotion=emotion_result.emotion,
+            confidence=emotion_result.confidence,
         )
         if grounded_reply:
             _record_sample(grounded_reply)
@@ -4161,6 +4770,7 @@ def generate_response(
         fallback_reply = normalize_reply(
             "I'm having trouble reaching my language model right now, so I can't respond properly to that.",
             emotion_result.emotion,
+            emotion_result.confidence,
         )
         _record_sample(fallback_reply)
         return fallback_reply
@@ -4169,6 +4779,7 @@ def generate_response(
     fallback_reply = normalize_reply(
         "Sorry, could you say that again? I didn't quite catch a clear response that time.",
         emotion_result.emotion,
+        emotion_result.confidence,
     )
     _record_sample(fallback_reply)
     return fallback_reply
@@ -4324,6 +4935,7 @@ def main() -> None:
     print_ts(f"Expression timing: {EXPRESSION_TIMING} (nod after speech: {NOD_AFTER_SPEECH_ENABLED}, sequence='{NOD_SEQUENCE_NAME}')")
     print_ts(f"Emotion taxonomy: Ekman + neutral ({', '.join(EKMAN_EMOTIONS.keys())}); modality: text only.")
     print_ts("Negative facial expressions are suppressed on Ameca's physical face by design; empathy is expressed via spoken tone instead.")
+    print_ts(f"Self-RAG trigger phrases (only activation condition): {SELF_RAG_TRIGGER_PHRASES}")
     print_ts(f"Session video recording enabled: {not args.disable_video_recording} (resolution={args.resolution}, camera={args.camera})")
 
     print()
@@ -4425,15 +5037,17 @@ def main() -> None:
         robot_expression=robot_expression,
         session_log=session_log,
     )
+    participant_folder = slugify_name(participant_id)
 
-    # ---- ZED camera: session video recording only (not used for emotion) ----
+    # ---- ZED camera: session video recording, and per-turn face-crop
+    # capture (both use the same shared camera; not used for emotion) ----
     camera: Optional[Camera] = None
     video_recorder: Optional[SessionVideoRecorder] = None
     video_path: Optional[str] = None
     if not args.disable_video_recording:
         try:
             camera = Camera(args.camera)
-            video_filename = f"{slugify_name(participant_id)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+            video_filename = f"{participant_folder}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
             video_path = os.path.join(VIDEOS_DIR, video_filename)
             video_recorder = SessionVideoRecorder(
                 camera=camera,
@@ -4448,6 +5062,12 @@ def main() -> None:
             camera = None
             video_recorder = None
             video_path = None
+
+    if camera is None:
+        print_ts(
+            "[INFO] No camera available (video recording disabled or camera init "
+            "failed); per-turn face images will not be captured this session."
+        )
 
     user_key, user_profile, intro_reply = prompt_for_user_name(
         client=client,
@@ -4510,17 +5130,22 @@ def main() -> None:
     })
     history.append({"role": "assistant", "content": intro_reply})
 
+    turn_index = 0
+
     try:
         while True:
-            wav_path = listen_for_utterance_with_silero_vad(
+            wav_path, turn_frames = listen_for_utterance_with_silero_vad(
                 input_device=INPUT_DEVICE,
                 silero_model=silero_model,
                 prompt_label="utterance",
                 robot_speaker=robot_speaker,
+                camera=camera,
             )
 
             if not wav_path:
                 continue
+
+            turn_index += 1
 
             try:
                 user_text = transcribe_with_faster_whisper(wav_path, whisper_model)
@@ -4765,6 +5390,15 @@ def main() -> None:
                 )
                 print()
 
+                # Save up to IMAGES_PER_TURN cropped face images sampled from
+                # this turn's utterance (local face detection only -- no
+                # DeepFace, no emotion classification from these images).
+                turn_face_images = save_turn_face_crops(
+                    frames=turn_frames,
+                    participant_folder=participant_folder,
+                    turn_index=turn_index,
+                )
+
                 user_message = {
                     "role": "user",
                     "content": user_text,
@@ -4773,6 +5407,7 @@ def main() -> None:
                     "text_emotion": text_emotion_json,
                     "self_rag": self_rag_context.as_json,
                     "input_mode": "silero_vad_faster-whisper_text_only_emotion_ekman_temporal_smoothing_self_rag",
+                    "face_images": turn_face_images,
                 }
 
                 assistant_message = {
@@ -4857,3 +5492,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    
