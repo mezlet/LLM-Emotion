@@ -1,0 +1,42 @@
+{
+  "b25461": {
+    "name": "Cicie",
+    "participant_id": "B25461",
+    "created_at": "2026-07-30 13:18:29",
+    "last_seen": "2026-07-30 13:23:56",
+    "session_files": [
+      "conversation_data/sessions/b25461_20260730_132356.json"
+    ],
+    "conversation_summary": "- Previous continuity context: Recent user topics/questions: What kind of error bots are you?; kind of aerobots are you?; between artificial intelligence and supervised learning.; What is the difference between supervised and also supervised learning? Knowledge/RAG topics used: What is a...\n- Recent user topics/questions: What kind of error bots are you?; kind of aerobots are you?; between artificial intelligence and supervised learning.; What is the difference between supervised and also supervised learning?\n- Knowledge/RAG topics used: What is a robot?; What kind of error bots are you?; kind of aerobots are you?; between artificial intelligence and supervised learning.\n- Relevant retrieved sources included: Emah; M. Sc. Ashita Ashok - AG Robotersysteme RPTU; Robots - AG Robotersysteme RPTU; CREA; Head of the Laboratory - AG Robotersysteme RPTU\n- Last assistant direction: There seems to be an error in your question. There is no such thing as 'also supervised' learning. 😊\n- Recent affective context: joy, neutral, surprise"
+  },
+  "b25464": {
+    "name": "Ashita",
+    "participant_id": "B25464",
+    "created_at": "2026-07-30 13:25:25",
+    "last_seen": "2026-07-30 13:26:26",
+    "session_files": [
+      "conversation_data/sessions/b25464_20260730_132626.json"
+    ],
+    "conversation_summary": "- Previous continuity context: Recent user topics/questions: A-S-H-I-T-A; And I am asked to.; What did you hear that I said before? Knowledge/RAG topics used: And I am asked to. Relevant retrieved sources included: Emah Last assistant direction: You didn't say anything before, Ashita. This...\n- Recent user topics/questions: A-S-H-I-T-A; And I am asked to.; What did you hear that I said before?\n- Knowledge/RAG topics used: And I am asked to.\n- Relevant retrieved sources included: Emah\n- Last assistant direction: You didn't say anything before, Ashita. This conversation just started. 🙂\n- Recent affective context: neutral"
+  },
+  "b254668": {
+    "name": "Cicie",
+    "participant_id": "B254668",
+    "created_at": "2026-07-30 13:31:21",
+    "last_seen": "2026-07-30 13:36:00",
+    "session_files": [
+      "conversation_data/sessions/b254668_20260730_133600.json"
+    ],
+    "conversation_summary": "- Previous continuity context: Recent user topics/questions: What is the difference between artificial intelligence and supervised learning?; What type of robot are you?; I said what type of robots are you?; What kind of robots are you? Knowledge/RAG topics used: What type of robot are...\n- Recent user topics/questions: What is the difference between artificial intelligence and supervised learning?; What type of robot are you?; I said what type of robots are you?; What kind of robots are you?\n- Knowledge/RAG topics used: What type of robot are you?; I said what type of robots are you?; What kind of robots are you?\n- Relevant retrieved sources included: Emah; Roman\n- Last assistant direction: I am a Generation 1 Ameca robot from Engineered Arts, and I run the Emah system which is a real-time Human-Robot Interaction (HRI) system. 😊\n- Recent affective context: joy, anger"
+  },
+  "b254654": {
+    "name": "Ashita",
+    "participant_id": "B254654",
+    "created_at": "2026-07-30 13:38:41",
+    "last_seen": "2026-07-30 13:40:00",
+    "session_files": [
+      "conversation_data/sessions/b254654_20260730_134000.json"
+    ],
+    "conversation_summary": "- Previous continuity context: Recent user topics/questions: A-S-H-I-T-A; I am Asta and I am a human. Knowledge/RAG topics used: I am Asta and I am a human. Relevant retrieved sources included: Emah; M. Sc. Ashita Ashok - AG Robotersysteme RPTU Last assistant direction: As a human, you are...\n- Recent user topics/questions: A-S-H-I-T-A; I am Asta and I am a human.\n- Knowledge/RAG topics used: I am Asta and I am a human.\n- Relevant retrieved sources included: Emah; M. Sc. Ashita Ashok - AG Robotersysteme RPTU\n- Last assistant direction: As a human, you are interacting with the Ameca robot, which is running the Emah system. This system utilizes rule-based behavior models, custom machine learning and deep learning architectures to provide realistic communication between humans and robots. 😊\n- Recent affective context: joy"
+  }
+}
