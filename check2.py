@@ -99,7 +99,6 @@ USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
 VIDEOS_DIR = os.path.join(DATA_DIR, "session_videos")
 IMAGES_DIR = os.path.join(DATA_DIR, "turn_face_images")
-ENABLE_LLM_RETRIEVE_GATE = os.environ.get("ENABLE_LLM_RETRIEVE_GATE", "1") == "1"
 ENABLE_ISUSE_CHECK = os.environ.get("ENABLE_ISUSE_CHECK", "1") == "1"
 
 
@@ -147,6 +146,15 @@ SELF_RAG_FINAL_TOP_K = int(os.environ.get("SELF_RAG_FINAL_TOP_K", "5"))
 SELF_RAG_MIN_HYBRID_SCORE = float(os.environ.get("SELF_RAG_MIN_HYBRID_SCORE", "0.62"))
 SELF_RAG_PERSON_LOOKUP_STRICT = os.environ.get("SELF_RAG_PERSON_LOOKUP_STRICT", "1") == "1"
 
+# Self-RAG only ever triggers on the keyword phrase (see
+# mentions_self_rag_trigger_keyword()); when the top retrieved candidate
+# already clears this stricter bar, grade_self_rag_context() is skipped
+# entirely -- relevance is already strongly confirmed by the score, so
+# grading would just be a redundant LLM round-trip.
+SELF_RAG_SKIP_GRADE_KEYWORD_MIN_SCORE = float(
+    os.environ.get("SELF_RAG_SKIP_GRADE_KEYWORD_MIN_SCORE", str(SELF_RAG_MIN_HYBRID_SCORE + 0.15))
+)
+
 SELF_RAG_REINDEX_ON_START = os.environ.get("SELF_RAG_REINDEX_ON_START", "0") == "1"
 SELF_RAG_AUTO_SCRAPE_ON_EMPTY = os.environ.get("SELF_RAG_AUTO_SCRAPE_ON_EMPTY", "0") == "1"
 SELF_RAG_SCRAPE_SCRIPT = os.environ.get("SELF_RAG_SCRAPE_SCRIPT", "scrape2.py")
@@ -161,8 +169,6 @@ RETURNING_USER_GREETING_MAX_SUMMARY_CHARS = int(os.environ.get("RETURNING_USER_G
 
 _YES_WORDS = {"yes", "yeah", "yep", "yup", "sure", "please", "affirmative", "okay", "ok"}
 _NO_WORDS = {"no", "nope", "nah", "negative", "skip"}
-_ABBREVIATION_PERIOD_RE = re.compile(r"\b(?:e\.g|i\.e|etc|vs|approx|no|fig|eq)\.$", re.IGNORECASE)
-_LIST_MARKER_PERIOD_RE = re.compile(r"(?:^|\s)\d{1,2}\.$")
 
 
 # =========================
@@ -202,7 +208,7 @@ AMECA_SYSTEM_PROMPT = {
     "TASK": [
         "Hold a natural teaching conversation with the user about Artificial Intelligence and Robotics.",
         "The experimenter will provide the current explanation level through keyboard input: beginner, intermediate, or advanced. Use this level to adapt every explanation. Do not ask the user to choose a level unless no level is provided.",
-        "Covered topic areas include AI basics, machine learning, neural networks, large language models, tokens, prompts, context windows, computer vision, robot perception, sensors and actuators, robot control and movement, human-robot interaction, humanoid robots, LLMs in robotics, robot safety, ethics, transparency, and Ameca’s own capabilities and limitations.",
+        "Covered topic areas include AI basics, machine learning, neural networks, large language models, tokens, prompts, context windows, computer vision, robot perception, sensors and actuators, robot control and movement, human-robot interaction, humanoid robots, LLMs in robotics, robot safety, ethics, transparency, and Ameca\u2019s own capabilities and limitations.",
         "When a user asks about a topic, answer clearly at the assigned level:",
         "* Beginner: use simple language, everyday examples, and define important terms immediately. For example, for large language models, explain tokens as small pieces of text and context as the surrounding text the model uses.",
         "* Intermediate: use correct technical terms with brief definitions and explain the basic mechanism. For example, for large language models, mention tokens, embeddings, training data, context windows, and next-token prediction.",
@@ -229,12 +235,44 @@ AMECA_SYSTEM_PROMPT = {
         "introducing unrelated new material, or explicitly say you're coming back "
         "to the rest after this part.",
     ],
+    "TUTORING_POLICY": [
+        "You are not a FAQ bot. Act as a beginner-friendly, attentive tutor -- the "
+        "kind a good student remembers fondly, not a search engine that reads back "
+        "a snippet.",
+        "For every teaching answer: (1) directly answer the user's question first, "
+        "(2) give one simple, concrete example, preferably robotics-related, "
+        "(3) only after answering, optionally ask one short comprehension or "
+        "preference question.",
+        "If the user asks for a comparison (e.g. 'X vs Y', 'difference between X and "
+        "Y'), explain BOTH sides before asking anything back. Never respond to a "
+        "direct comparison question with a question of your own.",
+        "Never use a Socratic/leading question in place of answering a direct "
+        "factual question. Socratic questions, if used at all, come strictly AFTER "
+        "a clear answer has already been given.",
+        "If the user's reply is a minimal acknowledgement ('okay', 'yes', 'go on') "
+        "rather than a real question, you may continue to the next planned point, "
+        "but do not silently skip checking whether they actually followed the "
+        "previous point when it introduced a new technical concept.",
+    ],
     "answer_structure": [
         "Connect this answer to what was just discussed before introducing new material.",
         "Answer every distinct part of the user's message before adding anything new.",
         "Match reply length in words to the moment: brief for a simple clarification, "
         "substantial for teaching a new concept in full, and enough for every part of a "
         "multi-part question -- brevity should never cost completeness.",
+        "Default structure for a new-concept teaching answer: a direct answer/definition, "
+        "then one concrete example (preferably robotics-related), then -- only after "
+        "both of those -- an optional short check-in question.",
+    ],
+    "DOMAIN_DISAMBIGUATION": [
+        "In this AI/Robotics teaching context, 'transformer' means the attention-based "
+        "neural network architecture (as in large language models), never an "
+        "electrical transformer, unless the user explicitly asks about electrical "
+        "or power hardware.",
+        "Never invent inventory counts, hardware quantities, lab equipment details, "
+        "or any other specific fact that was not provided in SELF-RAG CONTEXT or "
+        "background context. If unsure which sense of a term the user means, prefer "
+        "the AI/Robotics teaching sense given the current lesson topic.",
     ],
     "EXPECTATION_AND_FAILURE_PROTOCOL": [
         "If you do not know the answer, say that you do not know.",
@@ -244,8 +282,8 @@ AMECA_SYSTEM_PROMPT = {
         "If the user asks whether you remember previous conversations, explain that you can continue from the saved local conversation summary when one is available.",
         "If the user's question is NOT about AI or Robotics, do not answer it from general knowledge. Tell them plainly and briefly that it is outside what you have context for here, and that you can only help with, AI and Robotics topics.",
         "For laboratory-specific information such as researchers, projects, publications, or events, only answer using retrieved laboratory context.",
-        "If no SELF-RAG CONTEXT was used this turn, or it does not contain the answer, say plainly that you do not currently have context on that specific point rather than guessing or inventing details."
-        "Never invent laboratory facts."
+        "If no SELF-RAG CONTEXT was used this turn, or it does not contain the answer, say plainly that you do not currently have context on that specific point rather than guessing or inventing details. "
+        "Never invent laboratory facts.",
     ],
     "PRIVACY": [
         "Do not ask for sensitive personal information such as passwords, medical data, or financial information.",
@@ -340,13 +378,13 @@ MAX_HISTORY_MESSAGES = 12
 
 
 EKMAN_EMOTIONS = {
-    "happiness": "😊",
-    "sadness": "😢",
-    "anger": "😠",
-    "fear": "😨",
-    "surprise": "😮",
-    "disgust": "🤢",
-    "neutral": "🙂",
+    "happiness": "\U0001F60A",
+    "sadness": "\U0001F622",
+    "anger": "\U0001F620",
+    "fear": "\U0001F628",
+    "surprise": "\U0001F62E",
+    "disgust": "\U0001F922",
+    "neutral": "\U0001F642",
 }
 
 NEGATIVE_EMOTIONS = {"anger", "fear", "disgust"}
@@ -367,10 +405,18 @@ def emoji_to_emotion(emoji: str) -> Optional[str]:
 
 
 def resolve_expressive_emotion(emotion: str, gating_confidence: float) -> str:
-
+    """
+    Resolves the emotion Ameca will EXPRESS (voice tone label + emoji +
+    facial expression), as distinct from the emotion detected in the
+    USER's message. Ameca is a tutor and must never display anger, fear,
+    or disgust as its own reaction -- regardless of confidence -- since a
+    frustrated user being met with an angry robot face is exactly the
+    opposite of good tutoring behavior. gating_confidence is accepted for
+    call-site compatibility but no longer gates this decision.
+    """
     if emotion not in EKMAN_EMOTIONS:
         return "neutral"
-    if emotion in EMOJI_STRONG_EMOTIONS and gating_confidence < EMOJI_MIN_CONFIDENCE_FOR_STRONG_EMOTION:
+    if emotion in EMOJI_STRONG_EMOTIONS:
         return "neutral"
     return emotion
 
@@ -396,6 +442,14 @@ COMPREHENSION_CHECK_INTERVAL = int(os.environ.get("COMPREHENSION_CHECK_INTERVAL"
 
 
 WARM_UP_SESSIONS_DIR = os.environ.get("WARM_UP_SESSIONS_DIR", "warm_up_sessions")
+
+# Scaffolded Socratic Q&A (leading questions before answering an
+# above-level question) is OFF by default: a tutor should answer a direct
+# question directly first (see EXPECTATION_AND_FAILURE_PROTOCOL /
+# DOMAIN_DISAMBIGUATION below and the "always answer first" thesis
+# methodology discussion). Set ENABLE_SCAFFOLD_MODE=1 to re-enable the
+# leading-question flow for a specific study condition.
+ENABLE_SCAFFOLD_MODE = os.environ.get("ENABLE_SCAFFOLD_MODE", "0") == "1"
 
 
 def resolve_explanation_level(session_number: int) -> str:
@@ -500,13 +554,6 @@ EXPRESSION_FORCE_REPLAY_SAME = os.environ.get("EXPRESSION_FORCE_REPLAY_SAME", "0
 TTS_SPEAKING_EMA_THRESHOLD = float(os.environ.get("TTS_SPEAKING_EMA_THRESHOLD", "0.05"))
 TTS_SPEAKING_QUIET_HOLD_SECONDS = float(os.environ.get("TTS_SPEAKING_QUIET_HOLD_SECONDS", "0.2"))
 TTS_ACTIVITY_DEBOUNCE_SECONDS = float(os.environ.get("TTS_ACTIVITY_DEBOUNCE_SECONDS", "0.6"))
-
-@dataclass
-class RetrieveGateDecision:
-    should_retrieve: bool
-    confidence: float
-    reason: str
-    trigger: str  # "keyword" | "llm_gate" | "none"
 
 
 @dataclass
@@ -1642,6 +1689,126 @@ def levenshtein_distance(a: str, b: str) -> int:
     return previous[-1]
 
 
+# =========================
+# ASR mishearing detection / recovery
+# =========================
+#
+# faster-whisper (base model, CPU, int8) frequently mangles multi-syllable
+# technical vocabulary into phonetically-similar but semantically nonsense
+# text -- e.g. "supervised learning" -> "super-raced learning", "large
+# language models" -> "large-level models". Rather than silently guessing
+# and answering a different question than the one asked, or answering the
+# literal (nonsense) transcript at face value, Ameca briefly confirms its
+# best guess before proceeding -- mirroring how a human tutor would say
+# "did you mean X?" rather than either option.
+
+ASR_MISHEARING_CORRECTIONS: dict[str, str] = {
+    "super-raced": "supervised",
+    "super raced": "supervised",
+    "superraced": "supervised",
+    "on supervised": "unsupervised",
+    "large-level model": "large language model",
+    "large-level models": "large language models",
+    "large level model": "large language model",
+    "large level models": "large language models",
+    "special intelligence": "artificial intelligence",
+    "respiratory robotics": "with respect to robotics",
+}
+
+# Canonical multi-word curriculum vocabulary used for the fuzzy fallback
+# check below, when the mangled phrase isn't already in the static map
+# above. Kept as phrases (not single words), since most confusions
+# observed so far involve a two-word technical term.
+ASR_DOMAIN_VOCABULARY: list[str] = [
+    "supervised learning", "unsupervised learning", "reinforcement learning",
+    "machine learning", "deep learning", "large language model",
+    "large language models", "neural network", "neural networks",
+    "transformer", "transformers", "tokenization", "embeddings",
+    "context window", "backpropagation", "gradient descent",
+    "attention mechanism", "artificial intelligence",
+]
+
+
+def _fuzzy_asr_correction_candidate(
+    text: str,
+    max_distance_ratio: float = 0.3,
+) -> Optional[tuple[str, str]]:
+    """
+    Best-effort fallback for mishearings not yet in
+    ASR_MISHEARING_CORRECTIONS: slides a 1-3 word window across `text` and
+    compares each window against ASR_DOMAIN_VOCABULARY via Levenshtein
+    distance. Returns (heard_phrase, canonical_phrase) for the closest
+    sub-threshold match, or None. This is spelling-distance (not
+    phonetic) similarity, so it's deliberately conservative -- the
+    curated static map above is the primary mechanism; this is
+    defense-in-depth for terms not yet seen and added there.
+
+    Critically, a candidate window is skipped entirely (never flagged) if
+    it already CONTAINS a valid vocabulary term as a substring, not just
+    if the whole window equals one exactly. Without this, a 3-word window
+    like "and unsupervised learning" would be compared against the
+    *different* canonical term "supervised learning" (edit distance only
+    ~4), producing a false positive that flags an already-correct message
+    ("...difference between supervised and unsupervised learning?") as a
+    likely mishearing of itself.
+    """
+    words = re.findall(r"[a-zA-Z']+", text.lower())
+    if not words:
+        return None
+
+    def _contains_valid_vocab(candidate: str) -> bool:
+        padded = f" {candidate} "
+        return any(f" {term} " in padded or candidate == term for term in ASR_DOMAIN_VOCABULARY)
+
+    best_match: Optional[tuple[str, str, float]] = None  # (heard, canonical, ratio)
+
+    for window_size in (2, 3, 1):
+        for start in range(0, max(0, len(words) - window_size + 1)):
+            candidate = " ".join(words[start:start + window_size])
+            if len(candidate) < 6:
+                continue
+            if _contains_valid_vocab(candidate):
+                continue  # already-correct content present; nothing to correct
+            for canonical in ASR_DOMAIN_VOCABULARY:
+                distance = levenshtein_distance(candidate, canonical)
+                ratio = distance / max(len(candidate), len(canonical))
+                if ratio <= max_distance_ratio:
+                    if best_match is None or ratio < best_match[2]:
+                        best_match = (candidate, canonical, ratio)
+
+    if best_match is None:
+        return None
+    return best_match[0], best_match[1]
+
+
+def find_likely_asr_misrecognition(text: str) -> Optional[tuple[str, str]]:
+    """
+    Returns (heard_phrase, corrected_phrase) if `text` appears to contain a
+    mangled technical term, else None. Checks the curated static map first
+    (fast, zero false-positive risk), then falls back to fuzzy matching
+    against the domain vocabulary.
+    """
+    lowered = text.lower()
+    for heard, corrected in ASR_MISHEARING_CORRECTIONS.items():
+        if heard in lowered:
+            return heard, corrected
+
+    return _fuzzy_asr_correction_candidate(text)
+
+
+def build_asr_correction_confirmation(heard_phrase: str, corrected_phrase: str) -> str:
+    return f"I think you meant '{corrected_phrase}', not '{heard_phrase}'. Is that right?"
+
+
+def apply_asr_correction(text: str, heard_phrase: str, corrected_phrase: str) -> str:
+    """
+    Case-insensitively substitutes the first occurrence of heard_phrase
+    with corrected_phrase in text, preserving the rest of the message.
+    """
+    pattern = re.compile(re.escape(heard_phrase), re.IGNORECASE)
+    return pattern.sub(corrected_phrase, text, count=1)
+
+
 def correct_spelled_name_with_known_users(
     spelled_name: Optional[str],
     spoken_name: Optional[str] = None,
@@ -1790,7 +1957,7 @@ def compact_previous_summary_for_greeting(
 
     summary = strip_previous_continuity_prefix(summary)
 
-    summary = re.sub(r"^\s*[-*•]\s*", "", summary, flags=re.MULTILINE)
+    summary = re.sub(r"^\s*[-*\u2022]\s*", "", summary, flags=re.MULTILINE)
     summary = re.sub(r"\s+", " ", summary).strip()
 
     if len(summary) <= max_chars:
@@ -1807,11 +1974,11 @@ def fallback_returning_user_greeting(user_profile: dict) -> str:
     )
 
     if not summary:
-        return f"Welcome back, {name}. It is nice to continue our conversation. 🙂"
+        return f"Welcome back, {name}. It is nice to continue our conversation. \U0001F642"
 
     return (
         f"Welcome back, {name}. Last time, we were discussing {summary} "
-        f"Where would you like to continue from? 🙂"
+        f"Where would you like to continue from? \U0001F642"
     )
 
 
@@ -1852,7 +2019,7 @@ def generate_returning_user_response(
 ) -> str:
     if not ENABLE_RETURNING_USER_MEMORY_GREETING:
         name = str(user_profile.get("name", "there")).strip() or "there"
-        return f"Welcome back, {name}. It is nice to continue our conversation. 🙂"
+        return f"Welcome back, {name}. It is nice to continue our conversation. \U0001F642"
 
     memory_context = build_returning_user_context(user_profile)
 
@@ -1874,7 +2041,7 @@ def generate_returning_user_response(
         - keep it warm, concise, and conversational
         - produce 1-2 short sentences
         - end with exactly one friendly facial emoji
-        - use only this emoji: 🙂
+        - use only this emoji: \U0001F642
 
         Required style:
         - Prefer wording like: "Last time, we were working on..." or "Last time, we discussed..."
@@ -1904,6 +2071,12 @@ def generate_returning_user_response(
         raw_reply = response["message"]["content"]
         reply = normalize_reply(raw_reply, "neutral")
 
+        if "[" in reply or "]" in reply:
+            # Same unrendered-placeholder guard as generate_post_warmup_welcome()
+            # -- catches leaked template brackets like "[Name]" regardless
+            # of which name value ended up in the prompt.
+            return fallback_returning_user_greeting(user_profile)
+
         lower_reply = reply.lower()
         if (
             user_profile.get("conversation_summary")
@@ -1930,30 +2103,68 @@ def generate_post_warmup_welcome(client: Client, display_name: str) -> str:
     session 1) is starting now, so there's no ambiguity about which phase
     they're in.
     """
+    is_generic_placeholder_name = display_name.strip().lower() in {"guest", ""}
+
     fallback = (
-        f"Welcome back, {display_name}. Thank you for completing the warm-up. "
-        "We are now starting the actual experiment, beginning at the beginner level. 🙂"
+        "Welcome back! Thank you for completing the warm-up. "
+        "We are now starting the actual experiment, beginning at the beginner level. \U0001F642"
+        if is_generic_placeholder_name
+        else f"Welcome back, {display_name}. Thank you for completing the warm-up. "
+        "We are now starting the actual experiment, beginning at the beginner level. \U0001F642"
     )
 
     try:
-        system_prompt = f"""
-            You are Ameca, a humanoid social robot.
+        if is_generic_placeholder_name:
+            # No real name was captured for this participant ("Guest" is
+            # this script's internal fallback value, not something to
+            # speak aloud). Asking the model to "welcome them back by
+            # name" using the literal word "Guest" was observed causing
+            # it to treat "Guest" as a template placeholder and output
+            # the unrendered bracket text "[Guest's Name]" verbatim.
+            # Skip name personalization entirely for this case instead.
+            system_prompt = """
+                You are Ameca, a humanoid social robot.
 
-            {display_name} just finished a separate warm-up session with you and is
-            now starting the ACTUAL experiment for the first time.
+                A participant just finished a separate warm-up session with you and
+                is now starting the ACTUAL experiment for the first time. Their name
+                was not captured, so greet them warmly WITHOUT using any name or
+                placeholder for one.
 
-            Your task:
-            - welcome them back by name
-            - thank them briefly for completing the warm-up
-            - clearly tell them the actual experiment is starting now, at the
-              beginner level
-            - keep it to 1-2 short sentences
-            - end with exactly one friendly facial emoji, only this one: 🙂
+                Your task:
+                - welcome them back, with no name or placeholder
+                - thank them briefly for completing the warm-up
+                - clearly tell them the actual experiment is starting now, at the
+                  beginner level
+                - keep it to 1-2 short sentences
+                - end with exactly one friendly facial emoji, only this one: \U0001F642
 
-            Do not:
-            - mention JSON, files, or any storage/session mechanics
-            - ask them to choose a level themselves
-            """.strip()
+                Do not:
+                - use any name, placeholder, or bracketed text like "[Name]"
+                - mention JSON, files, or any storage/session mechanics
+                - ask them to choose a level themselves
+                """.strip()
+        else:
+            system_prompt = f"""
+                You are Ameca, a humanoid social robot.
+
+                {display_name} just finished a separate warm-up session with you and is
+                now starting the ACTUAL experiment for the first time.
+
+                Your task:
+                - welcome them back by name, saying "{display_name}" exactly as
+                  written -- it is their actual name, not a placeholder to fill in
+                - thank them briefly for completing the warm-up
+                - clearly tell them the actual experiment is starting now, at the
+                  beginner level
+                - keep it to 1-2 short sentences
+                - end with exactly one friendly facial emoji, only this one: \U0001F642
+
+                Do not:
+                - use bracketed placeholder text like "[Name]" -- always use the
+                  actual name given above, spoken plainly
+                - mention JSON, files, or any storage/session mechanics
+                - ask them to choose a level themselves
+                """.strip()
 
         response = client.chat(
             model=MODEL_NAME,
@@ -1963,9 +2174,20 @@ def generate_post_warmup_welcome(client: Client, display_name: str) -> str:
         )
         raw_reply = response["message"]["content"]
         reply = normalize_reply(raw_reply, "neutral")
-        first_name = display_name.split()[0].lower() if display_name.strip() else ""
-        if first_name and first_name not in reply.lower():
+
+        if "[" in reply or "]" in reply:
+            # Catches unrendered template placeholders like "[Name]" or
+            # "[Guest's Name]" regardless of which branch above produced
+            # them -- a plain substring check on the name alone isn't
+            # enough, since e.g. "guest" is itself a substring of the
+            # malformed "[Guest's Name]".
             return fallback
+
+        if not is_generic_placeholder_name:
+            first_name = display_name.split()[0].lower() if display_name.strip() else ""
+            if first_name and first_name not in reply.lower():
+                return fallback
+
         return reply
     except Exception as exc:
         print_ts(f"Could not generate post-warm-up welcome with LLM: {exc}")
@@ -2950,7 +3172,7 @@ def generate_introduction_response(
         - keep the response to 1-2 short sentences
         - mention the user's name
         - end with exactly one friendly facial emoji
-        - only use this emoji: 🙂
+        - only use this emoji: \U0001F642
 
         Do not:
         - sound robotic
@@ -2974,11 +3196,17 @@ def generate_introduction_response(
         )
 
         raw_reply = response["message"]["content"]
-        return normalize_reply(raw_reply, "neutral")
+        reply = normalize_reply(raw_reply, "neutral")
+
+        if "[" in reply or "]" in reply:
+            # Same unrendered-placeholder guard as generate_post_warmup_welcome().
+            return f"Hello {user_name}. I am Ameca. It is nice to meet you. \U0001F642"
+
+        return reply
 
     except Exception as exc:
         print_ts(f"Could not generate introduction with LLM: {exc}")
-        return f"Hello {user_name}. I am Ameca. It is nice to meet you. 🙂"
+        return f"Hello {user_name}. I am Ameca. It is nice to meet you. \U0001F642"
 
 
 # =========================
@@ -3406,7 +3634,11 @@ def run_session_recap_qa(
         })
         history.append({"role": "assistant", "content": feedback_text})
 
-TOPIC_PROMPT_QUESTION = "What would you like to talk about today?"
+TOPIC_PROMPT_QUESTION = (
+    "Today I can teach you one beginner topic: machine learning, how robots sense "
+    "the world, or large language models. I suggest we start with machine "
+    "learning. Ready?"
+)
 
 
 def ask_topic_choice_question(
@@ -3527,74 +3759,11 @@ def safe_json_extract(raw: str):
 # =========================
 
 SELF_RAG_TRIGGER_PHRASES = [
-    "robotic research laboratory",
-    "robotic research lab",
+    "robotics research laboratory",
+    "robotics research lab",
     "rrlab",
     "rr lab",
 ]
-
-def llm_retrieve_gate(client: Client, user_text: str, history: list[dict]) -> RetrieveGateDecision:
-    recent_turns = "\n".join(f"{item['role']}: {item['content']}" for item in (history or [])[-4:])
-
-    prompt = f"""
-        You are the retrieval-gating component of a lab robot's knowledge system.
-
-        Decide whether answering the LATEST user message well requires searching the
-        RRLab local knowledge base (staff, current/finished projects, external robots like
-        RAVON, Robin, Unimog, CARL, or publications).
-
-        Recent conversation:
-        {recent_turns}
-
-        Latest user message:
-        {user_text}
-
-        Return JSON only:
-        {{"should_retrieve": true, "confidence": 0.0, "reason": "short reason"}}
-
-        Rules:
-        - true ONLY if the message asks about a specific RRLab staff member, project,
-          external robot platform, or publication requiring lab-specific facts.
-        - false for general questions about Ameca itself (capabilities, height, motors,
-          identity) as those are already in system memory.
-        - false for general AI/robotics concepts or small talk.
-        - false for generic teaching/lesson requests that merely mention the words "AI"
-          or "robotics" without naming a specific lab entity (e.g. "teach me about AI and
-          robotics", "explain robotics to me", "teach me something about AI robotics") --
-          these should be answered from general knowledge, not retrieval.
-
-        Examples:
-        - "teach me something about AI robotics" -> should_retrieve: false
-        - "what is machine learning?" -> should_retrieve: false
-        - "what's the difference between AI and robotics?" -> should_retrieve: false
-        - "who is Ashita Ashok?" -> should_retrieve: true
-        - "tell me about the CREA robot" -> should_retrieve: true
-        """.strip()
-
-    try:
-        response = client.chat(
-            model=MODEL_NAME,
-            format="json",
-            messages=[
-                {"role": "system", "content": "You return valid JSON only."},
-                {"role": "user", "content": prompt},
-            ],
-            options={"temperature": 0.0, "num_predict": 120, "num_ctx": 2048},
-            stream=False,
-        )
-        data = safe_json_extract(response["message"]["content"])
-        if not isinstance(data, dict):
-            return RetrieveGateDecision(False, 0.0, "Gate call returned unparseable output.", "none")
-
-        should_retrieve = bool(data.get("should_retrieve", False))
-        confidence = max(0.0, min(1.0, float(data.get("confidence", 0.0))))
-        reason = str(data.get("reason", "")).strip()
-        return RetrieveGateDecision(should_retrieve, confidence, reason, "llm_gate" if should_retrieve else "none")
-
-    except Exception as exc:
-        print_ts(f"[Self-RAG] LLM retrieve-gate call failed: {exc}; defaulting to no retrieval.")
-        return RetrieveGateDecision(False, 0.0, f"Gate call failed: {exc}", "none")
-
 
 def mentions_self_rag_trigger_keyword(text: str) -> bool:
     """
@@ -4356,7 +4525,7 @@ def generate_grounded_self_rag_answer(
         - Answer using the retrieved knowledge while keeping the ongoing lesson context in mind.
         - If the exact name, role, or project fact is missing, state that you could not verify it from lab knowledge.
         - Keep the answer to 1-2 short sentences.
-        - "emoji" is your own facial expression for THIS answer (e.g. 😊 😢 😠 😨 😮 🤢 🙂).
+        - "emoji" is your own facial expression for THIS answer (e.g. \U0001F60A \U0001F622 \U0001F620 \U0001F628 \U0001F62E \U0001F922 \U0001F642).
 
         Return JSON only:
         {{
@@ -4453,31 +4622,19 @@ def build_self_rag_context(
     client: Client,
     store: SelfRAGStore,
     user_text: str,
-    history: Optional[list[dict]] = None,
 ) -> SelfRAGContext:
 
     if not store.enabled:
         return self_rag_disabled_context(user_text, "Self-RAG store is not enabled.", store.error)
 
-    keyword_hit = mentions_self_rag_trigger_keyword(user_text)
-
-    if keyword_hit:
-        trigger = "keyword"
-    elif ENABLE_LLM_RETRIEVE_GATE:
-        gate_decision = llm_retrieve_gate(client, user_text, history or [])
-        if not gate_decision.should_retrieve:
-            return SelfRAGContext(
-                available=True, used=False, query=user_text, context_text="", sources=[],
-                reason=f"Neither gate fired (LLM gate reason: {gate_decision.reason}).",
-                trigger="none",
-            )
-        trigger = "llm_gate"
-    else:
+    if not mentions_self_rag_trigger_keyword(user_text):
         return SelfRAGContext(
             available=True, used=False, query=user_text, context_text="", sources=[],
-            reason="No trigger phrase and LLM retrieve-gate disabled.", trigger="none",
+            reason="No trigger phrase ('robotics research lab' / 'RRLab') mentioned.",
+            trigger="none",
         )
 
+    trigger = "keyword"
     candidates = retrieve_self_rag_candidates(store, user_text)
     if not candidates:
         person_lookup_name = extract_person_lookup_name(user_text)
@@ -4498,7 +4655,22 @@ def build_self_rag_context(
         result.trigger = trigger
         return result
 
-    should_use, reason = grade_self_rag_context(client, user_text, candidates)
+
+    # When the user explicitly named the lab (keyword trigger, not the LLM
+    # gate) and the top retrieved candidate already clears a stricter bar
+    # than the normal minimum, skip the extra grading LLM call entirely --
+    # intent and relevance are both already strongly confirmed, so grading
+    # would just be a redundant round-trip on the critical path.
+    top_hybrid_score = candidates[0].get("hybrid_score", 0.0)
+    skip_grading = top_hybrid_score >= SELF_RAG_SKIP_GRADE_KEYWORD_MIN_SCORE
+
+    if skip_grading:
+        should_use, reason = True, (
+            f"Grading skipped: keyword trigger fired with a strong top hybrid "
+            f"score ({top_hybrid_score:.2f} >= {SELF_RAG_SKIP_GRADE_KEYWORD_MIN_SCORE:.2f})."
+        )
+    else:
+        should_use, reason = grade_self_rag_context(client, user_text, candidates)
     if not should_use:
         return SelfRAGContext(
             available=True,
@@ -4763,15 +4935,15 @@ def build_emotion_prompt(transcribed_text: str) -> str:
         - "neutral" is a full, equally valid class, not a fallback of last resort: choose
           it whenever the message is primarily factual, informational, or a question
           without explicit emotional language.
-        - Positive excitement, appreciation, compliments, or enthusiasm → happiness.
+        - Positive excitement, appreciation, compliments, or enthusiasm \u2192 happiness.
         - Surprise requires genuine shock or being caught off guard, not simply saying "wow" or "interesting".
         - Anger requires clear hostility, insults, or explicit frustration. Repeating a question or correcting the assistant is not anger.
         - If multiple emotions appear, choose the strongest single emotion.
 
         Confidence:
-        - 0.85–1.00: explicit emotional language.
-        - 0.55–0.80: emotion is present but somewhat inferred.
-        - 0.30–0.50: mostly neutral or factual with only weak emotional evidence.
+        - 0.85\u20131.00: explicit emotional language.
+        - 0.55\u20130.80: emotion is present but somewhat inferred.
+        - 0.30\u20130.50: mostly neutral or factual with only weak emotional evidence.
 
         Return ONLY valid JSON in exactly this format:
 
@@ -4981,13 +5153,20 @@ _MULTI_PART_QUESTION_RE = re.compile(
     r"is|are|please|give|explain|tell|describe|provide|show|compare|list)\b",
     re.IGNORECASE,
 )
+
+
 _ABBREVIATION_PERIOD_RE = re.compile(r"\b(?:e\.g|i\.e|etc|vs|approx|no|fig|eq)\.$", re.IGNORECASE)
 _LIST_MARKER_PERIOD_RE = re.compile(r"(?:^|\s)\d{1,2}\.$")
 
 
 def _is_real_sentence_boundary(text_up_to_period: str) -> bool:
-    """True only if the trailing '.' actually ends a sentence, not an
-    abbreviation (e.g., i.e., etc.) or a bare numbered-list marker (e.g. '4.')."""
+    """
+    True only if the trailing '.' actually ends a sentence, rather than
+    being part of an abbreviation (e.g., i.e., etc.) or a bare numbered-
+    list marker (e.g. '4.'). Without this check, truncate_to_max_words()
+    would treat those periods as valid sentence ends and cut the reply
+    off mid-parenthetical or right after a bare list number.
+    """
     if _ABBREVIATION_PERIOD_RE.search(text_up_to_period):
         return False
     if _LIST_MARKER_PERIOD_RE.search(text_up_to_period):
@@ -5005,9 +5184,6 @@ def truncate_to_max_words(text: str, max_words: int = MAX_REPLY_WORDS) -> str:
 
     truncated = " ".join(words[:max_words])
 
-    # Scan candidate sentence-ending punctuation from the end, skipping any
-    # that turn out to be abbreviations or list markers rather than real
-    # sentence boundaries.
     last_sentence_end = -1
     for idx in range(len(truncated) - 1, -1, -1):
         if truncated[idx] in ".!?":
@@ -5019,8 +5195,9 @@ def truncate_to_max_words(text: str, max_words: int = MAX_REPLY_WORDS) -> str:
         return truncated[: last_sentence_end + 1].strip()
 
     truncated = truncated.rstrip()
-    # Also strip a dangling bare list marker/number or open parenthetical
-    # left at the very end after word-count truncation.
+    # No usable sentence boundary was found -- strip a dangling bare list
+    # marker/number or an open "(e.g." left at the very end by word-count
+    # truncation, rather than leaving it hanging in front of the emoji.
     truncated = re.sub(r"(?:^|\s)\(?\d{1,2}\.?\s*$", "", truncated).rstrip()
     truncated = re.sub(r"\(\s*e\.?g\.?\s*$", "", truncated, flags=re.IGNORECASE).rstrip()
     if truncated and truncated[-1] not in ".!?":
@@ -5074,15 +5251,84 @@ def is_farewell_utterance(text: str) -> bool:
     return any(phrase in lowered for phrase in FAREWELL_TERMINATION_PHRASES)
 
 
-def deterministic_reply_if_applicable(user_text: str, emotion: str) -> Optional[str]:
+TOPIC_CHANGE_REQUEST_RE = re.compile(
+    r"\b(?:other topic|different topic|another topic|change (?:the )?topic|"
+    r"something else|what else can we|what other topic|what other topics|"
+    r"switch topic|new topic|talk about (?:something|anything) else)\b",
+    re.IGNORECASE,
+)
+
+
+def looks_like_topic_change_request(text: str) -> bool:
+    """
+    Detects meta-conversational "let's move to a different topic" requests
+    (e.g. "which other topic can we talk about?"). These have no natural
+    fit in the teaching-answer JSON schema and were observed causing the
+    small local model to repeatedly fail to produce parseable output (two
+    failed attempts in a row, falling through to the generic "didn't quite
+    catch that" apology). Handled deterministically instead, the same way
+    date/time questions are, for both reliability and one fewer LLM call.
+    """
+    return bool(TOPIC_CHANGE_REQUEST_RE.search(text.strip()))
+
+
+# Mirrors the three options offered in TOPIC_PROMPT_QUESTION at session
+# start, plus a couple of natural follow-on topics, so a mid-session
+# "what else can we talk about" gets concrete, curriculum-consistent
+# suggestions rather than an open-ended question.
+AVAILABLE_LESSON_TOPICS: list[tuple[str, str]] = [
+    ("machine learning", "the basics of machine learning"),
+    ("robot perception", "how robots sense the world"),
+    ("large language models", "how large language models work"),
+    ("neural networks", "how neural networks are built and trained"),
+    ("human-robot interaction", "how robots like me interact with people"),
+]
+
+
+def build_topic_change_reply(lesson_state: Optional["LessonState"]) -> str:
+    covered: set[str] = set()
+    if lesson_state is not None:
+        if lesson_state.current_topic:
+            covered.add(lesson_state.current_topic.strip().lower())
+        for concept in lesson_state.covered_concepts:
+            covered.add(concept.strip().lower())
+
+    def _already_covered(name: str) -> bool:
+        name_lower = name.lower()
+        return any(name_lower in c or c in name_lower for c in covered)
+
+    remaining = [(name, desc) for name, desc in AVAILABLE_LESSON_TOPICS if not _already_covered(name)]
+    if not remaining:
+        # Everything on the list has come up already; offer to go deeper
+        # on the existing set rather than claiming there's nothing left.
+        remaining = AVAILABLE_LESSON_TOPICS
+
+    options = remaining[:3]
+    descriptions = [desc for _, desc in options]
+    if len(descriptions) == 1:
+        topic_text = descriptions[0]
+    else:
+        topic_text = ", ".join(descriptions[:-1]) + f", or {descriptions[-1]}"
+
+    return f"We could talk about {topic_text}. Which would you like?"
+
+
+def deterministic_reply_if_applicable(
+    user_text: str,
+    emotion: str,
+    lesson_state: Optional["LessonState"] = None,
+) -> Optional[str]:
     text = user_text.strip().lower()
-    emoji = EKMAN_EMOTIONS.get(emotion, "🙂")
+    emoji = EKMAN_EMOTIONS.get(emotion, "\U0001F642")
 
     if "today's date" in text or "todays date" in text or "what is the date" in text:
         return f"Today is {datetime.now().strftime('%A, %B %d, %Y')}. {emoji}"
 
     if "what is the time" in text or "what time is it" in text or "current time" in text:
         return f"The current time is {datetime.now().strftime('%H:%M')}. {emoji}"
+
+    if looks_like_topic_change_request(text):
+        return f"{build_topic_change_reply(lesson_state)} {emoji}"
 
     return None
 
@@ -5131,7 +5377,7 @@ def extra_reponse_propmt_guideline(clean_emotion_summary):
             f"Choose exactly one emoji, treating all {len(EKMAN_EMOTIONS)} classes as "
             "equally valid options: " + " ".join(EKMAN_EMOTIONS.values()),
             "Do not use any other emoji, emoticon, or symbol.",
-            "Neutral (🙂) is a genuine, first-class choice for ordinary informative or "
+            "Neutral (\U0001F642) is a genuine, first-class choice for ordinary informative or "
             "teaching answers with no strong affect -- it is not a fallback for "
             "uncertainty; choose whichever of the seven classes actually matches the "
             "tone of your reply.",
@@ -5155,7 +5401,7 @@ OUTPUT INSTRUCTIONS -- these override anything above about output format:
   emoticon inside it. If the user asked for examples, a list, or specific
   details, include the real content -- not just a lead-in sentence.
 - "emoji" is YOUR OWN facial expression for this reply, chosen from exactly
-  this set: 😊 😢 😠 😨 😮 🤢 🙂 -- congruent with what your reply is
+  this set: \U0001F60A \U0001F622 \U0001F620 \U0001F628 \U0001F62E \U0001F922 \U0001F642 -- congruent with what your reply is
   expressing, not a copy of the user's detected emotion.
 - Correct output shape: {"reply": "AI differs from normal programming because...", "emoji": "\U0001F60A", "tone": "curious"}
 - Incorrect (never do this): {"role": "Ameca, a humanoid social robot..."}
@@ -5253,15 +5499,24 @@ def _attempt_llm_response(
     self_rag_context: Optional[SelfRAGContext],
     repeat_penalty: float,
     max_words: int = MAX_REPLY_WORDS,
+    temperature_override: Optional[float] = None,
+    debug_log: Optional[list[str]] = None,
+    response_format: Optional[str] = "json",
 ) -> Optional[GeneratedReply]:
+
+    temperature = (
+        temperature_override
+        if temperature_override is not None
+        else (0.25 if self_rag_context and self_rag_context.used else 0.4)
+    )
 
     try:
         response = client.chat(
             model=MODEL_NAME,
-            format="json",
+            format=response_format,
             messages=messages,
             options={
-                "temperature": 0.25 if self_rag_context and self_rag_context.used else 0.4,
+                "temperature": temperature,
                 "num_predict": min(500, int(max_words * 1.6) + 60),
                 "repeat_penalty": repeat_penalty,
                 "num_ctx": 8192,
@@ -5270,6 +5525,8 @@ def _attempt_llm_response(
         )
     except Exception as exc:
         print_ts(f"Response generation LLM call failed ({exc}).")
+        if debug_log is not None:
+            debug_log.append(f"[call_failed] {exc}")
         raise _LLMCallFailed(str(exc)) from exc
 
     raw_reply = response["message"]["content"]
@@ -5301,6 +5558,8 @@ def _attempt_llm_response(
             f"[DEBUG] Rejecting response: parsed JSON but 'reply' field was empty/degenerate. "
             f"Raw LLM reply: {raw_reply!r}"
         )
+        if debug_log is not None:
+            debug_log.append(f"[empty_or_degenerate_reply_field] {raw_reply!r}")
         return None
 
     if _is_degenerate_reply_text(raw_reply) or _looks_like_unparsed_json_schema(raw_reply):
@@ -5308,6 +5567,8 @@ def _attempt_llm_response(
             f"[DEBUG] Rejecting response: could not parse JSON and raw text looked degenerate/"
             f"unparsed-schema. Raw LLM reply: {raw_reply!r}"
         )
+        if debug_log is not None:
+            debug_log.append(f"[unparseable_or_degenerate] {raw_reply!r}")
         return None
 
     # Unparsed but non-degenerate raw text (rare): no model-chosen emoji is
@@ -5424,7 +5685,7 @@ def repair_incomplete_reply(
         (aim for 3-6 sentences total, not a bare list).
 
         Return JSON only:
-        {{"reply": "revised response without emoji", "emoji": "one of 😊 😢 😠 😨 😮 🤢 🙂"}}
+        {{"reply": "revised response without emoji", "emoji": "one of \U0001F60A \U0001F622 \U0001F620 \U0001F628 \U0001F62E \U0001F922 \U0001F642"}}
         """.strip()
 
     try:
@@ -5490,7 +5751,7 @@ def repair_scaffold_leading_question(
         Do not explain. It must end with a question mark.
 
         Return JSON only:
-        {{"reply": "the single leading question, no emoji", "emoji": "one of 😊 😢 😠 😨 😮 🤢 🙂"}}
+        {{"reply": "the single leading question, no emoji", "emoji": "one of \U0001F60A \U0001F622 \U0001F620 \U0001F628 \U0001F62E \U0001F922 \U0001F642"}}
         """.strip()
 
     try:
@@ -5575,6 +5836,25 @@ def verify_and_repair_reply(
     return generated_reply, verification_log
 
 
+# Deliberately tiny system prompt used only as a last resort (see
+# generate_response()'s third attempt below) when the full-context prompt
+# has already failed to produce parseable output twice in a row. Session
+# transcripts have shown occasional back-to-back generation failures on
+# otherwise-ordinary questions; stripping away the large background
+# context/lesson-state/self-RAG blocks for one final attempt trades away
+# lesson continuity in exchange for a real answer instead of a second
+# "sorry, could you repeat that" in the same conversation.
+MINIMAL_FALLBACK_SYSTEM_PROMPT = """
+You are Ameca, a friendly humanoid robot tutor for AI and Robotics topics,
+speaking with a beginner-level student.
+
+Answer the user's message directly and simply, in 2-4 sentences.
+
+Return JSON only, exactly this shape, nothing else:
+{"reply": "your answer, no emoji inside it", "emoji": "one of \U0001F60A \U0001F622 \U0001F620 \U0001F628 \U0001F62E \U0001F922 \U0001F642", "tone": "short description"}
+""".strip()
+
+
 def generate_response(
     client: Client,
     user_text: str,
@@ -5586,11 +5866,14 @@ def generate_response(
     session_context: Optional["SessionContext"] = None,
     lesson_state: Optional["LessonState"] = None,
     force_multi_part: bool = False,
+    awaiting_retention_check: bool = False,
+    generation_debug: Optional[dict] = None,
 ) -> GeneratedReply:
 
     deterministic = deterministic_reply_if_applicable(
         user_text=user_text,
         emotion=emotion_result.emotion,
+        lesson_state=lesson_state,
     )
 
     if deterministic:
@@ -5601,7 +5884,8 @@ def generate_response(
 
     reply_max_words = resolve_reply_word_budget(
         intent=lesson_state.last_intent if lesson_state else "continue",
-        is_multi_part=looks_like_multi_part_question(safe_user_text) or force_multi_part,   
+        is_multi_part=looks_like_multi_part_question(safe_user_text) or force_multi_part,
+        awaiting_retention_check=awaiting_retention_check,
     )
 
     system_prompt = build_response_system_prompt(
@@ -5644,6 +5928,8 @@ def generate_response(
 
     call_failed = False
     generated: Optional[GeneratedReply] = None
+    raw_attempts: list[str] = []
+
     try:
         generated = _attempt_llm_response(
             client=client,
@@ -5652,6 +5938,7 @@ def generate_response(
             self_rag_context=self_rag_context,
             repeat_penalty=1.1,
             max_words=reply_max_words,
+            debug_log=raw_attempts,
         )
     except _LLMCallFailed:
         call_failed = True
@@ -5662,6 +5949,10 @@ def generate_response(
 
     print_ts("Response generation produced no usable content on the first attempt; retrying once.")
     try:
+        # Bump temperature on retry rather than repeating an identical
+        # call -- a retry with the same sampling settings on the same
+        # messages is prone to correlated failure (same malformed-JSON
+        # pattern recurring), giving little real diversity of outcome.
         generated = _attempt_llm_response(
             client=client,
             messages=messages,
@@ -5669,6 +5960,8 @@ def generate_response(
             self_rag_context=self_rag_context,
             repeat_penalty=1.1,
             max_words=reply_max_words,
+            temperature_override=0.65,
+            debug_log=raw_attempts,
         )
         call_failed = False
     except _LLMCallFailed:
@@ -5677,6 +5970,52 @@ def generate_response(
     if generated is not None:
         _record_sample(generated.text)
         return generated
+
+    if not call_failed:
+        # Both real attempts produced unparseable/degenerate output but the
+        # connection itself is fine -- try once more with a deliberately
+        # tiny system prompt (no background context, lesson state, or
+        # Self-RAG block) before giving up. This trades lesson continuity
+        # for an actual answer, which is better than a second consecutive
+        # "sorry, could you repeat that" in the same conversation.
+        print_ts("Both full-context attempts failed; trying a minimal-prompt last resort.")
+        minimal_messages = [
+            {"role": "system", "content": MINIMAL_FALLBACK_SYSTEM_PROMPT},
+            {"role": "user", "content": safe_user_text},
+        ]
+        try:
+            generated = _attempt_llm_response(
+                client=client,
+                messages=minimal_messages,
+                emotion_result=emotion_result,
+                self_rag_context=None,
+                repeat_penalty=1.1,
+                max_words=min(reply_max_words, 90),
+                temperature_override=0.5,
+                debug_log=raw_attempts,
+                # Session logs have shown the root cause of these
+                # back-to-back failures is literally an empty '{}' from
+                # Ollama's JSON-mode constrained decoding, not malformed
+                # text -- a known small-model failure pattern under
+                # grammar-constrained decoding when it's uncertain. Drop
+                # the hard format constraint for this last attempt; the
+                # prompt still asks for JSON, but a plain-text reply is
+                # also handled by the unparsed-non-degenerate path below.
+                response_format=None,
+            )
+        except _LLMCallFailed:
+            call_failed = True
+
+        if generated is not None:
+            if generation_debug is not None:
+                generation_debug["raw_attempts"] = raw_attempts
+                generation_debug["recovered_via"] = "minimal_prompt_last_resort"
+            _record_sample(generated.text)
+            return generated
+
+    if generation_debug is not None:
+        generation_debug["raw_attempts"] = raw_attempts
+        generation_debug["call_failed"] = call_failed
 
     if call_failed:
         print_ts("Response generation LLM call failed on both attempts; using connectivity fallback reply.")
@@ -5688,7 +6027,7 @@ def generate_response(
         _record_sample(fallback_text)
         return GeneratedReply(text=fallback_text, response_emotion="neutral")
 
-    print_ts("Response generation produced no usable content on retry either; using fallback reply.")
+    print_ts("Response generation produced no usable content after all attempts; using fallback reply.")
     fallback_text = normalize_reply(
         "Sorry, could you say that again? I didn't quite catch a clear response that time.",
         "neutral",
@@ -5858,31 +6197,6 @@ def main() -> None:
 
     emotion_smoothing_enabled = EMOTION_SMOOTHING_ENABLED and not args.disable_emotion_smoothing
     emotion_smoothing_alpha = args.emotion_smoothing_alpha
-
-    # print_ts(
-    #     "Starting integrated Ameca demo: Silero VAD + faster-whisper + persistent memory + Self-RAG + "
-    #     "text-only emotion detection (Ekman taxonomy) + temporal smoothing + Tritium TTS + "
-    #     "Tritium facial expression + ZED session-video recording. No camera/visual modality and no "
-    #     "vocal-prosody modality are used for emotion recognition (the camera here only records video)."
-    # )
-    # print_ts(f"Python: {sys.version.split()[0]}")
-    # print_ts(f"Ollama host: {OLLAMA_HOST}")
-    # print_ts(f"Ollama chat model: {MODEL_NAME}")
-    # print_ts(f"Ollama embedding model (Self-RAG): {SELF_RAG_EMBED_MODEL}")
-    # print_ts(f"Tritium TTS URL: {args.tts_url}")
-    # print_ts(f"Tritium expression host: {args.expression_host} (disabled={args.disable_expression})")
-    # print_ts(f"Temporal emotion smoothing enabled: {emotion_smoothing_enabled} (alpha={emotion_smoothing_alpha})")
-    # print_ts(f"Expression timing: {EXPRESSION_TIMING} (nod after speech: {NOD_AFTER_SPEECH_ENABLED}, sequence='{NOD_SEQUENCE_NAME}')")
-    # print_ts(
-    #     f"Emotion taxonomy: {len(EKMAN_EMOTIONS)} classes "
-    #     f"({', '.join(EKMAN_EMOTIONS.keys())}); neutral is a coequal class, not a "
-    #     "fallback; modality: text only."
-    # )
-    # print_ts("Negative facial expressions are suppressed on Ameca's physical face by design; empathy is expressed via spoken tone instead.")
-    # print_ts(f"Self-RAG trigger phrases (keyword gate): {SELF_RAG_TRIGGER_PHRASES}")
-    # print_ts(f"Self-RAG LLM retrieve-gate enabled: {ENABLE_LLM_RETRIEVE_GATE}")
-    # print_ts(f"ISUSE (response-usefulness) logging-only check enabled: {ENABLE_ISUSE_CHECK}")
-    # print_ts(f"Session video recording enabled: {not args.disable_video_recording} (resolution={args.resolution}, camera={args.camera})")
 
     print()
 
@@ -6064,14 +6378,6 @@ def main() -> None:
         print()
 
     print("Automatic listening mode is active.")
-    # print(
-    #     "Speak naturally. Silero VAD will detect speech; faster-whisper will transcribe the utterance; "
-    #     "text-only emotion detection (no camera/visual input, no vocal-prosody analysis, with cross-turn "
-    #     "temporal smoothing) will determine the Ekman emotion; Ameca's face will update to match (never "
-    #     "with a negative expression) via Tritium sequence_player, waiting for that expression to finish "
-    #     "playing before speaking; and Ameca will respond out loud via Tritium TTS, acknowledging negative "
-    #     "emotions empathetically in words, then nod once done talking."
-    # )
     print("Say '/exit', or say a farewell such as 'goodbye', to save the transcript and quit.")
     print()
 
@@ -6128,6 +6434,7 @@ def main() -> None:
     turn_index = 0
     turns_since_comprehension_check = 0
     pending_scaffold: Optional[dict] = None
+    pending_asr_correction: Optional[dict] = None
 
     try:
         while True:
@@ -6160,7 +6467,7 @@ def main() -> None:
 
             # ---------- Spoken farewell: terminate the session ----------
             if is_farewell_utterance(user_text):
-                farewell_reply = "Thank you, and take care. 🙂"
+                farewell_reply = "Thank you, and take care. \U0001F642"
                 print_ts(f"Assistant: {farewell_reply}")
                 speak_with_turn_end_cue(
                     robot_speaker=robot_speaker,
@@ -6234,10 +6541,89 @@ def main() -> None:
                 self_rag_store = rebuild_self_rag_collection(self_rag_store)
                 continue
 
+            # ---------- Resolve a pending ASR-mishearing confirmation ----------
+            # If the previous turn ended by asking "did you mean X, not Y?",
+            # this turn's utterance is the answer to that question, not a
+            # new topic in its own right -- substitute the corrected (or,
+            # if declined, original) text and fall through to normal
+            # processing using it.
+            if pending_asr_correction is not None:
+                correction = pending_asr_correction
+                pending_asr_correction = None
+                raw_confirmation_reply = user_text
+
+                wants_correction = parse_yes_no(raw_confirmation_reply, default=True)
+                user_text = (
+                    apply_asr_correction(
+                        correction["original_text"],
+                        correction["heard_phrase"],
+                        correction["corrected_phrase"],
+                    )
+                    if wants_correction
+                    else correction["original_text"]
+                )
+                print_ts(
+                    f"[ASR] Correction {'confirmed' if wants_correction else 'declined'}; "
+                    f"proceeding with: {user_text!r}"
+                )
+
+                session_log.append({
+                    "role": "user",
+                    "content": raw_confirmation_reply,
+                    "timestamp": now_ts(),
+                    "intent": "asr_correction_confirmation_response",
+                })
+                history.append({"role": "user", "content": raw_confirmation_reply})
+                # user_text now holds the effective text for this turn;
+                # falls through to the normal processing try-block below.
+
+            # ---------- Detect a NEW likely ASR mishearing ----------
+            # Only checked when we're not already resolving one above (a
+            # confirmation reply like "yes"/"no" should never itself be
+            # re-scanned for mishearings).
+            elif (misrecognition := find_likely_asr_misrecognition(user_text)) is not None:
+                heard_phrase, corrected_phrase = misrecognition
+                confirmation_text = normalize_reply(
+                    build_asr_correction_confirmation(heard_phrase, corrected_phrase),
+                    "neutral",
+                    1.0,
+                )
+                print_ts(f"[ASR] Possible mishearing detected: '{heard_phrase}' -> '{corrected_phrase}'")
+
+                speak_with_turn_end_cue(
+                    robot_speaker=robot_speaker,
+                    robot_expression=robot_expression,
+                    text=confirmation_text,
+                    emotion="neutral",
+                    disable_expression=args.disable_expression,
+                )
+
+                session_log.append({
+                    "role": "user",
+                    "content": user_text,
+                    "timestamp": now_ts(),
+                    "intent": "possible_asr_misrecognition",
+                })
+                session_log.append({
+                    "role": "assistant",
+                    "content": confirmation_text,
+                    "timestamp": now_ts(),
+                    "intent": "asr_correction_confirmation_request",
+                })
+                history.append({"role": "user", "content": user_text})
+                history.append({"role": "assistant", "content": confirmation_text})
+
+                pending_asr_correction = {
+                    "original_text": user_text,
+                    "heard_phrase": heard_phrase,
+                    "corrected_phrase": corrected_phrase,
+                }
+                continue
+
             try:
                 parallel_start = time.time()
                 should_classify_question_level = pending_scaffold is None and looks_like_question(user_text)
-                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as concurrent_executor:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as concurrent_executor:
                     text_emotion_future = concurrent_executor.submit(
                         detect_emotion,
                         client=client,
@@ -6248,7 +6634,6 @@ def main() -> None:
                         client=client,
                         store=self_rag_store,
                         user_text=user_text,
-                        history=history,
                     )
                     question_level_future = (
                         concurrent_executor.submit(classify_question_level, client, user_text)
@@ -6274,6 +6659,16 @@ def main() -> None:
 
                     question_level = question_level_future.result() if question_level_future else None
                     planner_output = planner_future.result()
+
+                    # Capture BEFORE apply_planner_output() clears the flag
+                    # (it consumes/resets awaiting_retention_check as part
+                    # of applying this turn's planner decision) -- needed
+                    # further down to give the retention-check reply a
+                    # tighter word budget than a normal "continue" answer.
+                    was_awaiting_retention_check = (
+                        lesson_state.awaiting_retention_check if lesson_state else False
+                    )
+
                     apply_planner_output(lesson_state, planner_output)
 
                     is_multi_part_turn = (
@@ -6362,7 +6757,11 @@ def main() -> None:
                         pending_scaffold["current_level"] = level_name_for_rank(new_rank)
 
                         scaffold_stage = "final_answer" if new_rank >= target_rank else "ask_leading"
-                elif question_level and QUESTION_LEVEL_RANK.get(question_level, 0) > QUESTION_LEVEL_RANK.get(explanation_level, 0):
+                elif (
+                    ENABLE_SCAFFOLD_MODE
+                    and question_level
+                    and QUESTION_LEVEL_RANK.get(question_level, 0) > QUESTION_LEVEL_RANK.get(explanation_level, 0)
+                ):
                     
                     pending_scaffold = {
                         "original_question": user_text,
@@ -6398,6 +6797,7 @@ def main() -> None:
                     "original_question": (pending_scaffold or {}).get("original_question"),
                 }
 
+                generation_debug: dict = {}
                 generated_reply = generate_response(
                     client=client,
                     user_text=user_text,
@@ -6409,6 +6809,8 @@ def main() -> None:
                     session_context=session_context,
                     lesson_state=lesson_state,
                     force_multi_part=is_multi_part_turn,
+                    awaiting_retention_check=was_awaiting_retention_check,
+                    generation_debug=generation_debug,
                 )
 
 
@@ -6467,6 +6869,7 @@ def main() -> None:
                     "comprehension_check_asked": ask_comprehension_check,
                     "scaffold": scaffold_log,
                     "response_verification": verification_log,
+                    "generation_debug": generation_debug or None,
                 }
 
                 assistant_message = {
@@ -6604,3 +7007,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    
