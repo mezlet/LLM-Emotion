@@ -85,7 +85,7 @@ IS_LINUX = platform.system() == "Linux"
 # Local Ollama configuration
 # =========================
 
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "https://misc-clarity-wild-trinity.trycloudflare.com")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 
 MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
 
@@ -161,6 +161,8 @@ RETURNING_USER_GREETING_MAX_SUMMARY_CHARS = int(os.environ.get("RETURNING_USER_G
 
 _YES_WORDS = {"yes", "yeah", "yep", "yup", "sure", "please", "affirmative", "okay", "ok"}
 _NO_WORDS = {"no", "nope", "nah", "negative", "skip"}
+_ABBREVIATION_PERIOD_RE = re.compile(r"\b(?:e\.g|i\.e|etc|vs|approx|no|fig|eq)\.$", re.IGNORECASE)
+_LIST_MARKER_PERIOD_RE = re.compile(r"(?:^|\s)\d{1,2}\.$")
 
 
 # =========================
@@ -3556,6 +3558,17 @@ def llm_retrieve_gate(client: Client, user_text: str, history: list[dict]) -> Re
         - false for general questions about Ameca itself (capabilities, height, motors,
           identity) as those are already in system memory.
         - false for general AI/robotics concepts or small talk.
+        - false for generic teaching/lesson requests that merely mention the words "AI"
+          or "robotics" without naming a specific lab entity (e.g. "teach me about AI and
+          robotics", "explain robotics to me", "teach me something about AI robotics") --
+          these should be answered from general knowledge, not retrieval.
+
+        Examples:
+        - "teach me something about AI robotics" -> should_retrieve: false
+        - "what is machine learning?" -> should_retrieve: false
+        - "what's the difference between AI and robotics?" -> should_retrieve: false
+        - "who is Ashita Ashok?" -> should_retrieve: true
+        - "tell me about the CREA robot" -> should_retrieve: true
         """.strip()
 
     try:
@@ -4968,6 +4981,18 @@ _MULTI_PART_QUESTION_RE = re.compile(
     r"is|are|please|give|explain|tell|describe|provide|show|compare|list)\b",
     re.IGNORECASE,
 )
+_ABBREVIATION_PERIOD_RE = re.compile(r"\b(?:e\.g|i\.e|etc|vs|approx|no|fig|eq)\.$", re.IGNORECASE)
+_LIST_MARKER_PERIOD_RE = re.compile(r"(?:^|\s)\d{1,2}\.$")
+
+
+def _is_real_sentence_boundary(text_up_to_period: str) -> bool:
+    """True only if the trailing '.' actually ends a sentence, not an
+    abbreviation (e.g., i.e., etc.) or a bare numbered-list marker (e.g. '4.')."""
+    if _ABBREVIATION_PERIOD_RE.search(text_up_to_period):
+        return False
+    if _LIST_MARKER_PERIOD_RE.search(text_up_to_period):
+        return False
+    return True
 
 
 def truncate_to_max_words(text: str, max_words: int = MAX_REPLY_WORDS) -> str:
@@ -4979,11 +5004,25 @@ def truncate_to_max_words(text: str, max_words: int = MAX_REPLY_WORDS) -> str:
         return text
 
     truncated = " ".join(words[:max_words])
-    last_sentence_end = max(truncated.rfind("."), truncated.rfind("!"), truncated.rfind("?"))
+
+    # Scan candidate sentence-ending punctuation from the end, skipping any
+    # that turn out to be abbreviations or list markers rather than real
+    # sentence boundaries.
+    last_sentence_end = -1
+    for idx in range(len(truncated) - 1, -1, -1):
+        if truncated[idx] in ".!?":
+            if truncated[idx] != "." or _is_real_sentence_boundary(truncated[: idx + 1]):
+                last_sentence_end = idx
+                break
+
     if last_sentence_end > int(len(truncated) * 0.4):
         return truncated[: last_sentence_end + 1].strip()
 
     truncated = truncated.rstrip()
+    # Also strip a dangling bare list marker/number or open parenthetical
+    # left at the very end after word-count truncation.
+    truncated = re.sub(r"(?:^|\s)\(?\d{1,2}\.?\s*$", "", truncated).rstrip()
+    truncated = re.sub(r"\(\s*e\.?g\.?\s*$", "", truncated, flags=re.IGNORECASE).rstrip()
     if truncated and truncated[-1] not in ".!?":
         truncated += "."
     return truncated

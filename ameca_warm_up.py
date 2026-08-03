@@ -3305,7 +3305,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
         # ---- Step 3: goals statement ----
         goals_text = (
             f"Nice to meet you, {display_name}. In this warm up session, I have "
-            f"two goals: one, to hold small talk with you, {display_name}; and "
+            f"two goals: to have a base line of your emotional faces; and "
             "two, to hold small talk with you"
         )
         narrator.say_brief(goals_text)

@@ -1,0 +1,745 @@
+{
+  "participant_id": "Z1234",
+  "participant_folder": "Z1234",
+  "display_name": "Wele",
+  "started_at": "2026-08-03T10:51:41",
+  "ended_at": "2026-08-03T10:55:57",
+  "goals_stated": true,
+  "baseline_emotion_rounds": {
+    "joy": {
+      "requested_emotion": "joy",
+      "script": "I received wonderful news today, and I feel very happy and excited.",
+      "transcript": "This is my happy face.",
+      "images": [
+        "warm_up_profile/Z1234/Z1234_1_joy_20260803_105220_966187.jpg",
+        "warm_up_profile/Z1234/Z1234_2_joy_20260803_105220_966487.jpg"
+      ],
+      "captured_at": "2026-08-03T10:52:20"
+    },
+    "sadness": {
+      "requested_emotion": "sadness",
+      "script": "Something important to me did not go as planned, and I feel sad and disappointed.",
+      "transcript": "This is my sad face.",
+      "images": [
+        "warm_up_profile/Z1234/Z1234_3_sadness_20260803_105230_443390.jpg"
+      ],
+      "captured_at": "2026-08-03T10:52:30"
+    },
+    "anger": {
+      "requested_emotion": "anger",
+      "script": "Someone treated me unfairly, and I feel angry about what happened.",
+      "transcript": "I'll put it on for anger.",
+      "images": [],
+      "captured_at": "2026-08-03T10:53:00"
+    },
+    "fear": {
+      "requested_emotion": "fear",
+      "script": "I heard a sudden sound behind me, and I feel frightened because I do not know what caused it.",
+      "transcript": "for fear.",
+      "images": [
+        "warm_up_profile/Z1234/Z1234_4_fear_20260803_105323_200187.jpg",
+        "warm_up_profile/Z1234/Z1234_5_fear_20260803_105323_200521.jpg"
+      ],
+      "captured_at": "2026-08-03T10:53:23"
+    },
+    "surprise": {
+      "requested_emotion": "surprise",
+      "script": "I opened the door and found an unexpected celebration waiting for me.",
+      "transcript": "motion for surprise.",
+      "images": [
+        "warm_up_profile/Z1234/Z1234_6_surprise_20260803_105332_693976.jpg",
+        "warm_up_profile/Z1234/Z1234_7_surprise_20260803_105332_694294.jpg"
+      ],
+      "captured_at": "2026-08-03T10:53:32"
+    },
+    "neutral": {
+      "requested_emotion": "neutral",
+      "script": "This is just a plain description of my day. Nothing about it feels especially strong one way or another.",
+      "transcript": "This is my emotion for neutral",
+      "images": [
+        "warm_up_profile/Z1234/Z1234_8_neutral_20260803_105353_096083.jpg",
+        "warm_up_profile/Z1234/Z1234_9_neutral_20260803_105353_096432.jpg"
+      ],
+      "captured_at": "2026-08-03T10:53:53"
+    }
+  },
+  "test_emotion_round": {
+    "transcript": "I'll be using the same motion.",
+    "fusion": {
+      "emotion": "neutral",
+      "confidence": 0.9591,
+      "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.98, prosody=surprise rel=0.30.",
+      "scores": {
+        "joy": 0.0038,
+        "sadness": 0.0111,
+        "anger": 0.0085,
+        "fear": 0.004,
+        "surprise": 0.0097,
+        "disgust": 0.0038,
+        "neutral": 0.9591
+      },
+      "weights": {
+        "base_text": 0.5,
+        "base_visual": 0.4,
+        "base_prosody": 0.1,
+        "reliability_text": 1.0,
+        "reliability_visual": 0.9828,
+        "reliability_prosody": 0.3,
+        "active_normalized_text": 0.5416,
+        "active_normalized_visual": 0.4259,
+        "active_normalized_prosody": 0.0325
+      },
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "statement about a repetitive action"
+      },
+      "visual_emotion": {
+        "emotion": "neutral",
+        "deepface_emotion": "neutral",
+        "confidence": 0.9713047027587891,
+        "scores": {
+          "angry": 1.1166954040527344,
+          "disgust": 1.2435994278803264e-07,
+          "fear": 0.04230813309550285,
+          "happy": 1.195627646666253e-06,
+          "sad": 1.7105242013931274,
+          "surprise": 4.784566272064694e-07,
+          "neutral": 97.1304702758789
+        },
+        "region": {
+          "x": 1037,
+          "y": 500,
+          "w": 138,
+          "h": 138
+        }
+      },
+      "prosody_emotion": {
+        "available": true,
+        "emotion": "surprise",
+        "confidence": 0.3,
+        "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+        "features": {
+          "peak": 0.9000244140625,
+          "rms": 0.16704824566841125,
+          "duration": 2.592,
+          "energy_std": 0.11049517058627736,
+          "zero_crossing_rate": 0.0839140604277688
+        }
+      }
+    },
+    "image": "warm_up_profile/Z1234/test_10_20260803_105407_805949.jpg",
+    "response": "I detect a neutral tone in your voice with 96% confidence, and I'm glad to hear you're sticking with the same motion!",
+    "captured_at": "2026-08-03T10:54:09"
+  },
+  "qa_session": [
+    {
+      "question": "What is the whole essence of this experiment?",
+      "answer": "The whole essence of this experiment is to study and demonstrate human-robot interaction by having a conversation between Ameca, a humanoid social robot, and a university student on topics related to Artificial Intelligence and Robotics.",
+      "fusion": {
+        "emotion": "neutral",
+        "confidence": 0.9593,
+        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.98, prosody=surprise rel=0.30.",
+        "scores": {
+          "joy": 0.0038,
+          "sadness": 0.0116,
+          "anger": 0.0073,
+          "fear": 0.0045,
+          "surprise": 0.0097,
+          "disgust": 0.0038,
+          "neutral": 0.9593
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 1.0,
+          "reliability_visual": 0.9831,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.5416,
+          "active_normalized_visual": 0.4259,
+          "active_normalized_prosody": 0.0325
+        },
+        "text_emotion": {
+          "emotion": "neutral",
+          "confidence": 1.0,
+          "reason": "The text does not convey a strong emotional tone and appears to be seeking information."
+        },
+        "visual_emotion": {
+          "emotion": "neutral",
+          "deepface_emotion": "neutral",
+          "confidence": 0.9717744445800781,
+          "scores": {
+            "angry": 0.8218851685523987,
+            "disgust": 7.618300514877774e-06,
+            "fear": 0.17756801843643188,
+            "happy": 7.796214777044952e-05,
+            "sad": 1.8229352235794067,
+            "surprise": 8.162372978404164e-05,
+            "neutral": 97.17744445800781
+          },
+          "region": {
+            "x": 1035,
+            "y": 503,
+            "w": 135,
+            "h": 135
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "surprise",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.1469576358795166,
+            "duration": 3.392,
+            "energy_std": 0.09855437680327131,
+            "zero_crossing_rate": 0.1285585303384865
+          }
+        }
+      },
+      "image": "warm_up_profile/Z1234/questions_11_20260803_105437_122806.jpg",
+      "captured_at": "2026-08-03T10:54:38"
+    },
+    {
+      "question": "what is expected of me from this experiment.",
+      "answer": "As a study participant in this human-robot interaction session with Ameca, I expect you to engage as a learner in a lesson on A.I. and Robotics topics, asking questions and responding as you would with a human tutor.",
+      "fusion": {
+        "emotion": "neutral",
+        "confidence": 0.8294,
+        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.54, prosody=surprise rel=0.30.",
+        "scores": {
+          "joy": 0.0047,
+          "sadness": 0.041,
+          "anger": 0.0444,
+          "fear": 0.0637,
+          "surprise": 0.0121,
+          "disgust": 0.0047,
+          "neutral": 0.8294
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 1.0,
+          "reliability_visual": 0.539,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.6706,
+          "active_normalized_visual": 0.2891,
+          "active_normalized_prosody": 0.0402
+        },
+        "text_emotion": {
+          "emotion": "neutral",
+          "confidence": 1.0,
+          "reason": "curiosity and inquiry"
+        },
+        "visual_emotion": {
+          "emotion": "neutral",
+          "deepface_emotion": "neutral",
+          "confidence": 0.5329328918457031,
+          "scores": {
+            "angry": 13.720406532287598,
+            "disgust": 2.416412280581426e-05,
+            "fear": 20.41415023803711,
+            "happy": 1.2864506970799994e-05,
+            "sad": 12.571996688842773,
+            "surprise": 0.00012084261834388599,
+            "neutral": 53.29328918457031
+          },
+          "region": {
+            "x": 1027,
+            "y": 500,
+            "w": 145,
+            "h": 145
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "surprise",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.1418997347354889,
+            "duration": 4.576,
+            "energy_std": 0.09504591939695643,
+            "zero_crossing_rate": 0.11486717202758998
+          }
+        }
+      },
+      "image": "warm_up_profile/Z1234/questions_12_20260803_105508_349111.jpg",
+      "captured_at": "2026-08-03T10:55:10"
+    },
+    {
+      "question": "That will be all.",
+      "answer": "Thank you for the conversation. I've enjoyed sharing my knowledge with you on Artificial Intelligence and Robotics topics. It's been a pleasure assisting you today. If you have any further questions or need clarification, please feel free to ask.",
+      "fusion": {
+        "emotion": "neutral",
+        "confidence": 0.8372,
+        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.45, prosody=surprise rel=0.30.",
+        "scores": {
+          "joy": 0.0049,
+          "sadness": 0.077,
+          "anger": 0.0235,
+          "fear": 0.0398,
+          "surprise": 0.0127,
+          "disgust": 0.0049,
+          "neutral": 0.8372
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 1.0,
+          "reliability_visual": 0.449,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7046,
+          "active_normalized_visual": 0.2531,
+          "active_normalized_prosody": 0.0423
+        },
+        "text_emotion": {
+          "emotion": "neutral",
+          "confidence": 1.0,
+          "reason": "farewell tone"
+        },
+        "visual_emotion": {
+          "emotion": "neutral",
+          "deepface_emotion": "neutral",
+          "confidence": 0.5043675231933594,
+          "scores": {
+            "angry": 7.319868087768555,
+            "disgust": 7.412055310851429e-06,
+            "fear": 13.759176254272461,
+            "happy": 2.2276721210801043e-05,
+            "sad": 28.484155654907227,
+            "surprise": 1.5384746802737936e-05,
+            "neutral": 50.43675231933594
+          },
+          "region": {
+            "x": 1032,
+            "y": 500,
+            "w": 144,
+            "h": 144
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "surprise",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.12489181756973267,
+            "duration": 2.336,
+            "energy_std": 0.09558830154656847,
+            "zero_crossing_rate": 0.05602675585284281
+          }
+        }
+      },
+      "image": "warm_up_profile/Z1234/questions_13_20260803_105531_443348.jpg",
+      "captured_at": "2026-08-03T10:55:33"
+    }
+  ],
+  "conversation": [
+    {
+      "role": "assistant",
+      "content": "Hi, what is your name? Please spell it out for me -- for example, my name is A M E C A, Ameca.",
+      "timestamp": "2026-08-03T10:51:59",
+      "intent": "name_prompt"
+    },
+    {
+      "role": "user",
+      "content": "W-E-L-E",
+      "timestamp": "2026-08-03T10:51:59",
+      "intent": "name_response"
+    },
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Wele. In this warm up session, I have two goals: to have a base line of your emotional faces; and two, to hold small talk with you",
+      "timestamp": "2026-08-03T10:52:12",
+      "intent": "goals_statement"
+    },
+    {
+      "role": "user",
+      "content": "This is my happy face.",
+      "timestamp": "2026-08-03T10:52:20",
+      "intent": "baseline_emotion_reading",
+      "requested_emotion": "joy"
+    },
+    {
+      "role": "assistant",
+      "content": "Next.",
+      "timestamp": "2026-08-03T10:52:22",
+      "intent": "baseline_ack"
+    },
+    {
+      "role": "user",
+      "content": "This is my sad face.",
+      "timestamp": "2026-08-03T10:52:30",
+      "intent": "baseline_emotion_reading",
+      "requested_emotion": "sadness"
+    },
+    {
+      "role": "assistant",
+      "content": "Next.",
+      "timestamp": "2026-08-03T10:52:32",
+      "intent": "baseline_ack"
+    },
+    {
+      "role": "user",
+      "content": "I'll put it on for anger.",
+      "timestamp": "2026-08-03T10:53:00",
+      "intent": "baseline_emotion_reading",
+      "requested_emotion": "anger"
+    },
+    {
+      "role": "assistant",
+      "content": "Next.",
+      "timestamp": "2026-08-03T10:53:01",
+      "intent": "baseline_ack"
+    },
+    {
+      "role": "user",
+      "content": "for fear.",
+      "timestamp": "2026-08-03T10:53:23",
+      "intent": "baseline_emotion_reading",
+      "requested_emotion": "fear"
+    },
+    {
+      "role": "assistant",
+      "content": "Next.",
+      "timestamp": "2026-08-03T10:53:24",
+      "intent": "baseline_ack"
+    },
+    {
+      "role": "user",
+      "content": "motion for surprise.",
+      "timestamp": "2026-08-03T10:53:32",
+      "intent": "baseline_emotion_reading",
+      "requested_emotion": "surprise"
+    },
+    {
+      "role": "assistant",
+      "content": "Next.",
+      "timestamp": "2026-08-03T10:53:34",
+      "intent": "baseline_ack"
+    },
+    {
+      "role": "user",
+      "content": "This is my emotion for neutral",
+      "timestamp": "2026-08-03T10:53:53",
+      "intent": "baseline_emotion_reading",
+      "requested_emotion": "neutral"
+    },
+    {
+      "role": "assistant",
+      "content": "Next.",
+      "timestamp": "2026-08-03T10:53:54",
+      "intent": "baseline_ack"
+    },
+    {
+      "role": "user",
+      "content": "I'll be using the same motion.",
+      "timestamp": "2026-08-03T10:54:09",
+      "intent": "test_emotion",
+      "fusion": {
+        "emotion": "neutral",
+        "confidence": 0.9591,
+        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.98, prosody=surprise rel=0.30.",
+        "scores": {
+          "joy": 0.0038,
+          "sadness": 0.0111,
+          "anger": 0.0085,
+          "fear": 0.004,
+          "surprise": 0.0097,
+          "disgust": 0.0038,
+          "neutral": 0.9591
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 1.0,
+          "reliability_visual": 0.9828,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.5416,
+          "active_normalized_visual": 0.4259,
+          "active_normalized_prosody": 0.0325
+        },
+        "text_emotion": {
+          "emotion": "neutral",
+          "confidence": 1.0,
+          "reason": "statement about a repetitive action"
+        },
+        "visual_emotion": {
+          "emotion": "neutral",
+          "deepface_emotion": "neutral",
+          "confidence": 0.9713047027587891,
+          "scores": {
+            "angry": 1.1166954040527344,
+            "disgust": 1.2435994278803264e-07,
+            "fear": 0.04230813309550285,
+            "happy": 1.195627646666253e-06,
+            "sad": 1.7105242013931274,
+            "surprise": 4.784566272064694e-07,
+            "neutral": 97.1304702758789
+          },
+          "region": {
+            "x": 1037,
+            "y": 500,
+            "w": 138,
+            "h": 138
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "surprise",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.16704824566841125,
+            "duration": 2.592,
+            "energy_std": 0.11049517058627736,
+            "zero_crossing_rate": 0.0839140604277688
+          }
+        }
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "I detect a neutral tone in your voice with 96% confidence, and I'm glad to hear you're sticking with the same motion!",
+      "timestamp": "2026-08-03T10:54:18",
+      "intent": "test_emotion_response"
+    },
+    {
+      "role": "user",
+      "content": "What is the whole essence of this experiment?",
+      "timestamp": "2026-08-03T10:54:38",
+      "intent": "question",
+      "fusion": {
+        "emotion": "neutral",
+        "confidence": 0.9593,
+        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.98, prosody=surprise rel=0.30.",
+        "scores": {
+          "joy": 0.0038,
+          "sadness": 0.0116,
+          "anger": 0.0073,
+          "fear": 0.0045,
+          "surprise": 0.0097,
+          "disgust": 0.0038,
+          "neutral": 0.9593
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 1.0,
+          "reliability_visual": 0.9831,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.5416,
+          "active_normalized_visual": 0.4259,
+          "active_normalized_prosody": 0.0325
+        },
+        "text_emotion": {
+          "emotion": "neutral",
+          "confidence": 1.0,
+          "reason": "The text does not convey a strong emotional tone and appears to be seeking information."
+        },
+        "visual_emotion": {
+          "emotion": "neutral",
+          "deepface_emotion": "neutral",
+          "confidence": 0.9717744445800781,
+          "scores": {
+            "angry": 0.8218851685523987,
+            "disgust": 7.618300514877774e-06,
+            "fear": 0.17756801843643188,
+            "happy": 7.796214777044952e-05,
+            "sad": 1.8229352235794067,
+            "surprise": 8.162372978404164e-05,
+            "neutral": 97.17744445800781
+          },
+          "region": {
+            "x": 1035,
+            "y": 503,
+            "w": 135,
+            "h": 135
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "surprise",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.1469576358795166,
+            "duration": 3.392,
+            "energy_std": 0.09855437680327131,
+            "zero_crossing_rate": 0.1285585303384865
+          }
+        }
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "The whole essence of this experiment is to study and demonstrate human-robot interaction by having a conversation between Ameca, a humanoid social robot, and a university student on topics related to Artificial Intelligence and Robotics.",
+      "timestamp": "2026-08-03T10:54:54",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "what is expected of me from this experiment.",
+      "timestamp": "2026-08-03T10:55:10",
+      "intent": "question",
+      "fusion": {
+        "emotion": "neutral",
+        "confidence": 0.8294,
+        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.54, prosody=surprise rel=0.30.",
+        "scores": {
+          "joy": 0.0047,
+          "sadness": 0.041,
+          "anger": 0.0444,
+          "fear": 0.0637,
+          "surprise": 0.0121,
+          "disgust": 0.0047,
+          "neutral": 0.8294
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 1.0,
+          "reliability_visual": 0.539,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.6706,
+          "active_normalized_visual": 0.2891,
+          "active_normalized_prosody": 0.0402
+        },
+        "text_emotion": {
+          "emotion": "neutral",
+          "confidence": 1.0,
+          "reason": "curiosity and inquiry"
+        },
+        "visual_emotion": {
+          "emotion": "neutral",
+          "deepface_emotion": "neutral",
+          "confidence": 0.5329328918457031,
+          "scores": {
+            "angry": 13.720406532287598,
+            "disgust": 2.416412280581426e-05,
+            "fear": 20.41415023803711,
+            "happy": 1.2864506970799994e-05,
+            "sad": 12.571996688842773,
+            "surprise": 0.00012084261834388599,
+            "neutral": 53.29328918457031
+          },
+          "region": {
+            "x": 1027,
+            "y": 500,
+            "w": 145,
+            "h": 145
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "surprise",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+          "features": {
+            "peak": 0.9000244140625,
+            "rms": 0.1418997347354889,
+            "duration": 4.576,
+            "energy_std": 0.09504591939695643,
+            "zero_crossing_rate": 0.11486717202758998
+          }
+        }
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "As a study participant in this human-robot interaction session with Ameca, I expect you to engage as a learner in a lesson on A.I. and Robotics topics, asking questions and responding as you would with a human tutor.",
+      "timestamp": "2026-08-03T10:55:23",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "That will be all.",
+      "timestamp": "2026-08-03T10:55:33",
+      "intent": "question",
+      "fusion": {
+        "emotion": "neutral",
+        "confidence": 0.8372,
+        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.45, prosody=surprise rel=0.30.",
+        "scores": {
+          "joy": 0.0049,
+          "sadness": 0.077,
+          "anger": 0.0235,
+          "fear": 0.0398,
+          "surprise": 0.0127,
+          "disgust": 0.0049,
+          "neutral": 0.8372
+        },
+        "weights": {
+          "base_text": 0.5,
+          "base_visual": 0.4,
+          "base_prosody": 0.1,
+          "reliability_text": 1.0,
+          "reliability_visual": 0.449,
+          "reliability_prosody": 0.3,
+          "active_normalized_text": 0.7046,
+          "active_normalized_visual": 0.2531,
+          "active_normalized_prosody": 0.0423
+        },
+        "text_emotion": {
+          "emotion": "neutral",
+          "confidence": 1.0,
+          "reason": "farewell tone"
+        },
+        "visual_emotion": {
+          "emotion": "neutral",
+          "deepface_emotion": "neutral",
+          "confidence": 0.5043675231933594,
+          "scores": {
+            "angry": 7.319868087768555,
+            "disgust": 7.412055310851429e-06,
+            "fear": 13.759176254272461,
+            "happy": 2.2276721210801043e-05,
+            "sad": 28.484155654907227,
+            "surprise": 1.5384746802737936e-05,
+            "neutral": 50.43675231933594
+          },
+          "region": {
+            "x": 1032,
+            "y": 500,
+            "w": 144,
+            "h": 144
+          }
+        },
+        "prosody_emotion": {
+          "available": true,
+          "emotion": "surprise",
+          "confidence": 0.3,
+          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+          "features": {
+            "peak": 0.899993896484375,
+            "rms": 0.12489181756973267,
+            "duration": 2.336,
+            "energy_std": 0.09558830154656847,
+            "zero_crossing_rate": 0.05602675585284281
+          }
+        }
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Thank you for the conversation. I've enjoyed sharing my knowledge with you on Artificial Intelligence and Robotics topics. It's been a pleasure assisting you today. If you have any further questions or need clarification, please feel free to ask.",
+      "timestamp": "2026-08-03T10:55:50",
+      "intent": "answer"
+    }
+  ],
+  "video_path": "warm_up_videos/Z1234/Z1234_20260803_105144.mp4",
+  "_next_image_id": 14,
+  "check_facial_expression": true
+}
