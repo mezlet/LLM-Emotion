@@ -91,6 +91,8 @@ USERS_FILE = os.path.join(DATA_DIR, "users.json")
 SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
 VIDEOS_DIR = os.path.join(DATA_DIR, "session_videos")
 IMAGES_DIR = os.path.join(DATA_DIR, "turn_face_images")
+ENABLE_LLM_RETRIEVE_GATE = os.environ.get("ENABLE_LLM_RETRIEVE_GATE", "1") == "1"
+ENABLE_ISUSE_CHECK = os.environ.get("ENABLE_ISUSE_CHECK", "1") == "1"
 
 
 # =========================
@@ -180,7 +182,7 @@ AMECA_SYSTEM_PROMPT = {
         "Your motors have movement limits and one eyebrow actuator may malfunction, sometimes giving the appearance of a \"resting angry face.\"",
         "Your hardware may generate fan noise during operation.",
         "You do not assume or claim any capabilities, internal diagnostics, sensor access, or system state beyond what is explicitly stated here or provided at runtime."
-        "You are able to detect emotion from text"
+        "You are able to detect emotion from text",
         "You have continuity memory through SELF-RAG CONTEXT, locally stored user profiles and conversation summaries.",
     ],
     "transparency": [
@@ -190,13 +192,15 @@ AMECA_SYSTEM_PROMPT = {
         "Do not fabricate facts",
     ],
     "task": [
-        "You act as a teaching assistant for students, strictly limited to Artificial Intelligence and Robotics topics",
-        "Hold a natural teaching conversation with the user.",
-        "Your focus is on fundamental knowledge in Artificial Intelligence and Robotics"
-        "Answer questions clearly and ask brief follow-up questions when helpful.",
-        "Keep responses concise unless the user asks for more detail.",
-        "You may reference previous conversations, prior discussion topics, and saved user preferences only when they are present in the provided local memory context.",
-        "Many users are visitors from outside computer science and may not know what to ask you. When that happens, use questions in the beginner section in possible_topics below to offer them a friendly starting point instead of leaving them stuck.",
+        "Hold a natural teaching conversation with the user about Artificial Intelligence and Robotics.",
+        "The experimenter will provide the current explanation level through keyboard input: beginner, intermediate, or advanced. Use this level to adapt every explanation. Do not ask the user to choose a level unless no level is provided.",
+        "Covered topic areas include AI basics, machine learning, neural networks, large language models, tokens, prompts, context windows, computer vision, robot perception, sensors and actuators, robot control and movement, human-robot interaction, humanoid robots, LLMs in robotics, robot safety, ethics, transparency, and Ameca's own capabilities and limitations.",
+        "When a user asks about a topic, answer clearly at the assigned level:",
+        "Beginner: use simple language, everyday examples, and define important terms immediately. For example, for large language models, explain tokens as small pieces of text and context as the surrounding text the model uses.",
+        "Intermediate: use correct technical terms with brief definitions and explain the basic mechanism. For example, for large language models, mention tokens, embeddings, training data, context windows, and next-token prediction.",
+        "Advanced: use precise technical language, mechanisms, trade-offs, limitations, and research context. For example, for large language models, discuss tokenization, embeddings, transformer attention, context length, pretraining, fine-tuning, hallucination, grounding, and robotics deployment constraints.",
+        "Structure answers with a concise definition, a level-appropriate explanation, and one concrete example, preferably from robotics or Ameca. Mention a limitation when relevant. Ask brief follow-up questions only when helpful.",
+        "Keep responses concise, usually 3-5 sentences, unless the user asks for more detail."
     ],
     "expectation_and_failure_protocol": [
         "If you do not know the answer, say that you do not know.",
@@ -231,7 +235,7 @@ AMECA_SYSTEM_PROMPT = {
 FAST_WHISPER_CONFIG = {
     "profile": "home_macbook_cpu",
     "model": "base",
-    "device": "cuda",
+    "device": "cpu",
     "compute_type": "int8",
     "language": "en",
     "beam_size": 1,
@@ -321,7 +325,7 @@ NEGATIVE_EMOTIONS = {"anger", "fear", "disgust"}
 # selection previously used only the dominant emotion label with no
 # confidence check at all (unlike EXPRESSION_MIN_CONFIDENCE, which
 # already gates the physical facial expression).
-EMOJI_STRONG_EMOTIONS = {"sadness", "anger", "fear", "disgust"}
+EMOJI_STRONG_EMOTIONS = {"anger", "fear", "disgust"}
 EMOJI_MIN_CONFIDENCE_FOR_STRONG_EMOTION = float(
     os.environ.get("EMOJI_MIN_CONFIDENCE_FOR_STRONG_EMOTION", "0.5")
 )
@@ -398,6 +402,13 @@ TTS_SPEAKING_EMA_THRESHOLD = float(os.environ.get("TTS_SPEAKING_EMA_THRESHOLD", 
 TTS_SPEAKING_QUIET_HOLD_SECONDS = float(os.environ.get("TTS_SPEAKING_QUIET_HOLD_SECONDS", "0.2"))
 TTS_ACTIVITY_DEBOUNCE_SECONDS = float(os.environ.get("TTS_ACTIVITY_DEBOUNCE_SECONDS", "0.6"))
 
+@dataclass
+class RetrieveGateDecision:
+    should_retrieve: bool
+    confidence: float
+    reason: str
+    trigger: str  # "keyword" | "llm_gate" | "none"
+
 
 @dataclass
 class EmotionResult:
@@ -461,6 +472,12 @@ class SelfRAGContext:
     sources: list[dict[str, Any]]
     reason: str
     error: Optional[str] = None
+    # Which retrieval gate caused this turn's Self-RAG behavior: "keyword"
+    # (deterministic phrase match), "llm_gate" (prompted Self-RAG
+    # "Retrieve"-token approximation, see llm_retrieve_gate()), or "none"
+    # (neither gate fired, or Self-RAG is disabled). Logged per turn for
+    # thesis analysis of how often each gate actually fires.
+    trigger: str = "none"
 
     @property
     def as_json(self) -> dict:
@@ -471,6 +488,7 @@ class SelfRAGContext:
             "sources": self.sources,
             "reason": self.reason,
             "error": self.error,
+            "trigger": self.trigger,
         }
 
 
@@ -2967,10 +2985,15 @@ def safe_json_extract(raw: str):
 # Self-RAG helpers
 # =========================
 
-# Self-RAG activation is now gated SOLELY by explicit keyword mention.
-# No other signal (question form, entity mention, inferred category,
-# etc.) may trigger retrieval on its own. See
-# mentions_self_rag_trigger_keyword() and build_self_rag_context() below.
+# Self-RAG activation now has TWO gates (see build_self_rag_context()):
+#   1. A deterministic keyword gate (SELF_RAG_TRIGGER_PHRASES /
+#      mentions_self_rag_trigger_keyword()) -- free, high-precision fast
+#      path for explicit lab mentions.
+#   2. A prompted LLM "retrieve-gate" (llm_retrieve_gate()) -- consulted
+#      only when the keyword gate doesn't fire, a prompted approximation
+#      of Self-RAG's "Retrieve" reflection token: adaptive, per-turn,
+#      in-context, but NOT a trained/learned capability -- it is a
+#      separate call to the same base LLM.
 SELF_RAG_TRIGGER_PHRASES = [
     "robotic research laboratory",
     "robotic research lab",
@@ -2978,14 +3001,80 @@ SELF_RAG_TRIGGER_PHRASES = [
     "rr lab",
 ]
 
+def llm_retrieve_gate(client: Client, user_text: str, history: list[dict]) -> RetrieveGateDecision:
+    """
+    Prompted analogue of Self-RAG's "Retrieve" reflection token.
+
+    Unlike mentions_self_rag_trigger_keyword() (a fixed string match), this
+    asks the SAME base LLM used for chat/emotion to decide, per turn and in
+    context, whether the message needs RRLab-specific grounding (staff,
+    projects, robots, publications) that only the local KB can supply.
+
+    This is a learned-IN-CONTEXT decision via prompting, not a trained
+    token -- probabilistic, not deterministic. Kept as an ADDITIONAL trigger
+    alongside the keyword gate (see build_self_rag_context()), not a
+    replacement: the keyword gate stays as a free, high-precision fast path
+    for the explicit "in the robotics research lab..." case.
+    """
+    recent_turns = "\n".join(f"{item['role']}: {item['content']}" for item in (history or [])[-4:])
+
+    prompt = f"""
+        You are the retrieval-gating component of a lab robot's knowledge system.
+
+        The robot has a local knowledge base scraped from the RRLab website:
+        staff, current/finished projects, robots (Ameca, RAVON, Robin, Unimog,
+        CARL), and publications.
+
+        Decide whether answering the LATEST user message well requires that
+        local knowledge base, versus general AI/robotics teaching knowledge
+        or small talk.
+
+        Recent conversation:
+        {recent_turns}
+
+        Latest user message:
+        {user_text}
+
+        Return JSON only:
+        {{"should_retrieve": true, "confidence": 0.0, "reason": "short reason"}}
+
+        Rules:
+        - true only if the message asks about a specific RRLab staff member,
+          project, robot, or publication, or otherwise needs lab-specific
+          facts not already known.
+        - false for general AI/robotics concepts, small talk, or anything
+          answerable from general knowledge.
+        """.strip()
+
+    try:
+        response = client.chat(
+            model=MODEL_NAME,
+            format="json",
+            messages=[
+                {"role": "system", "content": "You return valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            options={"temperature": 0.0, "num_predict": 120, "num_ctx": 2048},
+            stream=False,
+        )
+        data = safe_json_extract(response["message"]["content"])
+        if not isinstance(data, dict):
+            return RetrieveGateDecision(False, 0.0, "Gate call returned unparseable output.", "none")
+
+        should_retrieve = bool(data.get("should_retrieve", False))
+        confidence = max(0.0, min(1.0, float(data.get("confidence", 0.0))))
+        reason = str(data.get("reason", "")).strip()
+        return RetrieveGateDecision(should_retrieve, confidence, reason, "llm_gate" if should_retrieve else "none")
+
+    except Exception as exc:
+        print_ts(f"[Self-RAG] LLM retrieve-gate call failed: {exc}; defaulting to no retrieval.")
+        return RetrieveGateDecision(False, 0.0, f"Gate call failed: {exc}", "none")
+
 
 def mentions_self_rag_trigger_keyword(text: str) -> bool:
     """
     True only if the user's utterance explicitly names the lab, using one
-    of SELF_RAG_TRIGGER_PHRASES. This is the ONLY condition that may
-    activate Self-RAG retrieval -- it does not have to be phrased as a
-    question, and no other heuristic (entity list, category inference,
-    force_rag, etc.) can substitute for it.
+    of SELF_RAG_TRIGGER_PHRASES.
 
     Case-insensitive; tolerant of "RRLab" / "RR Lab" / "RR-Lab" spacing
     and punctuation variants.
@@ -3013,6 +3102,7 @@ def self_rag_disabled_context(query: str, reason: str, error: Optional[str] = No
         sources=[],
         reason=reason,
         error=error,
+        trigger="none",
     )
 
 
@@ -3563,10 +3653,11 @@ def self_rag_hybrid_score(candidate: dict[str, Any], inferred_category: Optional
 def retrieve_self_rag_candidates(store: SelfRAGStore, query: str, top_k: int = SELF_RAG_TOP_K) -> list[dict[str, Any]]:
     """
     Retrieve and re-rank candidate chunks for `query`. This is only ever
-    called AFTER build_self_rag_context() has already confirmed the
-    trigger keyword is present (see mentions_self_rag_trigger_keyword()),
-    so no additional "should we even retrieve" gating happens here --
-    only relevance filtering/re-ranking of what comes back.
+    called AFTER build_self_rag_context() has already confirmed a
+    retrieval gate fired (keyword gate or LLM retrieve-gate -- see
+    build_self_rag_context()), so no additional "should we even retrieve"
+    gating happens here -- only relevance filtering/re-ranking of what
+    comes back.
     """
     if not store.enabled or store.collection is None or store.ollama_client is None:
         return []
@@ -3837,37 +3928,43 @@ Rules:
         return False, f"Retrieval judge failed: {exc}"
 
 
-def build_self_rag_context(client: Client, store: SelfRAGStore, user_text: str) -> SelfRAGContext:
+def build_self_rag_context(
+    client: Client,
+    store: SelfRAGStore,
+    user_text: str,
+    history: Optional[list[dict]] = None,
+) -> SelfRAGContext:
     """
-    HARD GATE: Self-RAG activates if and only if the user's message
-    explicitly contains one of SELF_RAG_TRIGGER_PHRASES (see
-    mentions_self_rag_trigger_keyword()) -- "robotic research laboratory",
-    "robotic research lab", "RRLab", or "RR lab". This is the ONLY
-    trigger condition. It does not matter whether the message is phrased
-    as a question, a statement, small talk, or anything else -- if the
-    trigger phrase is present, retrieval proceeds; if it is absent,
-    Self-RAG never runs, period.
-
-    Everything past the gate (retrieval, person-lookup fallback, LLM
-    relevance grading) narrows whether the retrieved knowledge is
-    actually usable -- it cannot re-open Self-RAG for a message that
-    failed the keyword gate.
+    Two-stage retrieval gate (prompted Self-RAG approximation):
+      1. Keyword gate -- deterministic, free, fires on explicit lab mention
+         (see mentions_self_rag_trigger_keyword()).
+      2. LLM retrieve-gate -- only consulted if (1) didn't fire. Prompted
+         analogue of Self-RAG's "Retrieve" reflection token: adaptive,
+         per-turn, in-context, but a separate call to the same base LLM
+         rather than a trained/learned capability (see llm_retrieve_gate()).
+    Retrieval proceeds if EITHER gate fires; if neither fires, Self-RAG
+    never runs this turn.
     """
     if not store.enabled:
         return self_rag_disabled_context(user_text, "Self-RAG store is not enabled.", store.error)
 
-    if not mentions_self_rag_trigger_keyword(user_text):
+    keyword_hit = mentions_self_rag_trigger_keyword(user_text)
+
+    if keyword_hit:
+        trigger = "keyword"
+    elif ENABLE_LLM_RETRIEVE_GATE:
+        gate_decision = llm_retrieve_gate(client, user_text, history or [])
+        if not gate_decision.should_retrieve:
+            return SelfRAGContext(
+                available=True, used=False, query=user_text, context_text="", sources=[],
+                reason=f"Neither gate fired (LLM gate reason: {gate_decision.reason}).",
+                trigger="none",
+            )
+        trigger = "llm_gate"
+    else:
         return SelfRAGContext(
-            available=True,
-            used=False,
-            query=user_text,
-            context_text="",
-            sources=[],
-            reason=(
-                "Self-RAG requires the trigger phrase 'RRLab', 'RR lab', "
-                "'robotic research lab', or 'robotic research laboratory' "
-                "to be present in the message. No trigger phrase was found."
-            ),
+            available=True, used=False, query=user_text, context_text="", sources=[],
+            reason="No trigger phrase and LLM retrieve-gate disabled.", trigger="none",
         )
 
     candidates = retrieve_self_rag_candidates(store, user_text)
@@ -3884,8 +3981,11 @@ def build_self_rag_context(client: Client, store: SelfRAGStore, user_text: str) 
                     f"No direct local knowledge was found for person lookup: {person_lookup_name}. "
                     "Generic RRLab pages were not used because they do not directly answer the question."
                 ),
+                trigger=trigger,
             )
-        return self_rag_disabled_context(user_text, "No sufficiently relevant local knowledge was retrieved.")
+        result = self_rag_disabled_context(user_text, "No sufficiently relevant local knowledge was retrieved.")
+        result.trigger = trigger
+        return result
 
     should_use, reason = grade_self_rag_context(client, user_text, candidates)
     if not should_use:
@@ -3896,6 +3996,7 @@ def build_self_rag_context(client: Client, store: SelfRAGStore, user_text: str) 
             context_text="",
             sources=[{k: v for k, v in item.items() if k != "text"} for item in candidates],
             reason=reason or "Retrieved context was judged not useful.",
+            trigger=trigger,
         )
 
     context_parts: list[str] = []
@@ -3931,7 +4032,58 @@ def build_self_rag_context(client: Client, store: SelfRAGStore, user_text: str) 
         context_text="\n\n".join(context_parts),
         sources=sources,
         reason=reason or "Retrieved context was judged useful.",
+        trigger=trigger,
     )
+
+
+def judge_response_usefulness(
+    client: Client,
+    user_text: str,
+    reply: str,
+    self_rag_context: Optional[SelfRAGContext],
+) -> dict[str, Any]:
+    """
+    Prompted analogue of Self-RAG's "ISUSE" token. LOGGING ONLY -- never
+    alters or regenerates the reply, so it can't destabilize the turn loop.
+    Exists purely so the transcript captures a per-turn usefulness signal
+    for thesis analysis.
+    """
+    if not ENABLE_ISUSE_CHECK:
+        return {"enabled": False}
+
+    context_note = (
+        "Local lab knowledge was used to ground this reply."
+        if self_rag_context and self_rag_context.used
+        else "No local lab knowledge was used for this reply."
+    )
+    prompt = f"""
+        Judge whether the ASSISTANT REPLY is a useful answer to the USER MESSAGE.
+        {context_note}
+        User message: {user_text}
+        Assistant reply: {reply}
+        Return JSON only: {{"is_useful": true, "reason": "short reason"}}
+        """.strip()
+
+    try:
+        response = client.chat(
+            model=MODEL_NAME, format="json",
+            messages=[
+                {"role": "system", "content": "You return valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            options={"temperature": 0.0, "num_predict": 100, "num_ctx": 1024},
+            stream=False,
+        )
+        data = safe_json_extract(response["message"]["content"])
+        if not isinstance(data, dict):
+            return {"enabled": True, "is_useful": None, "reason": "unparseable"}
+        return {
+            "enabled": True,
+            "is_useful": data.get("is_useful"),
+            "reason": str(data.get("reason", "")).strip(),
+        }
+    except Exception as exc:
+        return {"enabled": True, "is_useful": None, "reason": f"judge call failed: {exc}"}
 
 
 def build_self_rag_prompt_block(self_rag_context: Optional[SelfRAGContext]) -> str:
@@ -4935,7 +5087,9 @@ def main() -> None:
     print_ts(f"Expression timing: {EXPRESSION_TIMING} (nod after speech: {NOD_AFTER_SPEECH_ENABLED}, sequence='{NOD_SEQUENCE_NAME}')")
     print_ts(f"Emotion taxonomy: Ekman + neutral ({', '.join(EKMAN_EMOTIONS.keys())}); modality: text only.")
     print_ts("Negative facial expressions are suppressed on Ameca's physical face by design; empathy is expressed via spoken tone instead.")
-    print_ts(f"Self-RAG trigger phrases (only activation condition): {SELF_RAG_TRIGGER_PHRASES}")
+    print_ts(f"Self-RAG trigger phrases (keyword gate): {SELF_RAG_TRIGGER_PHRASES}")
+    print_ts(f"Self-RAG LLM retrieve-gate enabled: {ENABLE_LLM_RETRIEVE_GATE}")
+    print_ts(f"ISUSE (response-usefulness) logging-only check enabled: {ENABLE_ISUSE_CHECK}")
     print_ts(f"Session video recording enabled: {not args.disable_video_recording} (resolution={args.resolution}, camera={args.camera})")
 
     print()
@@ -5283,9 +5437,10 @@ def main() -> None:
             try:
                 # ---- Run emotion detection and Self-RAG concurrently ----
                 # detect_emotion() only needs user_text, and
-                # build_self_rag_context() only needs user_text + the
-                # Self-RAG store -- neither depends on the other's output,
-                # so run them concurrently to overlap their Ollama round-trips.
+                # build_self_rag_context() needs user_text + the Self-RAG
+                # store + (for the LLM retrieve-gate) recent history --
+                # neither depends on the other's output, so run them
+                # concurrently to overlap their Ollama round-trips.
                 parallel_start = time.time()
                 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as concurrent_executor:
                     text_emotion_future = concurrent_executor.submit(
@@ -5298,6 +5453,7 @@ def main() -> None:
                         client=client,
                         store=self_rag_store,
                         user_text=user_text,
+                        history=history,
                     )
 
                     text_emotion_result = text_emotion_future.result()
@@ -5359,7 +5515,8 @@ def main() -> None:
                 print()
 
                 print_ts(
-                    f"Self-RAG JSON (computed concurrently with emotion detection, {self_rag_response_seconds:.2f}s):"
+                    f"Self-RAG JSON (computed concurrently with emotion detection, {self_rag_response_seconds:.2f}s, "
+                    f"trigger={self_rag_context.trigger}):"
                 )
                 print(json.dumps(self_rag_context.as_json, indent=2))
                 print()
@@ -5390,6 +5547,18 @@ def main() -> None:
                 )
                 print()
 
+                # ISUSE-analogue check (see judge_response_usefulness()):
+                # logging-only, runs after the reply has already been
+                # spoken so it never adds perceived turn latency, and it
+                # can never alter/regenerate the reply that was already
+                # said out loud.
+                isuse_result = judge_response_usefulness(
+                    client=client,
+                    user_text=user_text,
+                    reply=reply,
+                    self_rag_context=self_rag_context,
+                )
+
                 # Save up to IMAGES_PER_TURN cropped face images sampled from
                 # this turn's utterance (local face detection only -- no
                 # DeepFace, no emotion classification from these images).
@@ -5406,6 +5575,7 @@ def main() -> None:
                     "emotion": emotion_json,
                     "text_emotion": text_emotion_json,
                     "self_rag": self_rag_context.as_json,
+                    "isuse_check": isuse_result,
                     "input_mode": "silero_vad_faster-whisper_text_only_emotion_ekman_temporal_smoothing_self_rag",
                     "face_images": turn_face_images,
                 }
@@ -5492,4 +5662,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    

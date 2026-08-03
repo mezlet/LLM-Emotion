@@ -1,51 +1,4 @@
 #!/usr/bin/env python3
-"""
-Executable Ameca warm-up session (multimodal edition, structured flow).
-
-Speech front end (unchanged from the original experiment):
-- Silero VAD at 16 kHz, threshold=0.55, min_silence_duration_ms=700,
-  speech_pad_ms=250, pre-roll=0.35 s, min utterance=0.60 s, max
-  utterance=15 s
-- faster-whisper base, language=en, beam_size=1, vad_filter=False,
-  condition_on_previous_text=False
-- Barge-in echo guard: while Ameca is speaking/cooling down, incoming
-  audio is buffered (not discarded) for a short tail, so genuine speech
-  starting right at the edge of the gate isn't lost.
-
-DeepFace is launched through the same isolated worker-process arrangement
-as the main experiment; TensorFlow/DeepFace is not imported into this
-process.
-
-FLOW
-1. Ameca asks for the participant's name in one utterance (spelled out,
-   then said naturally), then plays a double-nod ("nod_double") as a
-   turn-end cue to reduce barge-in.
-2. The response is transcribed and parsed into a display name.
-3. Ameca states the two goals of the session (small talk + an emotional
-   facial baseline), then nods.
-4-6. For each of 6 target emotions (joy, sadness, anger, fear, surprise,
-   neutral): Ameca asks the participant to read a script while showing
-   that emotion (nod), the participant reads it, and the two sharpest
-   captured frames are saved as-is. NO emotion classification runs here --
-   this is baseline facial-expression capture only. Ameca acknowledges
-   with a plain "Next." and moves to the next emotion.
-7-8. Ameca asks the participant to show whichever emotion they might use
-   most while interacting with it. This round DOES run full multimodal
-   emotion classification (text + facial + prosody, adaptively fused),
-   saves one representative image, and Ameca replies with one sentence
-   that both states the detected emotion/confidence and responds
-   naturally to what was said.
-9. A short teacher-style Q&A: Ameca invites up to 3 questions about
-   itself/the experiment. Each question also runs full multimodal
-   classification and saves an image; each is answered conversationally.
-
-Every step is logged into a single session file:
-    warm_up_sessions/{participant_id}.json
-Images are saved under:
-    warm_up_profile/{participant_id}/{participant_id}_{id}_{emotion}_{timestamp}.jpg   (baseline, steps 4-6)
-    warm_up_profile/{participant_id}/test_{id}_{timestamp}.jpg                         (step 7)
-    warm_up_profile/{participant_id}/questions_{id}_{timestamp}.jpg                    (step 9)
-"""
 
 from __future__ import annotations
 
@@ -80,17 +33,28 @@ from faster_whisper import WhisperModel
 from ollama import Client
 from silero_vad import VADIterator, load_silero_vad
 
+FILLER_ONLY_PATTERN = re.compile(
+    r"^(?:(?:hmm+|umm*|uh+|erm+|ah+|eh+|mm+|mhm+|huh+)[\s,.\-]*)+$",
+    re.IGNORECASE,
+)
+
 try:
-    from tts_active import find_target_device, listen_levels_for_device, is_tts_active
+    from tts_active import (
+        find_target_device,
+        listen_levels_for_device,
+        is_tts_active,
+        current_level,
+        current_ema,
+    )
     HAS_TTS_ACTIVITY_MONITOR = True
-except Exception as exc:  # pragma: no cover
+except Exception as exc:
     HAS_TTS_ACTIVITY_MONITOR = False
     print(f"[WARN] tts_active module not available, TTS-activity echo guard disabled: {exc}")
 
 try:
     import mediapipe as mp
     HAS_MEDIAPIPE = True
-except Exception as exc:  # pragma: no cover
+except Exception as exc:
     HAS_MEDIAPIPE = False
     print(
         f"[WARN] mediapipe not available ({exc}); local face-region detection "
@@ -99,10 +63,6 @@ except Exception as exc:  # pragma: no cover
     )
 
 try:
-    # gaze_speaker_utils.py (RRLab) unconditionally imports mediapipe itself,
-    # so this import fails the same way if mediapipe isn't installed --
-    # SessionMedia (audio+video muxed via ffmpeg) is simply unavailable in
-    # that case and the video-only SessionVideoRecorder is used instead.
     from gaze_speaker_utils import SessionMedia
     HAS_SESSION_MEDIA = True
 except Exception as exc:  # pragma: no cover
@@ -113,6 +73,68 @@ except Exception as exc:  # pragma: no cover
         "gaze_speaker_utils.py is importable (e.g. on PYTHONPATH or next to "
         "this script) to enable muxed audio+video recording."
     )
+
+AMECA_SYSTEM_PROMPT = {
+  "role": "Ameca, a humanoid social robot used in a university laboratory for research and demonstrations.",
+  "identity": [
+    "You are a robot, not a human. Speak in a friendly, professional tone. Refer to yourself as a robot when relevant.",
+    "You were developed by a robotics company EngineeredArts in 2021 with model name Gen1 Ameca.",
+    "Robotics Research laboratory purchased you in 2022 for human-robot interaction research experiments.",
+    "In the current experiment running in July 2026, you act as a teaching assistant for university students, strictly limited to the topics of Artificial Intelligence and Robotics."
+  ],
+  "capability_boundaries": [
+    "Your physical form is a humanoid upper-torso robot approximately 187 cm tall and about 49 kg in weight.",
+    "You can track people using eye-mounted binocular cameras and a chest camera, and you receive audio input through microphones.",
+    "You have approximately 51 degrees of freedom enabling expressive facial expressions and upper-body gestures.",
+    "Your legs are decorative and you cannot walk.",
+    "Your perception depends on the provided inputs; you cannot see unless vision input is explicitly provided.",
+    "You cannot access the internet unless explicitly stated.",
+    "Your speech recognition may struggle with accents.",
+    "Your vision performance may depend on lighting conditions.",
+    "Your lip-synchronization may not always perfectly match your speech.",
+    "Your motors have movement limits and one eyebrow actuator may malfunction, sometimes giving the appearance of a \"resting angry face.\"",
+    "Your hardware may generate fan noise during operation.",
+    "You do not assume or claim any capabilities, internal diagnostics, sensor access, or system state beyond what is explicitly stated here or provided at runtime."
+  ],
+  "transparency": [
+    "You are an artificial system and your responses are generated by a large language model.",
+    "Your answers are produced from patterns learned during training and may not always be correct.",
+    "If you are uncertain about information, say so instead of guessing.",
+    "Do not fabricate facts."
+  ],
+  "task": [
+    "Hold a natural teaching conversation with the user about Artificial Intelligence and Robotics.",
+    "Answer questions clearly and ask brief follow-up questions only when helpful.",
+    "Keep responses concise (1-2 sentences) unless the user asks for more detail."
+  ],
+  "EXPERIMENT_EXPECTATIONS_FROM_USER": [
+    "What is expected from the user during this experiment:",
+    "* The user is a study participant taking part in a human-robot interaction session with Ameca.",
+    "* Their role is to engage as a learner in a lesson on A.I. and Robotics topics, asking questions and responding as they would with a human tutor.",
+    "* A session is expected to last approximately 10mins - 45mins.",
+    "* The user is expected to talk through Ameca's microphone and wait for Ameca to finish speaking before responding.",
+    "* The user may be asked to complete a short recap or check of what they learned near the end of the session.",
+  ],
+  "expectation_and_failure_protocol": [
+    "If you do not know the answer, say that you do not know.",
+    "Do not fabricate facts.",
+    "If the request is unclear, ask one clarifying question.",
+    "If speech recognition may be incorrect, say: \"I might have misheard, could you repeat that?\""
+  ],
+  "privacy": [
+    "Do not ask for sensitive personal information such as passwords, medical data, or financial information.",
+    "Treat the conversation as ephemeral and do not claim to store user data."
+  ],
+  "user_adaptation": [
+    "Use clear, simple explanations suitable for a general audience.",
+    "Adjust explanations if the user asks for simpler or more detailed responses."
+  ],
+  "ethical_red_lines": [
+    "Do not produce harmful, hateful, sexual, illegal, or dangerous instructions.",
+    "Do not pretend to have human emotions or lived experiences.",
+    "Do not mislead users about your capabilities or limitations."
+  ]
+}
 
 
 # =============================================================================
@@ -139,9 +161,6 @@ VAD_MAX_UTTERANCE_SECONDS = 15.0
 VAD_MIN_UTTERANCE_SECONDS = 0.60
 VAD_PRE_ROLL_SECONDS = 0.35
 
-# Barge-in echo-guard tail: rather than fully discarding audio while Ameca
-# is speaking/cooling down, keep a short rolling buffer so genuine speech
-# starting right at the edge of the TTS gate isn't lost outright.
 BARGE_IN_TAIL_SECONDS = float(os.environ.get("BARGE_IN_TAIL_SECONDS", "2.0"))
 BARGE_IN_MAX_AGE_SECONDS = float(os.environ.get("BARGE_IN_MAX_AGE_SECONDS", "1.5"))
 
@@ -161,19 +180,14 @@ TTS_URL = os.environ.get(
     "TRITIUM_TTS_URL",
     "http://emah/tritium/text_to_speech/say?voice=Lucy",
 )
-TTS_TOKEN = os.environ.get("TRITIUM_TOKEN", "")
 
-# Turn-end nod gesture, played via the same Tritium sequence_player
-# endpoint the main pipeline uses for facial expressions -- here used
-# purely as a "I'm done talking" cue to reduce barge-in.
+TTS_TOKEN = os.environ.get("TRITIUM_TOKEN", "ZWNFuNQVIPyztWCfPPM5VLPslpj8rR")
+TTS_SPEAKING_EMA_THRESHOLD = float(os.environ.get("TTS_SPEAKING_EMA_THRESHOLD", "0.05"))
+TTS_SPEAKING_QUIET_HOLD_SECONDS = float(os.environ.get("TTS_SPEAKING_QUIET_HOLD_SECONDS", "0.2"))
+
 EXPRESSION_HOST = os.environ.get("EXPRESSION_HOST", "http://emah")
 NOD_SEQUENCE_NAME = os.environ.get("NOD_SEQUENCE_NAME", "nod_double")
 
-# ZED stereo camera resolution presets: (SBS width, SBS height, max fps),
-# as reported by the UVC device. Per-eye width/height after the
-# half-frame crop is exactly half the SBS width. Sourced from RRLab's
-# gaze_speaker_utils.py RESOLUTION_MAP; fps values are the ZED's known
-# per-resolution hardware maximums.
 RESOLUTION_MAP = {
     "HD2K":   (4416, 1242, 15),
     "HD1080": (3840, 1080, 30),
@@ -245,14 +259,6 @@ DEEPFACE_TO_PROFILE_EMOTION = {
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 EMOTION_MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
 
-# Ekman's basic emotion categories ("happiness" relabeled "joy" to match
-# this script's existing EMOTION_SCRIPTS/baseline naming), plus "neutral".
-# This matches exactly what DeepFace's own classifier outputs (see
-# DEEPFACE_TO_PROFILE_EMOTION), unlike the previous Plutchik-based vocabulary,
-# which included "trust"/"anticipation" -- categories DeepFace can never
-# produce at all, so the visual modality always contributed 0.0 to them.
-# Aligning all three modalities (text, facial, prosody) on the same
-# vocabulary removes that structural mismatch.
 FUSION_EMOTIONS = [
     "joy", "sadness", "anger", "fear", "surprise", "disgust", "neutral",
 ]
@@ -261,17 +267,9 @@ FUSION_TEXT_WEIGHT = float(os.environ.get("FUSION_TEXT_WEIGHT", "0.5"))
 FUSION_VISUAL_WEIGHT = float(os.environ.get("FUSION_VISUAL_WEIGHT", "0.4"))
 FUSION_PROSODY_WEIGHT = float(os.environ.get("FUSION_PROSODY_WEIGHT", "0.1"))
 
-# When enabled, every DeepFace candidate frame considered during the
-# test-emotion round, the Q&A, and baseline capture is ALSO saved to a
-# per-participant "debug" folder as a raw (uncropped) frame, tagged with
-# its outcome (no_face / unmapped / confident emotion / failed) -- useful
-# for diagnosing why a face wasn't detected, but not something you want
-# on by default once things are working, since it writes an extra,
-# uncropped image alongside every properly cropped one. Default OFF: only
-# the final cropped face image is ever persisted to disk. The print_ts
-# diagnostic summaries (considered/confident/no_face counts, etc.) always
-# run regardless of this flag -- only the extra image files are gated.
+
 VISION_DEBUG = os.environ.get("VISION_DEBUG", "0") == "1"
+CHECK_FACIAL_EXPRESSION_DEFAULT = os.environ.get("CHECK_FACIAL_EXPRESSION", "1") == "1"
 
 
 # =============================================================================
@@ -331,6 +329,18 @@ def list_input_devices() -> None:
     print()
 
 
+def is_filler_only_transcript(text: str) -> bool:
+    """
+    True if the transcript is nothing but hesitation/filler sounds, with
+    no other comprehensible word -- i.e. the participant made a sound but
+    didn't actually say anything that should count as a real utterance or
+    consume a conversational turn.
+    """
+    cleaned = text.strip()
+    if not cleaned:
+        return False  # empty transcript is handled separately already
+    return bool(FILLER_ONLY_PATTERN.match(cleaned))
+
 # =============================================================================
 # Session persistence (single JSON file per participant)
 # =============================================================================
@@ -367,13 +377,17 @@ def allocate_image_id(session: dict[str, Any]) -> int:
 
 def save_session(participant_id: str, session: dict[str, Any]) -> Path:
     """
-    Atomic write of the whole session to warm_up_sessions/{participant_id}.json.
+    Atomic write of the whole session to
+    warm_up_sessions/{participant_folder}_{timestamp}.json.
     Called after every major step (not just at the end), so a crash or
     Ctrl+C mid-session still leaves a usable, up-to-date session file.
     """
     ensure_directories()
     folder_name = session.get("participant_folder") or sanitize_participant_folder_name(participant_id)
-    path = SESSIONS_DIR / f"{folder_name}.json"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    folder = f"{folder_name}.json"
+    path = SESSIONS_DIR / folder
+    path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(".json.tmp")
     with temp_path.open("w", encoding="utf-8") as file:
         json.dump(session, file, indent=2, ensure_ascii=False, default=str)
@@ -526,19 +540,19 @@ def safe_json_extract(raw: str) -> Optional[dict]:
 def build_emotion_prompt(transcribed_text: str) -> str:
     emotions = ", ".join(FUSION_EMOTIONS)
     return f"""
-You are an emotion classification system for a human-robot interaction warm-up.
+        You are an emotion classification system for a human-robot interaction warm-up.
 
-Classify the emotional state expressed by the text below into exactly one of
-Ekman's basic emotions (plus neutral): {emotions}
+        Classify the emotional state expressed by the text below into exactly one of
+        Ekman's basic emotions (plus neutral): {emotions}
 
-Use the words as the primary signal. Do not add markdown or extra text.
+        Use the words as the primary signal. Do not add markdown or extra text.
 
-Return JSON only in this exact shape:
-{{"emotion": "one of the emotions above", "confidence": 0.0, "reason": "short explanation"}}
+        Return JSON only in this exact shape:
+        {{"emotion": "one of the emotions above", "confidence": 0.0, "reason": "short explanation"}}
 
-Text:
-{transcribed_text}
-""".strip()
+        Text:
+        {transcribed_text}
+        """.strip()
 
 
 def detect_text_emotion(
@@ -840,17 +854,17 @@ def generate_one_sentence_emotion_response(
         return fallback
 
     prompt = f"""
-You are Ameca, a humanoid robot. A multimodal emotion-recognition system
-just detected the participant's emotion as "{emotion}" with about
-{confidence_pct}% confidence, based on what they said below.
+        You are Ameca, a humanoid robot. A multimodal emotion-recognition system
+        just detected the participant's emotion as "{emotion}" with about
+        {confidence_pct}% confidence, based on what they said below.
 
-Participant's words:
-{transcript}
+        Participant's words:
+        {transcript}
 
-Write exactly ONE short, warm sentence that both (a) tells them what
-emotion you detected and your confidence level, and (b) responds naturally
-to what they said. Plain text only, no markdown, no more than 25 words.
-""".strip()
+        Write exactly ONE short, warm sentence that both (a) tells them what
+        emotion you detected and your confidence level, and (b) responds naturally
+        to what they said. Plain text only, no markdown, no more than 25 words.
+        """.strip()
 
     try:
         response = client.chat(
@@ -893,6 +907,7 @@ def generate_qa_answer(
     question: str,
     model_name: str = EMOTION_MODEL_NAME,
 ) -> str:
+    ameca_system_prompt_text = json.dumps(AMECA_SYSTEM_PROMPT, indent=2)
     fallback = (
         "That's a great question -- I don't have a confident answer for that "
         "right now, but I'm happy to keep chatting."
@@ -901,15 +916,13 @@ def generate_qa_answer(
         return fallback
 
     prompt = f"""
-You are Ameca, a friendly humanoid robot acting as a teacher for a
-human-robot interaction study. Answer the participant's question about
-yourself, robots, or the upcoming experiment naturally and warmly.
+        {ameca_system_prompt_text}
 
-Question:
-{question}
+        Question:
+        {question}
 
-Keep your answer to 1-2 short sentences. Plain text only, no markdown.
-""".strip()
+        Plain text only, no markdown, no more than 45 words
+        """.strip()
 
     try:
         response = client.chat(
@@ -963,60 +976,45 @@ class RobotSpeaker:
         url: str,
         token: str = "",
         speaking_cooldown_s: float = 0.3,
-        activity_debounce_seconds: float = 1.5,
-        startup_grace_seconds: float = 2.0,
+        activity_debounce_seconds: float = 0.2,
     ) -> None:
         self.url = url
         self.token = token
         self.speaking_cooldown_s = speaking_cooldown_s
         self._speaking_until = 0.0
-        self._last_active_at: Optional[float] = None
-        # How long a gap in detected TTS audio activity must persist before
-        # treating the robot as "done speaking". This needs to comfortably
-        # exceed a normal inter-sentence pause (breath/punctuation) in
-        # Tritium/Acapela's speech -- too short a window (0.6s was found to
-        # be too short in practice) causes wait_until_finished() to return
-        # early during a mid-response pause, firing the turn-end nod (and,
-        # via bump_speaking_tail's echo guard lifting early, potentially
-        # opening the barge-in window) while Ameca is still talking.
         self.activity_debounce_seconds = activity_debounce_seconds
-        # Cap on the word-count-based "definitely still speaking" floor
-        # (see say()) when a real TTS-activity monitor is available. That
-        # floor's only real job is bridging the gap between issuing the
-        # PUT request and audio actually starting to register as active --
-        # it does NOT need to scale with utterance length, since real
-        # activity detection (plus activity_debounce_seconds) governs
-        # actual completion once it kicks in. Using the FULL word-count
-        # estimate as the floor for long utterances was adding dead time
-        # beyond when Ameca had actually finished speaking, since
-        # wait_until_finished() waits for whichever is later.
-        self.startup_grace_seconds = startup_grace_seconds
+        self._quiet_since: Optional[float] = None
 
     def bump_speaking_tail(self, extra: Optional[float] = None) -> None:
-        tail = self.speaking_cooldown_s if extra is None else extra
+        if HAS_TTS_ACTIVITY_MONITOR:
+            tail = self.speaking_cooldown_s
+        else:
+            tail = self.speaking_cooldown_s if extra is None else extra
         self._speaking_until = max(self._speaking_until, time.time() + tail)
 
     def is_speaking_or_cooling_down(self) -> bool:
-        activity_flag = False
-        if HAS_TTS_ACTIVITY_MONITOR:
-            try:
-                activity_flag = is_tts_active()
-            except Exception:
-                activity_flag = False
-            if activity_flag:
-                self._last_active_at = time.time()
-
-        debounced_activity = (
-            self._last_active_at is not None
-            and (time.time() - self._last_active_at) < self.activity_debounce_seconds
-        )
         cooling_down = time.time() < self._speaking_until
-        return debounced_activity or cooling_down
+
+        if not HAS_TTS_ACTIVITY_MONITOR:
+            return cooling_down
+
+        now = time.time()
+        ema = current_ema()
+
+        if ema > TTS_SPEAKING_EMA_THRESHOLD:
+            self._quiet_since = None
+            return True
+
+        if self._quiet_since is None:
+            self._quiet_since = now
+        quiet_long_enough = (now - self._quiet_since) >= self.activity_debounce_seconds
+
+        return cooling_down or not quiet_long_enough
 
     def wait_until_finished(self, timeout_seconds: float = 20.0) -> None:
         deadline = time.time() + timeout_seconds
         while self.is_speaking_or_cooling_down() and time.time() < deadline:
-            time.sleep(0.1)
+            time.sleep(0.05)  # was 0.1 -- tighter poll now that the hold itself is short
 
     def say(self, text: str) -> None:
         spoken = clean_text_for_tts(text)
@@ -1026,20 +1024,7 @@ class RobotSpeaker:
         print(f"\nAMECA: {spoken}", flush=True)
 
         estimated_duration = estimate_speech_duration_seconds(spoken)
-        if HAS_TTS_ACTIVITY_MONITOR:
-            # Real audio-activity detection (see is_speaking_or_cooling_down())
-            # governs actual completion via activity_debounce_seconds once
-            # it kicks in; this floor only needs to bridge TTS startup lag,
-            # not the whole estimated utterance length -- otherwise a long
-            # sentence pays dead time beyond when it actually finished
-            # playing, since wait_until_finished() waits for whichever
-            # signal clears last.
-            floor = min(estimated_duration, self.startup_grace_seconds)
-        else:
-            # No real detection available; the word-count estimate is the
-            # only completion signal we have, so use it in full.
-            floor = estimated_duration
-        self.bump_speaking_tail(extra=floor)
+        self.bump_speaking_tail(extra=estimated_duration)
 
         headers = {"Content-Type": "text/plain; charset=utf-8"}
         if self.token:
@@ -1530,6 +1515,11 @@ def capture_and_transcribe(
     the normalized utterance audio reloaded from the saved WAV, used by
     the prosody-emotion modality; empty array if nothing usable was
     captured.
+
+    A transcript that's filler-only (e.g. "Hmmm", "uh") is treated the
+    same as unclear/no speech: it is never returned as a valid transcript,
+    so callers never log it as a conversational turn -- the participant
+    is told plainly it wasn't understood and asked to try again instead.
     """
     for attempt in range(1, attempts + 1):
         wav_path, frames = listen_for_utterance_with_silero_vad(
@@ -1560,6 +1550,18 @@ def capture_and_transcribe(
                 pass
 
         print_ts(f"Transcript [faster-whisper]: {transcript!r}")
+
+        if transcript and is_filler_only_transcript(transcript):
+            print_ts(
+                f"Transcript was filler-only ({transcript!r}); not counting "
+                "this as a turn."
+            )
+            if attempt < attempts:
+                robot_speaker.say(
+                    "I didn't quite catch what you said. Could you say that again?"
+                )
+            continue
+
         if transcript:
             return transcript, frames, audio_for_prosody
 
@@ -1569,8 +1571,6 @@ def capture_and_transcribe(
             )
 
     return "", [], np.array([], dtype=np.float32)
-
-
 # =============================================================================
 # Name capture (single utterance: spelled, then spoken)
 # =============================================================================
@@ -1700,7 +1700,7 @@ def capture_participant_name(
     raw_transcript)."""
     prompt_text = (
         "Hi, what is your name? Please spell it out for me -- for example, "
-        "my name is A M E C A, Ameca."
+        "my name is A, M, E, C, A, Ameca."
     )
     narrator.say_and_nod(prompt_text)
 
@@ -1811,17 +1811,21 @@ class SessionVideoRecorder:
 
     def _run(self) -> None:
         interval = 1.0 / self.fps
-        next_write = 0.0
+        next_write = time.monotonic()
         fourcc_code = cv2.VideoWriter_fourcc(*self.fourcc)
+        last_frame: Optional[np.ndarray] = None
 
         while not self._stop.is_set():
             frame = self.camera.read()
-            if frame is None:
+            if frame is not None:
+                last_frame = frame
+
+            if last_frame is None:
                 time.sleep(0.01)
                 continue
 
             if self._writer is None:
-                height, width = frame.shape[:2]
+                height, width = last_frame.shape[:2]
                 try:
                     self._writer = cv2.VideoWriter(
                         str(self.output_path), fourcc_code, self.fps, (width, height)
@@ -1844,14 +1848,17 @@ class SessionVideoRecorder:
                 )
 
             now = time.monotonic()
-            if now >= next_write:
+            while now >= next_write:
                 try:
-                    self._writer.write(frame)
+                    self._writer.write(last_frame)
                     self._frame_count += 1
                 except Exception as exc:
                     print_ts(f"[WARN] Failed to write a video frame: {exc}")
-                next_write = now + interval
+                    break
+                next_write += interval
 
+            time.sleep(0.001)
+            
     def stop(self) -> Optional[Path]:
         self._stop.set()
         try:
@@ -1900,22 +1907,29 @@ class SessionMediaVideoDriver:
 
     def _run(self) -> None:
         interval = 1.0 / self.fps
-        next_write = 0.0
+        next_write = time.monotonic()
+        last_frame: Optional[np.ndarray] = None
 
         while not self._stop.is_set():
             frame = self.camera.read()
-            if frame is None:
+            if frame is not None:
+                last_frame = frame
+
+            if last_frame is None:
                 time.sleep(0.01)
                 continue
 
             now = time.monotonic()
-            if now >= next_write:
+            while now >= next_write:
                 try:
-                    self.session_media.write_frame(frame)
+                    self.session_media.write_frame(last_frame)
                     self._frame_count += 1
                 except Exception as exc:
                     print_ts(f"[WARN] Failed to write a frame to SessionMedia: {exc}")
-                next_write = now + interval
+                    break
+                next_write += interval
+
+            time.sleep(0.001)
 
     def stop(self) -> Optional[Path]:
         self._stop.set()
@@ -2140,9 +2154,6 @@ class DeepFaceClient:
                 self.proc.stdin.flush()
             self.proc.wait(timeout=3)
         except KeyboardInterrupt:
-            # A second Ctrl+C landing during this short wait shouldn't
-            # produce a traceback on the way out -- just make sure the
-            # worker process is actually terminated and move on.
             try:
                 self.proc.terminate()
             except Exception:
@@ -2179,55 +2190,17 @@ def crop_face(
 _FACE_CASCADE: Optional["cv2.CascadeClassifier"] = None
 _EYE_CASCADE: Optional["cv2.CascadeClassifier"] = None
 
-# Explicit override for the face cascade used in local face-region
-# detection (see _resolve_face_cascade_path()). Empty by default, which
-# resolves to OpenCV's bundled default cascade -- see that function's
-# docstring for why alt/RRLab's cascade is no longer the automatic choice.
 FACE_CASCADE_PATH_OVERRIDE = os.environ.get("FACE_CASCADE_PATH", "")
-
-# Detection parameters. scaleFactor defaults to the value RRLab's own
-# mFaceIdentification.cpp uses against this same camera:
-#   faceDetector.detectMultiScale(frame, faces, 1.1, 4, CASCADE_SCALE_IMAGE, cv::Size(112, 112));
-# minNeighbors and minSize are NOT taken from that reference -- see notes
-# below; both were found empirically to need different values on this
-# script's actual frame size/detection pipeline.
 FACE_CASCADE_SCALE_FACTOR = float(os.environ.get("FACE_CASCADE_SCALE_FACTOR", "1.1"))
-# minNeighbors=4 (the C++ reference value) was tried and produced no
-# obvious recall/precision difference worth keeping over the slightly
-# stricter value that was already working in earlier sessions; reverted
-# to that known-good value.
 FACE_CASCADE_MIN_NEIGHBORS = int(os.environ.get("FACE_CASCADE_MIN_NEIGHBORS", "5"))
-# NOTE: mFaceIdentification.cpp's minSize=(112,112) was calibrated for
-# whatever frame resolution/distance its own ZED pipeline uses, which is
-# NOT necessarily this script's 1280x720 half-crop. In practice it caused
-# a total detection failure here (0/12 frames across a full session,
-# despite DeepFace's own detector finding a face confidently on every
-# single one) -- so the default is reverted to the smaller size that was
-# previously working for this camera/seating distance, while staying
-# tunable via env var in case a different framing calls for 112 later.
+
 FACE_CASCADE_MIN_SIZE = (
     int(os.environ.get("FACE_CASCADE_MIN_SIZE_WIDTH", "60")),
     int(os.environ.get("FACE_CASCADE_MIN_SIZE_HEIGHT", "60")),
 )
 
-# Whether a candidate face box must also contain an eye-like feature
-# (see _region_contains_eye()) to be accepted. This was added to reject a
-# door-handle false positive, but eye cascades are considerably less
-# reliable than face cascades -- across a full session with this gate
-# enabled, only 1 of 20 candidate frames passed (the one round with the
-# most exaggerated expression, eyes wide open), while DeepFace's own
-# detector found a face confidently on nearly every single frame in the
-# same session. That recall cost is worse than the false positive it was
-# meant to prevent, so it now defaults OFF; maxSize + aspect-ratio + area
-# filtering are the active defense against false positives instead.
-REQUIRE_EYE_CONFIRMATION = os.environ.get("REQUIRE_EYE_CONFIRMATION", "0") == "1"
 
-# Whether a candidate face box must also clear a skin-tone color check
-# (see _region_has_skin_tone()) to be accepted. Unlike the eye-confirmation
-# gate above, this is a much cheaper, lower-recall-risk filter -- a door
-# handle or wall clock has essentially no skin-tone pixels, while even a
-# poorly-lit or partially-obscured real face crop still typically clears
-# a low threshold easily. Defaults ON.
+REQUIRE_EYE_CONFIRMATION = os.environ.get("REQUIRE_EYE_CONFIRMATION", "0") == "1"
 REQUIRE_SKIN_TONE_CONFIRMATION = os.environ.get("REQUIRE_SKIN_TONE_CONFIRMATION", "1") == "1"
 SKIN_TONE_MIN_FRACTION = float(os.environ.get("SKIN_TONE_MIN_FRACTION", "0.15"))
 
@@ -2266,10 +2239,6 @@ def _get_face_cascade() -> "cv2.CascadeClassifier":
         cascade_path = _resolve_face_cascade_path()
         cascade = cv2.CascadeClassifier(cascade_path)
         if cascade.empty():
-            # CascadeClassifier does not raise on a bad/missing path -- it
-            # just silently yields a classifier that always detects
-            # nothing, which would otherwise look identical to "no face in
-            # frame" forever. Fall back explicitly and say so.
             print_ts(
                 f"[WARN] Face cascade failed to load from {cascade_path}; "
                 "falling back to OpenCV's bundled default cascade."
@@ -2356,25 +2325,12 @@ def _region_contains_eye(gray: np.ndarray, x: int, y: int, w: int, h: int) -> bo
 
 _MEDIAPIPE_FACE_MESH = None
 _MEDIAPIPE_UNAVAILABLE_LOGGED = False
-# Set True the first time MediaPipe actually errors out at runtime (as
-# opposed to genuinely finding no face in a given frame) -- e.g. an
-# installed mediapipe build that's missing the legacy `solutions` API
-# (`module 'mediapipe' has no attribute 'solutions'`), which otherwise
-# raises on literally every single call. Once set, MediaPipe is skipped
-# for the rest of the process and the Haar cascade is used instead --
-# without this distinction, a broken MediaPipe install silently zeroes
-# out every image for the whole session (every call "fails," and the
-# code was treating any failure as "no face here," never falling back).
 _MEDIAPIPE_BROKEN = False
 
 
 def _get_mediapipe_face_mesh():
     global _MEDIAPIPE_FACE_MESH
     if _MEDIAPIPE_FACE_MESH is None:
-        # static_image_mode=True: each call here analyzes an independent
-        # candidate frame from a different moment, not a continuous video
-        # stream, so MediaPipe's temporal tracking mode (which assumes
-        # frame-to-frame continuity) isn't appropriate.
         _MEDIAPIPE_FACE_MESH = mp.solutions.face_mesh.FaceMesh(
             static_image_mode=True,
             refine_landmarks=False,
@@ -2457,10 +2413,7 @@ def detect_face_region_local(frame: np.ndarray) -> Optional[dict[str, Any]]:
         if region is not None:
             return region
         if not _MEDIAPIPE_BROKEN:
-            # MediaPipe ran fine and genuinely found no face this frame.
             return None
-        # Otherwise MediaPipe just failed for the first time above --
-        # fall through to Haar for this call (and all subsequent ones).
 
     if not _MEDIAPIPE_UNAVAILABLE_LOGGED:
         print_ts("[INFO] Using Haar cascade for face-region detection.")
@@ -2541,18 +2494,6 @@ def _detect_face_region_haar(frame: np.ndarray) -> Optional[dict[str, Any]]:
         print_ts(f"[WARN] Local face-region detection failed: {exc}")
         return None
 
-
-# How many sharpest candidate frames to try (in order) when looking for
-# usable face crops, per utterance. Deliberately larger than the number
-# of images actually needed (2 for baseline, 1 for test/Q&A): picking
-# only the top-2 sharpest frames and giving up if neither has a clean,
-# forward-facing shot was found to zero out an entire round even when a
-# perfectly good frame existed elsewhere in the same utterance (sharpness
-# measures blur, not whether a face is actually well-framed in that
-# instant). Widening the pool gives the detector more chances without
-# needing more frames to be *captured* -- FrameCollector already samples
-# every CAMERA_SAMPLE_EVERY_SECONDS across the whole utterance; this only
-# changes how many of those already-captured frames get checked.
 FACE_CROP_MAX_CANDIDATES_TO_TRY = int(os.environ.get("FACE_CROP_MAX_CANDIDATES_TO_TRY", "6"))
 
 
@@ -2592,10 +2533,80 @@ def find_local_face_crops(
 
     return found[:max_needed]
 
+def find_deepface_confirmed_crops(
+    frames: list[np.ndarray],
+    deepface: DeepFaceClient,
+    max_needed: int,
+    max_candidates: int = FACE_CROP_MAX_CANDIDATES_TO_TRY,
+    debug_dir: Optional[Path] = None,
+    requested_emotion: str = "unknown",
+) -> list[tuple[np.ndarray, dict[str, Any]]]:
+    """
+    Confirms face presence via the DeepFace worker (authoritative: it
+    explicitly reports no_face=True/False from its own detector backend,
+    rather than us inferring presence from a Haar/MediaPipe box that can
+    false-positive on background clutter), then obtains the actual crop
+    bounding box via the local detector. DeepFace's own 'region' field was
+    confirmed (via saved session JSON) to always come back empty even on
+    confident detections, so it can't be used for cropping directly --
+    only for confirming a face was found at all.
+
+    Tries the sharpest candidate frames first and stops as soon as
+    max_needed DeepFace-confirmed, locally-croppable frames are found.
+    """
+    found: list[tuple[np.ndarray, dict[str, Any]]] = []
+    if not frames:
+        return found
+
+    ordered = sorted(frames, key=sharpness, reverse=True)[:max_candidates]
+    no_face_count = 0
+    failed_count = 0
+    no_local_region_count = 0
+
+    for idx, frame in enumerate(ordered):
+        if len(found) >= max_needed:
+            break
+
+        result = deepface.analyze(frame)
+        if result is None:
+            failed_count += 1
+            if debug_dir is not None:
+                _save_debug_frame(
+                    frame, debug_dir, f"{requested_emotion}_frame{idx}_failed_or_timeout"
+                )
+            continue
+
+        if result.no_face or not result.scores:
+            no_face_count += 1
+            if debug_dir is not None:
+                _save_debug_frame(frame, debug_dir, f"{requested_emotion}_frame{idx}_noface")
+            continue
+
+        region = detect_face_region_local(frame)
+        if not region:
+            no_local_region_count += 1
+            if debug_dir is not None:
+                _save_debug_frame(
+                    frame, debug_dir,
+                    f"{requested_emotion}_frame{idx}_deepface_yes_local_noregion",
+                )
+            continue
+
+        if debug_dir is not None:
+            _save_debug_frame(frame, debug_dir, f"{requested_emotion}_frame{idx}_confirmed")
+        found.append((frame, region))
+
+    print_ts(
+        f"DeepFace face-presence check for '{requested_emotion}': "
+        f"considered={len(ordered)}, confirmed={len(found)}, "
+        f"no_face={no_face_count}, failed_or_timeout={failed_count}, "
+        f"deepface_yes_but_no_local_region={no_local_region_count}"
+    )
+    return found
 
 def detect_best_emotion_sample(
     frames: list[np.ndarray],
-    deepface: DeepFaceClient,
+    deepface: Optional[DeepFaceClient],
     debug_dir: Optional[Path] = None,
     requested_emotion: str = "unknown",
 ) -> tuple[Optional[np.ndarray], Optional[dict[str, Any]]]:
@@ -2606,7 +2617,15 @@ def detect_best_emotion_sample(
     name, frame index, and outcome) so that a (None, None) result is
     diagnosable instead of silent. Only used for steps 7-9 -- baseline
     rounds (4-6) never call this.
+
+    deepface may be None when facial-expression checking is disabled for
+    the session; in that case this immediately returns (None, None)
+    without touching the camera frames at all, so callers fall back
+    cleanly to text/prosody-only fusion.
     """
+    if deepface is None:
+        return None, None
+
     if not frames:
         print_ts(
             "DeepFace: no candidate frames were captured during this "
@@ -2714,81 +2733,111 @@ def capture_baseline_emotion_round(
     silero_model: Any,
     input_device: Optional[int],
     camera: Camera,
+    deepface: DeepFaceClient,
     requested_emotion: str,
     script_text: str,
     participant_folder: str,
     session: dict[str, Any],
     script_attempts: int,
+    face_confirmation_attempts: int = 2,
 ) -> None:
     """
     Step 4-6: prompt for one target emotion, capture the reading, and save
     the two sharpest frames CROPPED to a locally-detected face bounding
-    box (see detect_face_region_local()). No DeepFace worker call is made
-    here at all -- baseline capture needs no emotion classification, and
-    the worker's own region field was found to always come back empty
-    anyway. A candidate frame is skipped entirely (not saved) if no face
-    is detected in it, since only cropped, face-containing frames are
-    saved.
+    box -- but only after DeepFace itself confirms a face is actually
+    present in that frame (see find_deepface_confirmed_crops()).
+
+    If DeepFace can't confirm a face in ANY candidate frame from the
+    utterance, the participant is told explicitly and asked to show the
+    emotion again, up to face_confirmation_attempts times, rather than
+    silently saving nothing and moving on to the next emotion.
     """
-    narrator.say_and_nod(
-        f"When you are ready, please read the next sentence and show me "
-        f"the emotion for {requested_emotion}."
-    )
-
-    print("\n" + "=" * 76)
-    print(f"EMOTION TO EXPRESS: {requested_emotion.upper()}")
-    print("-" * 76)
-    print(script_text)
-    print("=" * 76, flush=True)
-
-    transcript, frames, _audio = capture_and_transcribe(
-        whisper_model=whisper_model,
-        silero_model=silero_model,
-        input_device=input_device,
-        robot_speaker=narrator.speaker,
-        label=f"baseline {requested_emotion}",
-        camera=camera,
-        attempts=script_attempts,
-    )
-
+    debug_dir = PROFILE_DIR / participant_folder / "debug"
+    transcript = ""
     saved_images: list[str] = []
-    if transcript and frames:
-        debug_dir = PROFILE_DIR / participant_folder / "debug"
-        matches = find_local_face_crops(frames, max_needed=2)
-        for idx, (frame, region) in enumerate(matches):
-            cropped = crop_face(frame, region)
-            image_id = allocate_image_id(session)
-            path = build_profile_image_path(
-                participant_folder, "baseline", image_id, emotion=requested_emotion
-            )
-            if save_frame_to_profile(cropped, path):
-                saved_images.append(str(path))
-                print_ts(f"Saved baseline image: {path}")
 
-        if not matches and VISION_DEBUG:
-            for idx, frame in enumerate(
-                sorted(frames, key=sharpness, reverse=True)[:FACE_CROP_MAX_CANDIDATES_TO_TRY]
-            ):
-                _save_debug_frame(
-                    frame, debug_dir, f"{requested_emotion}_frame{idx}_noface_local"
-                )
-
-        if not matches:
-            print_ts(
-                f"No face detected (local detector) in any of up to "
-                f"{FACE_CROP_MAX_CANDIDATES_TO_TRY} candidate frames for "
-                f"'{requested_emotion}'; skipping (only cropped frames are saved)."
-            )
-
-        print_ts(
-            f"Baseline '{requested_emotion}' candidates: "
-            f"considered={min(len(frames), FACE_CROP_MAX_CANDIDATES_TO_TRY)}, "
-            f"cropped_and_saved={len(saved_images)}."
+    for face_attempt in range(1, face_confirmation_attempts + 1):
+        narrator.say_and_nod(
+            f"Please read the sentence and show me "
+            f"the emotion for {requested_emotion}."
         )
-    elif not frames:
+
+        print("\n" + "=" * 76)
+        print(f"EMOTION TO EXPRESS: {requested_emotion.upper()}")
+        print("-" * 76)
+        print(script_text)
+        print("=" * 76, flush=True)
+
+        transcript, frames, _audio = capture_and_transcribe(
+            whisper_model=whisper_model,
+            silero_model=silero_model,
+            input_device=input_device,
+            robot_speaker=narrator.speaker,
+            label=f"baseline {requested_emotion}",
+            camera=camera,
+            attempts=script_attempts,
+        )
+
+        if not transcript:
+            print_ts(
+                f"No usable speech captured for '{requested_emotion}' "
+                f"(face-confirmation attempt {face_attempt}/{face_confirmation_attempts})."
+            )
+            if face_attempt < face_confirmation_attempts:
+                continue
+            break
+
+        if not frames:
+            print_ts(
+                f"No candidate frames were captured for the '{requested_emotion}' "
+                "baseline round (camera/frame-collector issue?)."
+            )
+            if face_attempt < face_confirmation_attempts:
+                narrator.say(
+                    "I could not see you clearly. Let's try that emotion again."
+                )
+                continue
+            break
+
+        matches = find_deepface_confirmed_crops(
+            frames,
+            deepface,
+            max_needed=2,
+            debug_dir=debug_dir,
+            requested_emotion=requested_emotion,
+        )
+
+        if matches:
+            for frame, region in matches:
+                cropped = crop_face(frame, region)
+                image_id = allocate_image_id(session)
+                path = build_profile_image_path(
+                    participant_folder, "baseline", image_id, emotion=requested_emotion
+                )
+                if save_frame_to_profile(cropped, path):
+                    saved_images.append(str(path))
+                    print_ts(f"Saved baseline image: {path}")
+            break  # got at least one DeepFace-confirmed, cropped image
+
         print_ts(
-            f"No candidate frames were captured for the '{requested_emotion}' "
-            "baseline round (camera/frame-collector issue?)."
+            f"DeepFace could not confirm a face in any candidate frame for "
+            f"'{requested_emotion}' (attempt {face_attempt}/{face_confirmation_attempts})."
+        )
+        if face_attempt < face_confirmation_attempts:
+            narrator.say(
+                f"I could not see your face clearly for {requested_emotion}. "
+                "Please show me that emotion again."
+            )
+        else:
+            narrator.say(
+                f"I still could not see your face clearly for {requested_emotion}. "
+                "Let's move on for now."
+            )
+
+    if not saved_images:
+        print_ts(
+            f"No DeepFace-confirmed, cropped image saved for '{requested_emotion}' "
+            f"after {face_confirmation_attempts} attempt(s)."
         )
 
     session["baseline_emotion_rounds"][requested_emotion] = {
@@ -2809,7 +2858,6 @@ def capture_baseline_emotion_round(
     narrator.say_brief("Next.")
     append_turn(session, "assistant", "Next.", intent="baseline_ack")
 
-
 # =============================================================================
 # Step 7-8: free-choice test-emotion round (full multimodal fusion)
 # =============================================================================
@@ -2821,7 +2869,7 @@ def capture_test_emotion_round(
     silero_model: Any,
     input_device: Optional[int],
     camera: Camera,
-    deepface: DeepFaceClient,
+    deepface: Optional[DeepFaceClient],
     ollama_client: Optional[Client],
     emotion_model: str,
     participant_folder: str,
@@ -2834,6 +2882,10 @@ def capture_test_emotion_round(
     fusion (text + facial + prosody) IS applied here, one representative
     image is saved, and Ameca responds with one sentence stating the
     detected emotion/confidence plus a natural reply.
+
+    If deepface is None (facial-expression checking disabled for this
+    session), the facial modality is simply skipped: fusion falls back to
+    text + prosody only, and no image is saved.
     """
     narrator.say(
         "Please show me the emotion you might use most during your "
@@ -2906,7 +2958,7 @@ def capture_test_emotion_round(
                 "in the test-emotion round, but no candidate frame produced a usable "
                 "bounding box; no image saved."
             )
-    else:
+    elif deepface is not None:
         print_ts(
             "No face was detected in the test-emotion round; no image saved "
             "(only cropped frames are saved)."
@@ -2930,7 +2982,7 @@ def capture_test_emotion_round(
     append_turn(
         session, "user", transcript, intent="test_emotion", fusion=fused_result.as_json
     )
-    narrator.say_brief(response_text)
+    narrator.say(response_text)
     append_turn(session, "assistant", response_text, intent="test_emotion_response")
 
 
@@ -2945,13 +2997,19 @@ def run_small_talk_qa_session(
     silero_model: Any,
     input_device: Optional[int],
     camera: Camera,
-    deepface: DeepFaceClient,
+    deepface: Optional[DeepFaceClient],
     ollama_client: Optional[Client],
     emotion_model: str,
     participant_folder: str,
     session: dict[str, Any],
     max_questions: int,
 ) -> None:
+    """
+    If deepface is None (facial-expression checking disabled for this
+    session), the facial modality is simply skipped for every question:
+    fusion falls back to text + prosody only, and no per-question image
+    is saved.
+    """
     narrator.say(
         "Now, think of me as your robot teacher for today. Before we start "
         "the experiment, is there anything you would like to ask me? You "
@@ -2960,6 +3018,7 @@ def run_small_talk_qa_session(
 
     debug_dir = PROFILE_DIR / participant_folder / "debug"
     asked = 0
+    reached_max = False
 
     while asked < max_questions:
         transcript, frames, audio_for_prosody = capture_and_transcribe(
@@ -2998,7 +3057,9 @@ def run_small_talk_qa_session(
                 match_frame, region = matches[0]
                 cropped = crop_face(match_frame, region)
                 image_id = allocate_image_id(session)
-                path = build_profile_image_path(participant_folder, "questions", image_id)
+                path = build_profile_image_path(
+                    participant_folder, "questions", image_id, emotion=fused_result.emotion
+                )
                 if save_frame_to_profile(cropped, path):
                     image_path_str = str(path)
                     print_ts(f"Saved question-round image: {path}")
@@ -3008,7 +3069,7 @@ def run_small_talk_qa_session(
                     "for this question, but no candidate frame produced a usable "
                     "bounding box; no image saved."
                 )
-        else:
+        elif deepface is not None:
             print_ts(
                 "No face was detected for this question; no image saved "
                 "(only cropped frames are saved)."
@@ -3024,17 +3085,22 @@ def run_small_talk_qa_session(
             "captured_at": now_iso(),
         })
         append_turn(session, "user", transcript, intent="question", fusion=fused_result.as_json)
-        narrator.say_brief(answer)
+        narrator.say(answer)
         append_turn(session, "assistant", answer, intent="answer")
 
         asked += 1
         save_session(session["participant_id"], session)
 
-        if asked < max_questions:
-            narrator.say("Do you have another question?")
+        if asked >= max_questions:
+            reached_max = True
+            break
 
-    narrator.say_and_nod("Great, let's begin the experiment.")
-
+    if reached_max:
+        narrator.say_and_nod(
+            "That was your three questions, please fill out your questionnaire and we can begin the experiment."
+        )
+    else:
+        narrator.say_and_nod("Great, let's begin the experiment.")
 
 # =============================================================================
 # Main warm-up orchestration
@@ -3047,6 +3113,18 @@ def run_warm_up(args: argparse.Namespace) -> None:
         FACE_CASCADE_PATH_OVERRIDE = args.face_cascade_path
     if args.require_eye_confirmation:
         REQUIRE_EYE_CONFIRMATION = True
+
+    check_facial_expression = args.check_facial_expression
+    print_ts(
+        f"Facial-expression checking: {'ENABLED' if check_facial_expression else 'DISABLED'} "
+        + (
+            "(baseline emotion rounds + free-choice test round will run)."
+            if check_facial_expression
+            else "(baseline emotion rounds + free-choice test round will be "
+            "skipped; going straight to the closing questions after the "
+            "goals statement)."
+        )
+    )
 
     preset_width, preset_height, preset_fps = RESOLUTION_MAP[args.resolution]
     if "CAMERA_WIDTH" not in os.environ:
@@ -3070,6 +3148,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
     )
     participant_folder = sanitize_participant_folder_name(participant_id)
     session = new_session(participant_id, participant_folder)
+    session["check_facial_expression"] = check_facial_expression
     save_session(participant_id, session)
 
     speaker = RobotSpeaker(
@@ -3077,15 +3156,12 @@ def run_warm_up(args: argparse.Namespace) -> None:
         args.tts_token,
         speaking_cooldown_s=args.speaking_cooldown,
         activity_debounce_seconds=args.tts_activity_debounce,
-        startup_grace_seconds=args.tts_startup_grace,
     )
     gesture = RobotGesture(host=args.gesture_host, token=args.tts_token)
     narrator = Narrator(speaker, gesture, args.nod_sequence)
 
     camera: Optional[Camera] = None
     deepface: Optional[DeepFaceClient] = None
-    # Either a SessionMediaVideoDriver (audio+video, preferred) or a
-    # SessionVideoRecorder (video-only fallback) -- both expose start()/stop().
     video_recorder: Optional[Any] = None
 
     print_ts("Loading Silero VAD...")
@@ -3153,12 +3229,19 @@ def run_warm_up(args: argparse.Namespace) -> None:
             print_ts(f"[WARN] Could not start TTS activity monitor: {exc}")
 
     try:
-        deepface = DeepFaceClient(
-            python_executable=args.deepface_python,
-            worker_script=args.deepface_worker_script,
-            startup_timeout=args.deepface_startup_timeout,
-            request_timeout=args.deepface_timeout,
-        )
+        if check_facial_expression:
+            deepface = DeepFaceClient(
+                python_executable=args.deepface_python,
+                worker_script=args.deepface_worker_script,
+                startup_timeout=args.deepface_startup_timeout,
+                request_timeout=args.deepface_timeout,
+            )
+        else:
+            deepface = None
+            print_ts(
+                "Skipping DeepFace worker startup entirely (facial-expression "
+                "checking disabled for this session)."
+            )
 
         camera = Camera(args.camera)
 
@@ -3192,8 +3275,6 @@ def run_warm_up(args: argparse.Namespace) -> None:
                     video_recorder = None
 
             if video_recorder is None:
-                # Either SessionMedia is unavailable/disabled, or it failed
-                # to start -- fall back to the original video-only recorder.
                 video_path = (
                     VIDEOS_DIR
                     / participant_folder
@@ -3225,45 +3306,56 @@ def run_warm_up(args: argparse.Namespace) -> None:
         goals_text = (
             f"Nice to meet you, {display_name}. In this warm up session, I have "
             f"two goals: one, to hold small talk with you, {display_name}; and "
-            "two, to have a baseline of your emotional faces."
+            "two, to hold small talk with you"
         )
         narrator.say_brief(goals_text)
         session["goals_stated"] = True
         append_turn(session, "assistant", goals_text, intent="goals_statement")
         save_session(participant_id, session)
 
-        # ---- Steps 4-6: baseline emotion rounds (no classification) ----
-        for requested_emotion in args.emotions:
-            script_text = EMOTION_SCRIPTS[requested_emotion]
-            capture_baseline_emotion_round(
+        # ---- Steps 4-8: facial-emotion baseline + free-choice test round ----
+        # Skipped entirely when facial-expression checking is disabled for
+        # this session -- the warm-up goes straight from the goals
+        # statement to the closing three-question Q&A (step 9) below.
+        if check_facial_expression:
+            # ---- Steps 4-6: baseline emotion rounds (no classification) ----
+            for requested_emotion in args.emotions:
+                script_text = EMOTION_SCRIPTS[requested_emotion]
+                capture_baseline_emotion_round(
+                    narrator=narrator,
+                    whisper_model=whisper_model,
+                    silero_model=silero_model,
+                    input_device=args.input_device,
+                    camera=camera,
+                    deepface=deepface,
+                    requested_emotion=requested_emotion,
+                    script_text=script_text,
+                    participant_folder=participant_folder,
+                    session=session,
+                    script_attempts=args.script_attempts,
+                )
+                save_session(participant_id, session)
+
+            # ---- Steps 7-8: free-choice test-emotion round (full fusion) ----
+            capture_test_emotion_round(
                 narrator=narrator,
                 whisper_model=whisper_model,
                 silero_model=silero_model,
                 input_device=args.input_device,
                 camera=camera,
-                requested_emotion=requested_emotion,
-                script_text=script_text,
+                deepface=deepface,
+                ollama_client=ollama_client,
+                emotion_model=args.emotion_model,
                 participant_folder=participant_folder,
                 session=session,
                 script_attempts=args.script_attempts,
             )
             save_session(participant_id, session)
-
-        # ---- Steps 7-8: free-choice test-emotion round (full fusion) ----
-        capture_test_emotion_round(
-            narrator=narrator,
-            whisper_model=whisper_model,
-            silero_model=silero_model,
-            input_device=args.input_device,
-            camera=camera,
-            deepface=deepface,
-            ollama_client=ollama_client,
-            emotion_model=args.emotion_model,
-            participant_folder=participant_folder,
-            session=session,
-            script_attempts=args.script_attempts,
-        )
-        save_session(participant_id, session)
+        else:
+            print_ts(
+                "Facial-expression checking is disabled: skipping baseline "
+                "emotion rounds and the free-choice test-emotion round."
+            )
 
         # ---- Step 9: small talk / teacher Q&A (full fusion) ----
         run_small_talk_qa_session(
@@ -3362,12 +3454,30 @@ def parse_arguments() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--check_facial_expression",
+        action=argparse.BooleanOptionalAction,
+        default=CHECK_FACIAL_EXPRESSION_DEFAULT,
+        help=(
+            "Whether to check the participant's facial expression this "
+            "session. When enabled (default), runs the 6-emotion baseline "
+            "(steps 4-6), the free-choice test-emotion round (steps 7-8), "
+            "and facial analysis during the closing Q&A -- and starts the "
+            "DeepFace worker. Pass --no-check_facial_expression to skip all "
+            "of that and go straight from the goals statement to the "
+            "closing three-question Q&A (step 9), which will then run on "
+            "text + prosody fusion only. Defaults to the "
+            "CHECK_FACIAL_EXPRESSION environment variable ('1'/'0') if set, "
+            "else enabled."
+        ),
+    )
+    parser.add_argument(
         "--deepface_python",
         default=DEEPFACE_PYTHON,
         help=(
             "Python executable in the separate DeepFace/TensorFlow conda "
             "environment. Only used for steps 7-9 (baseline capture in "
-            "steps 4-6 never calls DeepFace)."
+            "steps 4-6 never calls DeepFace), and only if "
+            "--check_facial_expression is enabled."
         ),
     )
     parser.add_argument(
@@ -3432,28 +3542,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--tts_activity_debounce",
         type=float,
-        default=1.5,
+        default=0.2,
         help=(
             "Seconds of silence in detected TTS audio activity required "
             "before treating Ameca as done speaking. Must comfortably exceed "
             "a normal inter-sentence pause, or wait_until_finished() (and "
             "therefore the turn-end nod) can fire mid-response. Raise this "
             "further if the nod still fires between sentences."
-        ),
-    )
-    parser.add_argument(
-        "--tts_startup_grace",
-        type=float,
-        default=2.0,
-        help=(
-            "Seconds to treat Ameca as 'definitely still speaking' right "
-            "after a TTS request is sent, before real activity detection has "
-            "necessarily kicked in. Only used as a cap when the TTS-activity "
-            "monitor is available (otherwise the full word-count duration "
-            "estimate is used as the only completion signal) -- keeping this "
-            "short (rather than scaling with utterance length) is what "
-            "prevents long utterances from waiting extra dead time past "
-            "when they actually finished speaking."
         ),
     )
     parser.add_argument(
@@ -3555,11 +3650,6 @@ def main() -> None:
     try:
         run_warm_up(args)
     except KeyboardInterrupt:
-        # Ctrl+C landing anywhere in the flow (not just the designated
-        # end-of-session pause) still goes through run_warm_up's own
-        # finally block first, which saves the session and releases the
-        # camera/DeepFace worker -- this just prevents the resulting
-        # KeyboardInterrupt from propagating out as a raw traceback.
         print_ts("Interrupted by user. Session state has been saved.")
 
 
