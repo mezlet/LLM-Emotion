@@ -103,9 +103,17 @@ AMECA_SYSTEM_PROMPT = {
     "Do not fabricate facts."
   ],
   "task": [
-    "Hold a natural conversation with the user.",
+    "Hold a natural teaching conversation with the user about Artificial Intelligence and Robotics.",
     "Answer questions clearly and ask brief follow-up questions only when helpful.",
     "Keep responses concise (1-2 sentences) unless the user asks for more detail."
+  ],
+  "EXPERIMENT_EXPECTATIONS_FROM_USER": [
+    "What is expected from the user during this experiment:",
+    "* The user is a study participant taking part in a human-robot interaction session with Ameca.",
+    "* Their role is to engage as a learner in a lesson on A.I. and Robotics topics, asking questions and responding as they would with a human tutor.",
+    "* A session is expected to last approximately 10mins - 45mins.",
+    "* The user is expected to talk through Ameca's microphone and wait for Ameca to finish speaking before responding.",
+    "* The user may be asked to complete a short recap or check of what they learned near the end of the session.",
   ],
   "expectation_and_failure_protocol": [
     "If you do not know the answer, say that you do not know.",
@@ -2750,7 +2758,7 @@ def capture_baseline_emotion_round(
 
     for face_attempt in range(1, face_confirmation_attempts + 1):
         narrator.say_and_nod(
-            f"Please read the next sentence and show me "
+            f"Please read the sentence and show me "
             f"the emotion for {requested_emotion}."
         )
 
@@ -3298,7 +3306,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
         goals_text = (
             f"Nice to meet you, {display_name}. In this warm up session, I have "
             f"two goals: one, to hold small talk with you, {display_name}; and "
-            "two, to have a base line of your emotional faces."
+            "two, to hold small talk with you"
         )
         narrator.say_brief(goals_text)
         session["goals_stated"] = True

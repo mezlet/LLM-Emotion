@@ -1,42 +1,67 @@
 {
-  "b25461": {
-    "name": "Cicie",
-    "participant_id": "B25461",
-    "created_at": "2026-07-30 13:18:29",
-    "last_seen": "2026-07-30 13:23:56",
+  "a12345": {
+    "name": "Joy",
+    "participant_id": "A12345",
+    "created_at": "2026-08-02 19:59:00",
+    "last_seen": "2026-08-02 20:43:56",
     "session_files": [
-      "conversation_data/sessions/b25461_20260730_132356.json"
+      "conversation_data/sessions/a12345_20260802_200559.json",
+      "conversation_data/sessions/a12345_20260802_204356.json"
     ],
-    "conversation_summary": "- Previous continuity context: Recent user topics/questions: What kind of error bots are you?; kind of aerobots are you?; between artificial intelligence and supervised learning.; What is the difference between supervised and also supervised learning? Knowledge/RAG topics used: What is a...\n- Recent user topics/questions: What kind of error bots are you?; kind of aerobots are you?; between artificial intelligence and supervised learning.; What is the difference between supervised and also supervised learning?\n- Knowledge/RAG topics used: What is a robot?; What kind of error bots are you?; kind of aerobots are you?; between artificial intelligence and supervised learning.\n- Relevant retrieved sources included: Emah; M. Sc. Ashita Ashok - AG Robotersysteme RPTU; Robots - AG Robotersysteme RPTU; CREA; Head of the Laboratory - AG Robotersysteme RPTU\n- Last assistant direction: There seems to be an error in your question. There is no such thing as 'also supervised' learning. 😊\n- Recent affective context: joy, neutral, surprise"
+    "conversation_summary": "Here is an updated continuity summary:\n\n• Ongoing project: Exploring supervised and unsupervised learning in robotics, with a focus on applying these concepts to specific robotic tasks.\n• Unresolved task: Providing examples of suitable tasks for supervised learning in robotics.\n• Thesis topic: Discussing the differences between supervised and unsupervised learning in the context of robotics.\n• Technical context: Large Language Models (LLMs) based on transformer architectures, including self-attention mechanisms, encoder-decoder structures, and components like embedding layers, output layers, positional encoding, and layer normalization.\n• Emotional state trend: Neutral emotional tone throughout the conversation.\n• Personal preference: User prefers concise explanations and examples to illustrate technical concepts.\n• Next-step cue: Continuing the conversation by exploring specific robotic tasks that can benefit from supervised or unsupervised learning.",
+    "warm_up_session_path": null,
+    "warm_up_display_name": null,
+    "sessions_completed": 2,
+    "session_history": [
+      {
+        "session_number": 1,
+        "level": "beginner",
+        "summary": "- Recent user topics/questions: So why is the whole essence of this experiment?; What do you expect from me in this experiment?; Okay, what are the expected questions?; So what is the difference between supervised and unsupervised learning, which respects to robotics and please give me examples.\n- Knowledge/RAG topics used: What do you expect from me in this experiment?\n- Relevant retrieved sources included: Emah; Head of the Laboratory - AG Robotersysteme RPTU\n- Last assistant direction: In robotics, supervised learning involves training a model using labeled data, where the correct output or action is already known. This type of learning is often used for tasks like object recognition or grasping, where the robot needs to learn from examples. For instance, if you want a robot arm t\n- Recent affective context: happiness, neutral",
+        "ended_at": "2026-08-02 20:05:59"
+      },
+      {
+        "session_number": 2,
+        "level": "intermediate",
+        "summary": "- Recent user topics/questions: What are the different types of robots and which robots are you?; What are the large language modules?; Can you explain large language models and the different components?; Can you explain the different concepts? One needs to know which regards to large language models.\n- Knowledge/RAG topics used: Okay, can you explain a special intelligence and computer programming?; I said can you compare artificial intelligence?; Can you compare artificial intelligence and software programming?; What are the different types of robots and which robots are you?\n- Relevant retrieved sources included: Head of the Laboratory - AG Robotersysteme RPTU; M. Sc. Marcel Suiker - AG Robotersysteme RPTU; Emah; Artos; Roman\n- Last assistant direction: Large Language Models (LLMs) are based on transformer architectures, which consist of self-attention mechanisms and encoder-decoder structures. Self-Attention: allows the model to weigh the importance of different input elements relative to each other. Encoder: processes the input sequence using sel\n- Recent affective context: neutral, happiness",
+        "ended_at": "2026-08-02 20:44:02"
+      }
+    ],
+    "lesson_state": {
+      "current_topic": "concepts",
+      "current_subtopic": "None",
+      "covered_concepts": [
+        "None",
+        "supervised and unsupervised learning"
+      ],
+      "pending_questions": [
+        "robot up reports"
+      ],
+      "current_teaching_goal": "explain the different concepts related to large language models",
+      "last_intent": "continue"
+    }
   },
-  "b25464": {
-    "name": "Ashita",
-    "participant_id": "B25464",
-    "created_at": "2026-07-30 13:25:25",
-    "last_seen": "2026-07-30 13:26:26",
-    "session_files": [
-      "conversation_data/sessions/b25464_20260730_132626.json"
-    ],
-    "conversation_summary": "- Previous continuity context: Recent user topics/questions: A-S-H-I-T-A; And I am asked to.; What did you hear that I said before? Knowledge/RAG topics used: And I am asked to. Relevant retrieved sources included: Emah Last assistant direction: You didn't say anything before, Ashita. This...\n- Recent user topics/questions: A-S-H-I-T-A; And I am asked to.; What did you hear that I said before?\n- Knowledge/RAG topics used: And I am asked to.\n- Relevant retrieved sources included: Emah\n- Last assistant direction: You didn't say anything before, Ashita. This conversation just started. 🙂\n- Recent affective context: neutral"
+  "a12389": {
+    "name": "Frenk",
+    "participant_id": "A12389",
+    "created_at": "2026-08-02 23:33:25",
+    "last_seen": "2026-08-02 23:33:25",
+    "session_files": [],
+    "conversation_summary": "",
+    "warm_up_session_path": null,
+    "warm_up_display_name": null,
+    "sessions_completed": 0,
+    "session_history": []
   },
-  "b254668": {
-    "name": "Cicie",
-    "participant_id": "B254668",
-    "created_at": "2026-07-30 13:31:21",
-    "last_seen": "2026-07-30 13:36:00",
-    "session_files": [
-      "conversation_data/sessions/b254668_20260730_133600.json"
-    ],
-    "conversation_summary": "- Previous continuity context: Recent user topics/questions: What is the difference between artificial intelligence and supervised learning?; What type of robot are you?; I said what type of robots are you?; What kind of robots are you? Knowledge/RAG topics used: What type of robot are...\n- Recent user topics/questions: What is the difference between artificial intelligence and supervised learning?; What type of robot are you?; I said what type of robots are you?; What kind of robots are you?\n- Knowledge/RAG topics used: What type of robot are you?; I said what type of robots are you?; What kind of robots are you?\n- Relevant retrieved sources included: Emah; Roman\n- Last assistant direction: I am a Generation 1 Ameca robot from Engineered Arts, and I run the Emah system which is a real-time Human-Robot Interaction (HRI) system. 😊\n- Recent affective context: joy, anger"
-  },
-  "b254654": {
-    "name": "Ashita",
-    "participant_id": "B254654",
-    "created_at": "2026-07-30 13:38:41",
-    "last_seen": "2026-07-30 13:40:00",
-    "session_files": [
-      "conversation_data/sessions/b254654_20260730_134000.json"
-    ],
-    "conversation_summary": "- Previous continuity context: Recent user topics/questions: A-S-H-I-T-A; I am Asta and I am a human. Knowledge/RAG topics used: I am Asta and I am a human. Relevant retrieved sources included: Emah; M. Sc. Ashita Ashok - AG Robotersysteme RPTU Last assistant direction: As a human, you are...\n- Recent user topics/questions: A-S-H-I-T-A; I am Asta and I am a human.\n- Knowledge/RAG topics used: I am Asta and I am a human.\n- Relevant retrieved sources included: Emah; M. Sc. Ashita Ashok - AG Robotersysteme RPTU\n- Last assistant direction: As a human, you are interacting with the Ameca robot, which is running the Emah system. This system utilizes rule-based behavior models, custom machine learning and deep learning architectures to provide realistic communication between humans and robots. 😊\n- Recent affective context: joy"
+  "a12675": {
+    "name": "Joy",
+    "participant_id": "A12675",
+    "created_at": "2026-08-02 23:37:24",
+    "last_seen": "2026-08-03 00:06:29",
+    "session_files": [],
+    "conversation_summary": "",
+    "warm_up_session_path": null,
+    "warm_up_display_name": null,
+    "sessions_completed": 0,
+    "session_history": []
   }
 }
