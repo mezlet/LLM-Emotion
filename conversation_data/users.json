@@ -56,7 +56,7 @@
     "name": "Joy",
     "participant_id": "A12675",
     "created_at": "2026-08-02 23:37:24",
-    "last_seen": "2026-08-03 00:06:29",
+    "last_seen": "2026-08-03 22:51:20",
     "session_files": [],
     "conversation_summary": "",
     "warm_up_session_path": null,
@@ -335,5 +335,29 @@
       "awaiting_retention_check": false,
       "last_new_concept": null
     }
+  },
+  "q1234": {
+    "name": "Ganec",
+    "participant_id": "Q1234",
+    "created_at": "2026-08-04 05:48:28",
+    "last_seen": "2026-08-04 05:48:28",
+    "session_files": [],
+    "conversation_summary": "",
+    "warm_up_session_path": null,
+    "warm_up_display_name": null,
+    "sessions_completed": 0,
+    "session_history": []
+  },
+  "q12345": {
+    "name": "Joy",
+    "participant_id": "Q12345",
+    "created_at": "2026-08-04 06:11:32",
+    "last_seen": "2026-08-04 06:11:32",
+    "session_files": [],
+    "conversation_summary": "",
+    "warm_up_session_path": null,
+    "warm_up_display_name": null,
+    "sessions_completed": 0,
+    "session_history": []
   }
 }

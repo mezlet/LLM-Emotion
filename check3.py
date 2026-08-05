@@ -95,6 +95,7 @@ AMECA_SYSTEM_PROMPT = {
         "Your motors have movement limits and one eyebrow actuator may malfunction, sometimes giving the appearance of a \"resting angry face.\"",
         "Your hardware may generate fan noise during operation.",
         "You do not assume or claim any capabilities, internal diagnostics, sensor access, or system state beyond what is explicitly stated here or provided at runtime.",
+        "You are able to detect emotion from text",
         "You have continuity memory through SELF-RAG CONTEXT, locally stored user profiles and conversation summaries.",
     ],
     "TRANSPARENCY": [
@@ -105,7 +106,7 @@ AMECA_SYSTEM_PROMPT = {
     ],
     "TASK": [
         "Hold a natural teaching conversation with the user about Artificial Intelligence and Robotics.",
-        "The experimenter sets the current explanation level (beginner, intermediate, or advanced) before the session starts. Use this level to silently adapt every explanation's vocabulary and depth. NEVER ask the user to choose or confirm a level, never offer them a choice of levels, and NEVER say or write the level's name (or label an answer with it, e.g. 'Beginner Level:') anywhere in your response -- it shapes how you explain, but is never mentioned.",
+        "The experimenter will provide the current explanation level through keyboard input: beginner, intermediate, or advanced. Use this level to adapt every explanation. Do not ask the user to choose a level unless no level is provided.",
         "Covered topic areas include AI basics, machine learning, neural networks, large language models, tokens, prompts, context windows, computer vision, robot perception, sensors and actuators, robot control and movement, human-robot interaction, humanoid robots, LLMs in robotics, robot safety, ethics, transparency, and Ameca\u2019s own capabilities and limitations.",
         "When a user asks about a topic, answer clearly at the assigned level:",
         "* Beginner: use simple language, everyday examples, and define important terms immediately. For example, for large language models, explain tokens as small pieces of text and context as the surrounding text the model uses.",
@@ -114,7 +115,7 @@ AMECA_SYSTEM_PROMPT = {
         "Structure answers with a concise definition, a level-appropriate explanation, and one concrete example, preferably from robotics or Ameca. Mention a limitation when relevant. Ask brief follow-up questions only when helpful.",
         "Notice when the learner seems confused, curious, or confident, and adapt your teaching.",  
         "Plain text only, no markdown.",
-        "Always summarize every reply to at most 100 words only"
+        "Summarize every reply in at most 100 words only"
     ],
     "ANSWER_STRUCTURE": [
         "Answer only questions related to Artificial Intelligence and Robotics.",
@@ -239,16 +240,57 @@ DEEPFACE_REQUEST_TIMEOUT_SECONDS = float(
     os.environ.get("DEEPFACE_REQUEST_TIMEOUT_SECONDS", "5")
 )
 
-VISION_DEBUG = os.environ.get("VISION_DEBUG", "0") == "1"
-CHECK_FACIAL_EXPRESSION_DEFAULT = os.environ.get("CHECK_FACIAL_EXPRESSION", "1") == "1"
+# The 6 baseline emotions (5 affective + neutral). Order is preserved.
+EMOTION_SCRIPTS: dict[str, str] = {
+    "joy": "I received wonderful news today, and I feel very happy and excited.",
+    "sadness": (
+        "Something important to me did not go as planned, and I feel sad "
+        "and disappointed."
+    ),
+    "anger": (
+        "Someone treated me unfairly, and I feel angry about what happened."
+    ),
+    "fear": (
+        "I heard a sudden sound behind me, and I feel frightened because "
+        "I do not know what caused it."
+    ),
+    "surprise": (
+        "I opened the door and found an unexpected celebration waiting for me."
+    ),
+    "neutral": (
+        "This is just a plain description of my day. Nothing about it "
+        "feels especially strong one way or another."
+    ),
+}
 
-# Number of DeepFace-confirmed, cropped face images to save per participant
-# turn during the Q&A session (see run_small_talk_qa_session()).
-QA_IMAGES_PER_TURN = int(os.environ.get("QA_IMAGES_PER_TURN", "2"))
+DEEPFACE_TO_PROFILE_EMOTION = {
+    "happy": "joy",
+    "sad": "sadness",
+    "angry": "anger",
+    "fear": "fear",
+    "surprise": "surprise",
+    "disgust": "disgust",
+    "neutral": "neutral",
+}
 
-# Ollama connection used for teacher Q&A response generation.
+# =============================================================================
+# Multimodal emotion-classification configuration
+# =============================================================================
+
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "https://counters-aquarium-par-joke.trycloudflare.com")
 EMOTION_MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
+
+FUSION_EMOTIONS = [
+    "joy", "sadness", "anger", "fear", "surprise", "disgust", "neutral",
+]
+
+FUSION_TEXT_WEIGHT = float(os.environ.get("FUSION_TEXT_WEIGHT", "0.5"))
+FUSION_VISUAL_WEIGHT = float(os.environ.get("FUSION_VISUAL_WEIGHT", "0.4"))
+FUSION_PROSODY_WEIGHT = float(os.environ.get("FUSION_PROSODY_WEIGHT", "0.1"))
+
+
+VISION_DEBUG = os.environ.get("VISION_DEBUG", "0") == "1"
+CHECK_FACIAL_EXPRESSION_DEFAULT = os.environ.get("CHECK_FACIAL_EXPRESSION", "1") == "1"
 
 
 # =============================================================================
@@ -321,128 +363,19 @@ def is_filler_only_transcript(text: str) -> bool:
     return bool(FILLER_ONLY_PATTERN.match(cleaned))
 
 # =============================================================================
-# Session persistence (one JSON file per participant PER SESSION)
+# Session persistence (single JSON file per participant)
 # =============================================================================
 
-# Each participant goes through this many separate sessions
-# (warm_up_sessions/{participant_folder}_session{1,2,3}.json). Session 1 is
-# a first meeting; sessions 2 and 3 open with a recap of the previous
-# session's summary (see load_previous_session_summary() /
-# generate_session_summary()).
-MAX_SESSIONS_PER_PARTICIPANT = int(os.environ.get("MAX_SESSIONS_PER_PARTICIPANT", "3"))
-
-
-def explanation_level_for_session(session_number: int) -> str:
-    """
-    Default explanation-level progression across a participant's
-    sessions: session 1 is beginner, session 2 is intermediate, and
-    session 3 (and any session beyond that, e.g. an explicit re-run past
-    MAX_SESSIONS_PER_PARTICIPANT) is advanced. Only used when the
-    experimenter hasn't explicitly overridden the level via
-    --explanation_level.
-    """
-    if session_number <= 1:
-        return "beginner"
-    if session_number == 2:
-        return "intermediate"
-    return "advanced"
-
-
-def session_file_path(participant_folder: str, session_number: int) -> Path:
-    return SESSIONS_DIR / f"{participant_folder}_session{session_number}.json"
-
-
-def list_existing_session_numbers(participant_folder: str) -> list[int]:
-    ensure_directories()
-    numbers: list[int] = []
-    pattern = re.compile(rf"^{re.escape(participant_folder)}_session(\d+)\.json$")
-    for path in SESSIONS_DIR.glob(f"{participant_folder}_session*.json"):
-        match = pattern.match(path.name)
-        if match:
-            numbers.append(int(match.group(1)))
-    return sorted(numbers)
-
-
-def determine_session_number(
-    participant_folder: str, requested: Optional[int]
-) -> int:
-    """
-    Returns the session number to run. If the caller explicitly requested
-    one (--session_number), that's used as-is (so a specific session can be
-    re-run, e.g. for debugging). Otherwise, this auto-advances to one past
-    the highest existing session file for this participant, defaulting to
-    1 if none exist yet.
-    """
-    if requested is not None:
-        return requested
-    existing = list_existing_session_numbers(participant_folder)
-    return (max(existing) + 1) if existing else 1
-
-
-def load_session_file(participant_folder: str, session_number: int) -> Optional[dict[str, Any]]:
-    path = session_file_path(participant_folder, session_number)
-    if not path.is_file():
-        return None
-    try:
-        with path.open("r", encoding="utf-8") as file:
-            return json.load(file)
-    except Exception as exc:
-        print_ts(f"[WARN] Could not read prior session file {path}: {exc}")
-        return None
-
-
-def load_previous_session_summary(
-    participant_folder: str, session_number: int
-) -> Optional[str]:
-    """
-    For session_number > 1, looks up the summary saved at the end of
-    session_number - 1. Returns None if there is no previous session file,
-    or it has no summary recorded (e.g. it was interrupted before
-    finishing normally).
-    """
-    if session_number <= 1:
-        return None
-    previous = load_session_file(participant_folder, session_number - 1)
-    if not previous:
-        return None
-    summary = previous.get("summary")
-    return summary.strip() if isinstance(summary, str) and summary.strip() else None
-
-
-def find_most_recent_display_name(
-    participant_folder: str, before_session_number: int
-) -> Optional[str]:
-    """
-    Looks backwards from before_session_number - 1 down to session 1 for
-    the most recent session file that captured a display_name, so a
-    returning participant (session_number > 1) doesn't have to spell out
-    their name again. Walks backwards rather than only checking
-    session_number - 1 directly, since that immediately-prior session may
-    have been interrupted (e.g. Ctrl+C) before name capture completed.
-    """
-    for candidate_number in range(before_session_number - 1, 0, -1):
-        previous = load_session_file(participant_folder, candidate_number)
-        if not previous:
-            continue
-        name = previous.get("display_name")
-        if isinstance(name, str) and name.strip():
-            return name.strip()
-    return None
-
-
-def new_session(
-    participant_id: str, participant_folder: str, session_number: int
-) -> dict[str, Any]:
+def new_session(participant_id: str, participant_folder: str) -> dict[str, Any]:
     return {
         "participant_id": participant_id,
         "participant_folder": participant_folder,
-        "session_number": session_number,
         "display_name": "",
         "started_at": now_iso(),
         "ended_at": None,
         "goals_stated": False,
-        "previous_session_summary": None,  # loaded from session_number - 1, if any
-        "summary": None,                   # generated at the end of THIS session
+        "baseline_emotion_rounds": {},  # emotion -> {...}
+        "test_emotion_round": None,     # {...}
         "qa_session": [],               # [{...}, ...]
         "conversation": [],             # full turn-by-turn transcript
         "video_path": None,             # session video, set once recording starts
@@ -466,14 +399,15 @@ def allocate_image_id(session: dict[str, Any]) -> int:
 def save_session(participant_id: str, session: dict[str, Any]) -> Path:
     """
     Atomic write of the whole session to
-    warm_up_sessions/{participant_folder}_session{session_number}.json.
+    warm_up_sessions/{participant_folder}_{timestamp}.json.
     Called after every major step (not just at the end), so a crash or
     Ctrl+C mid-session still leaves a usable, up-to-date session file.
     """
     ensure_directories()
     folder_name = session.get("participant_folder") or sanitize_participant_folder_name(participant_id)
-    session_number = int(session.get("session_number", 1))
-    path = session_file_path(folder_name, session_number)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    folder = f"{folder_name}.json"
+    path = SESSIONS_DIR / folder
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(".json.tmp")
     with temp_path.open("w", encoding="utf-8") as file:
@@ -489,13 +423,19 @@ def build_profile_image_path(
     emotion: Optional[str] = None,
 ) -> Path:
     """
+    kind == "baseline" -> {participant_folder}_{id}_{emotion}_{timestamp}.jpg
+    kind == "test"     -> test_{id}_{timestamp}.jpg
     kind == "questions"-> questions_{id}_{timestamp}.jpg
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     directory = PROFILE_DIR / participant_folder
     directory.mkdir(parents=True, exist_ok=True)
 
-    if kind == "questions":
+    if kind == "baseline":
+        filename = f"{participant_folder}_{image_id}_{emotion}_{timestamp}.jpg"
+    elif kind == "test":
+        filename = f"test_{image_id}_{timestamp}.jpg"
+    elif kind == "questions":
         filename = f"questions_{image_id}_{timestamp}.jpg"
     else:
         filename = f"{kind}_{image_id}_{timestamp}.jpg"
@@ -535,32 +475,9 @@ def _save_debug_frame(frame: np.ndarray, debug_dir: Path, tag: str) -> None:
         print_ts(f"Could not save DeepFace debug frame: {exc}")
 
 
-END_SESSION_PHRASES = {"bye", "goodbye", "good bye", "bye bye", "bye-bye"}
-
-
-def indicates_no_further_questions(text: str) -> bool:
-    """
-    The Q&A loop runs indefinitely and only ends when the participant
-    explicitly says "bye" or "goodbye" -- anything else, including
-    "no"/"that's all"/silence-then-retry, is treated as another turn for
-    generate_qa_answer to respond to, not as a session-ending signal.
-    Punctuation is stripped so "Bye!" / "Goodbye." still match.
-    """
-    lowered = re.sub(r"[^a-z\s]", "", text.strip().lower()).strip()
-    return lowered in END_SESSION_PHRASES
-
-
 # =============================================================================
-# Text-based emotion classification (via the same local/tunneled Ollama
-# LLM used for Q&A answers). Classification only -- captured per turn as
-# research data alongside the DeepFace-confirmed face crops; it does not
-# drive Ameca's spoken response or the explanation level.
+# Emotion-classification data structures
 # =============================================================================
-
-TEXT_EMOTION_LABELS = [
-    "joy", "sadness", "anger", "fear", "surprise", "disgust", "neutral",
-]
-
 
 @dataclass
 class EmotionResult:
@@ -568,21 +485,52 @@ class EmotionResult:
     confidence: float
     reason: str
 
+
+@dataclass
+class ProsodyEmotionResult:
+    available: bool
+    emotion: str
+    confidence: float
+    reason: str
+    features: dict[str, float]
+
     @property
-    def as_json(self) -> dict[str, Any]:
+    def as_json(self) -> dict:
+        return {
+            "available": self.available,
+            "emotion": self.emotion,
+            "confidence": self.confidence,
+            "reason": self.reason,
+            "features": self.features,
+        }
+
+
+@dataclass
+class FusedEmotionResult:
+    emotion: str
+    confidence: float
+    reason: str
+    scores: dict[str, float]
+    weights: dict[str, float]
+    text_emotion: dict[str, Any]
+    visual_emotion: dict[str, Any]
+    prosody_emotion: dict[str, Any]
+
+    @property
+    def as_json(self) -> dict:
         return {
             "emotion": self.emotion,
             "confidence": round(self.confidence, 4),
             "reason": self.reason,
+            "scores": {k: round(v, 4) for k, v in self.scores.items()},
+            "weights": {k: round(v, 4) for k, v in self.weights.items()},
+            "text_emotion": self.text_emotion,
+            "visual_emotion": self.visual_emotion,
+            "prosody_emotion": self.prosody_emotion,
         }
 
 
 def safe_json_extract(raw: str) -> Optional[dict]:
-    """
-    Ollama's format="json" mode is usually clean, but this still guards
-    against stray markdown code fences or leading/trailing chatter by
-    falling back to locating the outermost {...} span.
-    """
     if not raw:
         return None
 
@@ -606,10 +554,14 @@ def safe_json_extract(raw: str) -> Optional[dict]:
     return None
 
 
+# =============================================================================
+# Text-based emotion classification via local Ollama LLM
+# =============================================================================
+
 def build_emotion_prompt(transcribed_text: str) -> str:
-    emotions = ", ".join(TEXT_EMOTION_LABELS)
+    emotions = ", ".join(FUSION_EMOTIONS)
     return f"""
-        You are an emotion classification system for a human-robot interaction session.
+        You are an emotion classification system for a human-robot interaction warm-up.
 
         Classify the emotional state expressed by the text below into exactly one of
         Ekman's basic emotions (plus neutral): {emotions}
@@ -633,7 +585,7 @@ def detect_text_emotion(
         return EmotionResult(
             emotion="neutral",
             confidence=0.0,
-            reason="No Ollama client or empty transcript; text emotion classification unavailable.",
+            reason="No Ollama client or empty transcript; text modality unavailable.",
         )
 
     try:
@@ -671,7 +623,7 @@ def detect_text_emotion(
         confidence = 0.0
     reason = str(data.get("reason", "")).strip() or "Emotion inferred from transcript."
 
-    if emotion not in TEXT_EMOTION_LABELS:
+    if emotion not in FUSION_EMOTIONS:
         emotion = "neutral"
         confidence = min(confidence, 0.3)
         reason = "Invalid emotion label returned; neutral fallback used."
@@ -679,46 +631,305 @@ def detect_text_emotion(
     return EmotionResult(emotion=emotion, confidence=confidence, reason=reason)
 
 
-LEVEL_LEAK_PATTERNS = [
-    # "Beginner Level:" / "Advanced level -" etc as a label/prefix, wherever
-    # it appears in the text (the model has been observed inserting this
-    # mid-answer, not just at the start).
-    re.compile(r"\b(?:beginner|intermediate|advanced)\s+level\s*[:\-]\s*", re.IGNORECASE),
-    # Parenthetical leak, e.g. "your current explanation level (beginner)".
-    re.compile(r"\(\s*(?:beginner|intermediate|advanced)\s*\)", re.IGNORECASE),
-    # Inline phrase leak, e.g. "at your current explanation level" / "at a beginner level".
-    re.compile(
-        r"\bat\s+(?:a|your current)\s+(?:beginner|intermediate|advanced\s+)?(?:explanation\s+)?level\b",
-        re.IGNORECASE,
-    ),
-]
+# =============================================================================
+# Prosody-based emotion analysis
+# =============================================================================
+
+def analyze_prosody_from_audio(
+    audio_16k: np.ndarray,
+    sample_rate: int = TARGET_SAMPLE_RATE,
+) -> ProsodyEmotionResult:
+    if audio_16k is None or audio_16k.size == 0:
+        return ProsodyEmotionResult(
+            available=False,
+            emotion="neutral",
+            confidence=0.0,
+            reason="No audio available for prosody analysis.",
+            features={},
+        )
+
+    try:
+        audio = audio_16k.astype(np.float32, copy=False)
+        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        rms = float(np.sqrt(np.mean(audio ** 2))) if audio.size else 0.0
+        duration = float(len(audio) / max(1, sample_rate))
+
+        frame_size = max(1, int(0.05 * sample_rate))
+        frame_rms = []
+        for start in range(0, len(audio), frame_size):
+            frame = audio[start:start + frame_size]
+            if frame.size:
+                frame_rms.append(float(np.sqrt(np.mean(frame ** 2))))
+
+        energy_std = float(np.std(frame_rms)) if frame_rms else 0.0
+        zero_crossing_rate = (
+            float(np.mean(np.abs(np.diff(np.signbit(audio))))) if audio.size > 1 else 0.0
+        )
+
+        features = {
+            "peak": peak,
+            "rms": rms,
+            "duration": duration,
+            "energy_std": energy_std,
+            "zero_crossing_rate": zero_crossing_rate,
+        }
+
+        if rms < 0.006 and duration > 1.0:
+            return ProsodyEmotionResult(
+                available=True,
+                emotion="sadness",
+                confidence=0.35,
+                reason="Low vocal energy suggests a subdued tone.",
+                features=features,
+            )
+
+        if rms > 0.025 or energy_std > 0.018:
+            return ProsodyEmotionResult(
+                available=True,
+                emotion="surprise",
+                confidence=0.30,
+                reason="Higher or more variable vocal energy suggests heightened arousal.",
+                features=features,
+            )
+
+        return ProsodyEmotionResult(
+            available=True,
+            emotion="neutral",
+            confidence=0.25,
+            reason="Prosody suggests calm conversational speech.",
+            features=features,
+        )
+
+    except Exception as exc:
+        return ProsodyEmotionResult(
+            available=False,
+            emotion="neutral",
+            confidence=0.0,
+            reason=f"Prosody analysis failed: {exc}",
+            features={},
+        )
 
 
-def strip_level_leak(text: str) -> str:
+# =============================================================================
+# Adaptive reliability-aware fusion
+# =============================================================================
+
+def one_hot_emotion_distribution(emotion: str, confidence: float) -> dict[str, float]:
+    emotion = emotion if emotion in FUSION_EMOTIONS else "neutral"
+    confidence = max(0.0, min(1.0, float(confidence)))
+    remaining = max(0.0, 1.0 - confidence)
+    other = remaining / max(1, len(FUSION_EMOTIONS) - 1)
+    return {emo: confidence if emo == emotion else other for emo in FUSION_EMOTIONS}
+
+
+def deepface_result_to_distribution(result: Optional[dict[str, Any]]) -> dict[str, float]:
     """
-    Safety net for generate_qa_answer(): even with explicit prompt
-    instructions never to name or label the explanation level (see
-    style_instructions), smaller local models like llama3:8b have been
-    observed doing it anyway (e.g. prefixing answers with "Beginner
-    Level:" or saying "your current explanation level (beginner)").
-    Strips those patterns out before the text is spoken or saved, rather
-    than relying on prompting alone.
+    Normalizes a DeepFace facial-emotion reading into a distribution over
+    FUSION_EMOTIONS. Previously dropped DeepFace's "neutral" score entirely
+    (since Plutchik has no neutral category) -- now that FUSION_EMOTIONS is
+    Ekman-based and includes "neutral", it's kept, since it was often the
+    single highest-confidence category DeepFace actually returned.
     """
-    cleaned = text
-    for pattern in LEVEL_LEAK_PATTERNS:
-        cleaned = pattern.sub("", cleaned)
-    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
-    return cleaned
+    scores = {emo: 0.0 for emo in FUSION_EMOTIONS}
+    if not result or not result.get("scores"):
+        return scores
+
+    for ekman_label, value in result["scores"].items():
+        mapped = DEEPFACE_TO_PROFILE_EMOTION.get(str(ekman_label).strip().lower())
+        if not mapped:
+            continue
+        try:
+            scores[mapped] += float(value)
+        except Exception:
+            continue
+
+    total = sum(scores.values())
+    if total <= 0:
+        return scores
+    return {emo: value / total for emo, value in scores.items()}
+
+
+def text_reliability_score(text_emotion: EmotionResult) -> float:
+    return max(0.0, min(1.0, float(text_emotion.confidence)))
+
+
+def visual_reliability_score(result: Optional[dict[str, Any]]) -> float:
+    if not result or not result.get("scores"):
+        return 0.0
+    values = [float(v) for v in result["scores"].values()]
+    if not values:
+        return 0.0
+    ordered = sorted(values, reverse=True)
+    top = ordered[0]
+    second = ordered[1] if len(ordered) > 1 else 0.0
+    margin = max(0.0, top - second)
+    top_component = min(1.0, top / 100.0)
+    margin_component = min(1.0, margin / 60.0)
+    return max(0.0, min(1.0, (0.6 * top_component) + (0.4 * margin_component)))
+
+
+def prosody_reliability_score(prosody_emotion: Optional[ProsodyEmotionResult]) -> float:
+    if not prosody_emotion or not prosody_emotion.available:
+        return 0.0
+    return max(0.0, min(0.45, float(prosody_emotion.confidence)))
+
+
+def adaptive_reliability_aware_fusion(
+    text_emotion: EmotionResult,
+    facial_result: Optional[dict[str, Any]],
+    prosody_emotion: Optional[ProsodyEmotionResult],
+) -> FusedEmotionResult:
+    text_dist = one_hot_emotion_distribution(text_emotion.emotion, text_emotion.confidence)
+    visual_dist = deepface_result_to_distribution(facial_result)
+
+    if prosody_emotion and prosody_emotion.available:
+        prosody_dist = one_hot_emotion_distribution(prosody_emotion.emotion, prosody_emotion.confidence)
+    else:
+        prosody_dist = {emo: 0.0 for emo in FUSION_EMOTIONS}
+
+    text_rel = text_reliability_score(text_emotion)
+    visual_rel = visual_reliability_score(facial_result)
+    prosody_rel = prosody_reliability_score(prosody_emotion)
+
+    raw_text = FUSION_TEXT_WEIGHT * text_rel
+    raw_visual = FUSION_VISUAL_WEIGHT * visual_rel
+    raw_prosody = FUSION_PROSODY_WEIGHT * prosody_rel
+    total = raw_text + raw_visual + raw_prosody
+
+    if total <= 0:
+        wt, wv, wp = 1.0, 0.0, 0.0
+    else:
+        wt, wv, wp = raw_text / total, raw_visual / total, raw_prosody / total
+
+    fused_scores = {
+        emo: (
+            wt * text_dist.get(emo, 0.0)
+            + wv * visual_dist.get(emo, 0.0)
+            + wp * prosody_dist.get(emo, 0.0)
+        )
+        for emo in FUSION_EMOTIONS
+    }
+
+    dominant = max(fused_scores.items(), key=lambda item: item[1])[0]
+    confidence = max(0.0, min(1.0, fused_scores[dominant]))
+
+    facial_label = (facial_result or {}).get("emotion")
+
+    reason = (
+        f"Adaptive reliability-aware fusion selected {dominant}: "
+        f"text={text_emotion.emotion} rel={text_rel:.2f}, "
+        f"visual={facial_label} rel={visual_rel:.2f}, "
+        f"prosody={prosody_emotion.emotion if prosody_emotion else None} rel={prosody_rel:.2f}."
+    )
+
+    return FusedEmotionResult(
+        emotion=dominant,
+        confidence=confidence,
+        reason=reason,
+        scores=fused_scores,
+        weights={
+            "base_text": FUSION_TEXT_WEIGHT,
+            "base_visual": FUSION_VISUAL_WEIGHT,
+            "base_prosody": FUSION_PROSODY_WEIGHT,
+            "reliability_text": text_rel,
+            "reliability_visual": visual_rel,
+            "reliability_prosody": prosody_rel,
+            "active_normalized_text": wt,
+            "active_normalized_visual": wv,
+            "active_normalized_prosody": wp,
+        },
+        text_emotion={
+            "emotion": text_emotion.emotion,
+            "confidence": text_emotion.confidence,
+            "reason": text_emotion.reason,
+        },
+        visual_emotion=facial_result or {},
+        prosody_emotion=prosody_emotion.as_json if prosody_emotion else {
+            "available": False,
+            "emotion": None,
+            "confidence": 0.0,
+            "reason": "No prosody result provided.",
+            "features": {},
+        },
+    )
+
+
+# =============================================================================
+# One-sentence emotion response / Q&A answer generation
+# =============================================================================
+
+def generate_one_sentence_emotion_response(
+    client: Optional[Client],
+    transcript: str,
+    emotion: str,
+    confidence: float,
+    model_name: str = EMOTION_MODEL_NAME,
+) -> str:
+    confidence_pct = round(max(0.0, min(1.0, confidence)) * 100)
+    fallback = (
+        f"I sense a bit of {emotion} in that, at about {confidence_pct} percent "
+        "confidence -- thanks for sharing that with me."
+    )
+
+    if client is None:
+        return fallback
+
+    prompt = f"""
+        You are Ameca, a humanoid robot. A multimodal emotion-recognition system
+        just detected the participant's emotion as "{emotion}" with about
+        {confidence_pct}% confidence, based on what they said below.
+
+        Participant's words:
+        {transcript}
+
+        Write exactly ONE short, warm sentence that both (a) tells them what
+        emotion you detected and your confidence level, and (b) responds naturally
+        to what they said. Plain text only, no markdown, no more than 25 words.
+        """.strip()
+
+    try:
+        response = client.chat(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.4, "num_predict": 60, "num_ctx": 1024},
+            stream=False,
+        )
+        text = response.get("message", {}).get("content", "").strip()
+        text = re.sub(r"\s+", " ", text)
+        sentences = re.split(r"(?<=[.!?])\s+", text)
+        text = sentences[0].strip() if sentences and sentences[0].strip() else text
+        return text or fallback
+    except Exception as exc:
+        print_ts(f"One-sentence emotion response generation failed: {exc}")
+        return fallback
+
+
+NO_MORE_QUESTIONS_PHRASES = {
+    "no", "nothing", "no thank you", "nothing thanks", "that's all",
+    "i'm good", "im good", "no questions", "nope", "i don't have any",
+    "i have no questions", "no i'm good", "not really",
+}
+
+
+def indicates_no_further_questions(text: str) -> bool:
+    lowered = text.strip().lower().rstrip(".!?")
+    if not lowered:
+        return True
+    if lowered in NO_MORE_QUESTIONS_PHRASES:
+        return True
+    return any(
+        phrase in lowered
+        for phrase in ["no more questions", "that's it", "i'm good", "im good"]
+    )
 
 
 def generate_qa_answer(
     client: Optional[Client],
     question: str,
     qa_history: list[dict[str, str]],
-    explanation_level: str = "beginner",
+    self_reported_level: Optional[str] = None,
     overflow_summary: str = "",
-    previous_session_summary: str = "",
-    model_name: str = "",
+    model_name: str = EMOTION_MODEL_NAME,
 ) -> str:
     """
     qa_history: prior turns from this Q&A round, in order, as
@@ -728,14 +939,6 @@ def generate_qa_answer(
     bounded no matter how many questions the participant ends up asking.
     overflow_summary carries a compact digest of anything older than that
     window so continuity isn't lost, just compressed.
-    previous_session_summary, if provided, is a short recap of an earlier
-    (separate) session with this same participant -- kept in context for
-    the whole of THIS session so the model can follow up on it naturally
-    if the participant references it, without treating it as part of the
-    current Q&A's own rolling window/overflow accounting.
-    explanation_level is fixed for the entire session via a CLI/runtime
-    setting (see --explanation_level), never inferred from or asked of
-    the participant -- see the explicit "never ask" instruction below.
     """
     ameca_system_prompt_text = json.dumps(AMECA_SYSTEM_PROMPT, indent=2)
     fallback = (
@@ -746,30 +949,24 @@ def generate_qa_answer(
         return fallback
 
     level_line = (
-        f"The explanation level for this entire session is fixed at "
-        f"'{explanation_level}', set by the experimenter before the session "
-        "started. Adapt your language and depth to that level for EVERY "
-        "answer, silently -- the participant is never told what level they "
-        "are on."
+        f"The participant has told you they are a '{self_reported_level}' level "
+        "learner. Adapt your language and depth to that level for every answer "
+        "in this conversation, not just the turn where they said it."
+        if self_reported_level
+        else "No explanation level has been stated yet; default to clear, "
+        "beginner-friendly language unless the participant's questions suggest "
+        "otherwise."
     )
 
     style_instructions = f"""
         Answer Structure
         - {level_line}
-        - STRICT: NEVER say or write the words 'beginner', 'intermediate', or
-          'advanced' (in any capitalization) anywhere in your answer, and
-          NEVER prefix or label an answer with the level, e.g. do NOT write
-          "Beginner Level:", "(beginner)", "at a beginner level", or similar.
-          Do not ask the participant which level they prefer or offer them a
-          choice of levels, and do not mention that a level was set at all --
-          the level only shapes your vocabulary and depth; it is never named
-          or referenced out loud, not even indirectly (e.g. "since you're
-          just starting out").
         - "Answer only questions related to Artificial Intelligence and Robotics.",
         - "If a question falls outside this scope, politely explain your teaching role and redirect the conversation.",
         - "Use examples, analogies, and short summaries when they improve understanding.",
         - "Use the recent conversation history to understand context and avoid repeating yourself",
         - "Do not reintroduce yourself unless the user asks who you are, and never begin with 'As Ameca' or 'As a humanoid social robot'.",
+        - "Do not append the user's level"
         - This is an open-ended Q&A: the participant may ask as many questions
           as they want. Treat every question on its own merits -- do not rush,
           shorten, or hedge answers just because many questions have already
@@ -788,16 +985,6 @@ def generate_qa_answer(
     messages = [
         {"role": "system", "content": f"{ameca_system_prompt_text}\n\n{style_instructions}"}
     ]
-    if previous_session_summary:
-        messages.append({
-            "role": "system",
-            "content": (
-                "Context: summary of an earlier session with this same "
-                f"participant:\n{previous_session_summary}\nYou may refer "
-                "back to this if the participant asks about it, but do not "
-                "repeat it unprompted."
-            ),
-        })
     if overflow_summary:
         messages.append({"role": "system", "content": overflow_summary})
     for turn in qa_history:
@@ -824,90 +1011,9 @@ def generate_qa_answer(
         )
         text = response.get("message", {}).get("content", "").strip()
         text = re.sub(r"\s+", " ", text)
-        text = strip_level_leak(text)
         return text or fallback
     except Exception as exc:
         print_ts(f"Q&A answer generation failed: {exc}")
-        return fallback
-
-
-def generate_session_summary(
-    client: Optional[Client],
-    qa_session: list[dict[str, Any]],
-    display_name: str,
-    model_name: str = "",
-) -> str:
-    """
-    Produces a short, ready-to-speak recap sentence for THIS session's
-    Q&A, saved to session["summary"] and read back to the participant
-    VERBATIM at the start of their next session (see
-    load_previous_session_summary() and the returning-participant opening
-    in run_small_talk_qa_session()) -- so this must already be a single,
-    plain, speakable sentence like "Last time, we discussed X and Y.",
-    not a multi-sentence report.
-
-    Falls back to a simple templated summary (topics only, no LLM
-    phrasing) if no Ollama client is available or the session had no
-    questions, since a next-session recap should still be possible even
-    without the LLM.
-    """
-    questions = [
-        str(item.get("question", "")).strip()
-        for item in qa_session
-        if str(item.get("question", "")).strip()
-    ]
-
-    if not questions:
-        return "Last time, we didn't get to any questions."
-
-    fallback = (
-        "Last time, you asked about " + "; ".join(questions[:5]) +
-        ("." if len(questions) <= 5 else ", among other things.")
-    )
-
-    if client is None:
-        return fallback
-
-    transcript_lines = "\n".join(
-        f"Q: {item.get('question', '').strip()}\nA: {item.get('answer', '').strip()}"
-        for item in qa_session
-        if str(item.get("question", "")).strip()
-    )
-
-    prompt = f"""
-        Below is a teacher Q&A session transcript between Ameca (a robot
-        tutor) and the participant, {display_name}. Write ONE single short
-        spoken sentence (max 30 words) that Ameca can say verbatim at the
-        start of the participant's NEXT session to remind them what was
-        covered last time.
-
-        Rules:
-        - Start with exactly "Last time, we discussed" or "Last time, you asked about".
-        - Name only the main topic(s), in plain everyday words.
-        - Second person ("you"), never use the participant's name.
-        - Output ONLY that one sentence. No preamble, no labels, no bullet
-          points, no "here's a summary", no markdown, nothing else.
-
-        Session transcript:
-        {transcript_lines}
-        """.strip()
-
-    try:
-        response = client.chat(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            options={"temperature": 0.2, "num_predict": 60, "num_ctx": 4096},
-            stream=False,
-        )
-        text = response.get("message", {}).get("content", "").strip()
-        text = re.sub(r"\s+", " ", text)
-        # Guard against the model ignoring the "one sentence" instruction --
-        # this gets spoken verbatim as an opener, so keep only the first
-        # sentence if it produced more.
-        first_sentence = re.split(r"(?<=[.!?])\s+", text)[0].strip() if text else ""
-        return first_sentence or fallback
-    except Exception as exc:
-        print_ts(f"Session summary generation failed: {exc}")
         return fallback
 
 # =============================================================================
@@ -1159,6 +1265,22 @@ def save_audio_to_temp_wav(audio_16k: np.ndarray) -> Optional[str]:
         wav_path = tmp.name
     sf.write(wav_path, normalized, TARGET_SAMPLE_RATE)
     return wav_path
+
+
+def load_audio_for_prosody(wav_path: str, target_sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
+    try:
+        audio, sr_in = sf.read(wav_path, dtype="float32")
+        if audio is None or len(audio) == 0:
+            return np.array([], dtype=np.float32)
+        if getattr(audio, "ndim", 1) > 1:
+            audio = np.mean(audio, axis=1)
+        audio = audio.astype(np.float32, copy=False)
+        if int(sr_in) != int(target_sr):
+            audio = resample_audio(audio, int(sr_in), int(target_sr))
+        return audio.astype(np.float32, copy=False)
+    except Exception as exc:
+        print_ts(f"Could not load audio for prosody: {exc}")
+        return np.array([], dtype=np.float32)
 
 
 def transcribe_with_faster_whisper(
@@ -1464,9 +1586,12 @@ def capture_and_transcribe(
     label: str,
     camera: Optional["Camera"] = None,
     attempts: int = 3,
-) -> tuple[str, list[np.ndarray]]:
+) -> tuple[str, list[np.ndarray], np.ndarray]:
     """
-    Returns (transcript, frames).
+    Returns (transcript, frames, audio_for_prosody). audio_for_prosody is
+    the normalized utterance audio reloaded from the saved WAV, used by
+    the prosody-emotion modality; empty array if nothing usable was
+    captured.
 
     A transcript that's filler-only (e.g. "Hmmm", "uh") is treated the
     same as unclear/no speech: it is never returned as a valid transcript,
@@ -1487,6 +1612,8 @@ def capture_and_transcribe(
                     "I did not hear that clearly. Please try again."
                 )
             continue
+
+        audio_for_prosody = load_audio_for_prosody(wav_path)
 
         try:
             transcript = transcribe_with_faster_whisper(
@@ -1513,14 +1640,14 @@ def capture_and_transcribe(
             continue
 
         if transcript:
-            return transcript, frames
+            return transcript, frames, audio_for_prosody
 
         if attempt < attempts:
             robot_speaker.say(
                 "I could not transcribe that clearly. Please try again."
             )
 
-    return "", []
+    return "", [], np.array([], dtype=np.float32)
 # =============================================================================
 # Name capture (single utterance: spelled, then spoken)
 # =============================================================================
@@ -1654,7 +1781,7 @@ def capture_participant_name(
     )
     narrator.say_and_nod(prompt_text)
 
-    transcript, _ = capture_and_transcribe(
+    transcript, _, _ = capture_and_transcribe(
         whisper_model,
         silero_model,
         input_device,
@@ -1912,8 +2039,7 @@ class SessionMediaVideoDriver:
 
 
 # =============================================================================
-# Isolated DeepFace worker (used to confirm a face is present in a frame,
-# so cropped face images can be saved during the Q&A session)
+# Isolated DeepFace worker (used only for steps 7-9, NOT steps 4-6)
 # =============================================================================
 
 @dataclass
@@ -2169,15 +2295,15 @@ def _resolve_face_cascade_path() -> str:
     uses the default cascade internally) found a face confidently on
     every single frame it analyzed, while our alt-cascade detector found
     a usable face on only 1 of 12+ candidate frames -- catching just the
-    most exaggerated expression and missing everything subtler. Trading
-    that much recall away isn't worth the reduced false-positive rate
-    here, so default is the automatic choice again; the maxSize/aspect/
-    area filtering and the eye-confirmation check (see
-    detect_face_region_local() / _region_contains_eye()) are what
-    actually reject false positives now, rather than relying on a
-    stingier cascade to avoid producing them in the first place. Pass
-    --face_cascade_path (or set FACE_CASCADE_PATH) to explicitly opt into
-    alt, the RRLab path, or any other cascade file.
+    most exaggerated expression (wide eyes + open mouth on "surprise")
+    and missing everything subtler. Trading that much recall away isn't
+    worth the reduced false-positive rate here, so default is the
+    automatic choice again; the maxSize/aspect/area filtering and the
+    eye-confirmation check (see detect_face_region_local() /
+    _region_contains_eye()) are what actually reject false positives now,
+    rather than relying on a stingier cascade to avoid producing them in
+    the first place. Pass --face_cascade_path (or set FACE_CASCADE_PATH)
+    to explicitly opt into alt, the RRLab path, or any other cascade file.
     """
     if FACE_CASCADE_PATH_OVERRIDE and os.path.isfile(FACE_CASCADE_PATH_OVERRIDE):
         return FACE_CASCADE_PATH_OVERRIDE
@@ -2428,11 +2554,11 @@ def find_local_face_crops(
 ) -> list[tuple[np.ndarray, dict[str, Any]]]:
     """
     Returns up to max_needed (frame, region) pairs with a usable local
-    face-detection region, trying the preferred frame first (with its own
-    region if any), then the max_candidates sharpest remaining frames in
-    order. Stops as soon as max_needed matches are found rather than
-    checking every candidate, to avoid unnecessary work once enough crops
-    are in hand.
+    face-detection region, trying the preferred frame first (e.g.
+    DeepFace's already-classified best frame, with its own region if any),
+    then the max_candidates sharpest remaining frames in order. Stops as
+    soon as max_needed matches are found rather than checking every
+    candidate, to avoid unnecessary work once enough crops are in hand.
     """
     found: list[tuple[np.ndarray, dict[str, Any]]] = []
 
@@ -2463,12 +2589,6 @@ def find_deepface_confirmed_crops(
     debug_dir: Optional[Path] = None,
     requested_emotion: str = "unknown",
 ) -> list[tuple[np.ndarray, dict[str, Any]]]:
-    """
-    Finds up to max_needed frames where DeepFace confirms a face is
-    present AND a local face-region detector can produce a usable
-    bounding box for cropping. Used purely as a face-presence check --
-    the emotion/scores DeepFace returns are not used here.
-    """
     found: list[tuple[np.ndarray, dict[str, Any]]] = []
     if not frames:
         return found
@@ -2519,9 +2639,378 @@ def find_deepface_confirmed_crops(
     )
     return found
 
+def detect_best_emotion_sample(
+    frames: list[np.ndarray],
+    deepface: Optional[DeepFaceClient],
+    debug_dir: Optional[Path] = None,
+    requested_emotion: str = "unknown",
+) -> tuple[Optional[np.ndarray], Optional[dict[str, Any]]]:
+    
+    if deepface is None:
+        return None, None
+
+    if not frames:
+        print_ts(
+            "DeepFace: no candidate frames were captured during this "
+            "utterance (camera/frame-collector issue?)."
+        )
+        return None, None
+
+    ordered = sorted(frames, key=sharpness, reverse=True)
+    ordered = ordered[:FACE_MAX_CANDIDATE_FRAMES]
+    analyzed: list[tuple[np.ndarray, dict[str, Any]]] = []
+
+    no_face_count = 0
+    unmapped_count = 0
+    failed_count = 0
+
+    for idx, frame in enumerate(ordered):
+        result = deepface.analyze(frame)
+
+        if result is None:
+            failed_count += 1
+            if debug_dir is not None:
+                _save_debug_frame(
+                    frame, debug_dir, f"{requested_emotion}_frame{idx}_failed_or_timeout"
+                )
+            continue
+
+        if result.no_face or not result.scores:
+            no_face_count += 1
+            if debug_dir is not None:
+                _save_debug_frame(
+                    frame, debug_dir, f"{requested_emotion}_frame{idx}_noface"
+                )
+            continue
+
+        raw = (
+            result.dominant_emotion
+            or max(result.scores.items(), key=lambda item: item[1])[0]
+        )
+        raw = str(raw).strip().lower()
+        mapped = DEEPFACE_TO_PROFILE_EMOTION.get(raw)
+        if not mapped:
+            unmapped_count += 1
+            if debug_dir is not None:
+                _save_debug_frame(
+                    frame, debug_dir, f"{requested_emotion}_frame{idx}_unmapped_{raw}"
+                )
+            continue
+
+        confidence = float(result.scores.get(raw, 0.0)) / 100.0
+        if debug_dir is not None:
+            _save_debug_frame(
+                frame,
+                debug_dir,
+                f"{requested_emotion}_frame{idx}_detected-{mapped}_{round(confidence * 100)}pct",
+            )
+
+        analyzed.append(
+            (
+                frame,
+                {
+                    "emotion": mapped,
+                    "deepface_emotion": raw,
+                    "confidence": confidence,
+                    "scores": result.scores,
+                    "region": result.region or {},
+                },
+            )
+        )
+
+    print_ts(
+        f"DeepFace candidate frames: considered={len(ordered)}, "
+        f"confident={len(analyzed)}, no_face={no_face_count}, "
+        f"unmapped={unmapped_count}, failed_or_timeout={failed_count}"
+    )
+
+    if not analyzed:
+        print_ts(
+            "DeepFace did not produce a confident face+emotion reading on any "
+            "candidate frame this turn. "
+            + (
+                f"Check debug frames under: {debug_dir}"
+                if debug_dir is not None and VISION_DEBUG
+                else "Set VISION_DEBUG=1 to save per-frame debug images."
+            )
+        )
+        return None, None
+
+    best_frame, best_result = max(analyzed, key=lambda item: item[1]["confidence"])
+    print_ts(
+        f"Best DeepFace reading: emotion={best_result['emotion']} "
+        f"confidence={best_result['confidence']:.2f} "
+        f"region={best_result.get('region')!r}"
+    )
+    return best_frame, best_result
+
 
 # =============================================================================
-# Small talk / teacher Q&A, with DeepFace-confirmed face crops saved per turn
+# Step 4-6: baseline emotion rounds (no classification, capture only)
+# =============================================================================
+
+def capture_baseline_emotion_round(
+    *,
+    narrator: Narrator,
+    whisper_model: WhisperModel,
+    silero_model: Any,
+    input_device: Optional[int],
+    camera: Camera,
+    deepface: DeepFaceClient,
+    requested_emotion: str,
+    script_text: str,
+    participant_folder: str,
+    session: dict[str, Any],
+    script_attempts: int,
+    face_confirmation_attempts: int = 2,
+) -> None:
+    """
+    Step 4-6: prompt for one target emotion, capture the reading, and save
+    the two sharpest frames CROPPED to a locally-detected face bounding
+    box -- but only after DeepFace itself confirms a face is actually
+    present in that frame (see find_deepface_confirmed_crops()).
+
+    If DeepFace can't confirm a face in ANY candidate frame from the
+    utterance, the participant is told explicitly and asked to show the
+    emotion again, up to face_confirmation_attempts times, rather than
+    silently saving nothing and moving on to the next emotion.
+    """
+    debug_dir = PROFILE_DIR / participant_folder / "debug"
+    transcript = ""
+    saved_images: list[str] = []
+
+    for face_attempt in range(1, face_confirmation_attempts + 1):
+        narrator.say_and_nod(
+            f"Please read the sentence and show me "
+            f"the emotion for {requested_emotion}."
+        )
+
+        print("\n" + "=" * 76)
+        print(f"EMOTION TO EXPRESS: {requested_emotion.upper()}")
+        print("-" * 76)
+        print(script_text)
+        print("=" * 76, flush=True)
+
+        transcript, frames, _audio = capture_and_transcribe(
+            whisper_model=whisper_model,
+            silero_model=silero_model,
+            input_device=input_device,
+            robot_speaker=narrator.speaker,
+            label=f"baseline {requested_emotion}",
+            camera=camera,
+            attempts=script_attempts,
+        )
+
+        if not transcript:
+            print_ts(
+                f"No usable speech captured for '{requested_emotion}' "
+                f"(face-confirmation attempt {face_attempt}/{face_confirmation_attempts})."
+            )
+            if face_attempt < face_confirmation_attempts:
+                continue
+            break
+
+        if not frames:
+            print_ts(
+                f"No candidate frames were captured for the '{requested_emotion}' "
+                "baseline round (camera/frame-collector issue?)."
+            )
+            if face_attempt < face_confirmation_attempts:
+                narrator.say(
+                    "I could not see you clearly. Let's try that emotion again."
+                )
+                continue
+            break
+
+        matches = find_deepface_confirmed_crops(
+            frames,
+            deepface,
+            max_needed=2,
+            debug_dir=debug_dir,
+            requested_emotion=requested_emotion,
+        )
+
+        if matches:
+            for frame, region in matches:
+                cropped = crop_face(frame, region)
+                image_id = allocate_image_id(session)
+                path = build_profile_image_path(
+                    participant_folder, "baseline", image_id, emotion=requested_emotion
+                )
+                if save_frame_to_profile(cropped, path):
+                    saved_images.append(str(path))
+                    print_ts(f"Saved baseline image: {path}")
+            break  # got at least one DeepFace-confirmed, cropped image
+
+        print_ts(
+            f"DeepFace could not confirm a face in any candidate frame for "
+            f"'{requested_emotion}' (attempt {face_attempt}/{face_confirmation_attempts})."
+        )
+        if face_attempt < face_confirmation_attempts:
+            narrator.say(
+                f"I could not see your face clearly for {requested_emotion}. "
+                "Please show me that emotion again."
+            )
+        else:
+            narrator.say(
+                f"I still could not see your face clearly for {requested_emotion}. "
+                "Let's move on for now."
+            )
+
+    if not saved_images:
+        print_ts(
+            f"No DeepFace-confirmed, cropped image saved for '{requested_emotion}' "
+            f"after {face_confirmation_attempts} attempt(s)."
+        )
+
+    session["baseline_emotion_rounds"][requested_emotion] = {
+        "requested_emotion": requested_emotion,
+        "script": script_text,
+        "transcript": transcript,
+        "images": saved_images,
+        "captured_at": now_iso(),
+    }
+    append_turn(
+        session,
+        "user",
+        transcript or "(no usable speech captured)",
+        intent="baseline_emotion_reading",
+        requested_emotion=requested_emotion,
+    )
+
+    narrator.say_brief("Next.")
+    append_turn(session, "assistant", "Next.", intent="baseline_ack")
+
+# =============================================================================
+# Step 7-8: free-choice test-emotion round (full multimodal fusion)
+# =============================================================================
+
+def capture_test_emotion_round(
+    *,
+    narrator: Narrator,
+    whisper_model: WhisperModel,
+    silero_model: Any,
+    input_device: Optional[int],
+    camera: Camera,
+    deepface: Optional[DeepFaceClient],
+    ollama_client: Optional[Client],
+    emotion_model: str,
+    participant_folder: str,
+    session: dict[str, Any],
+    script_attempts: int,
+) -> None:
+    """
+    Step 7-8: the participant shows whichever emotion they might use most
+    during interaction with Ameca. Unlike steps 4-6, full multimodal
+    fusion (text + facial + prosody) IS applied here, one representative
+    image is saved, and Ameca responds with one sentence stating the
+    detected emotion/confidence plus a natural reply.
+
+    If deepface is None (facial-expression checking disabled for this
+    session), the facial modality is simply skipped: fusion falls back to
+    text + prosody only, and no image is saved.
+    """
+    narrator.say(
+        "Please show me the emotion you might use most during your "
+        "interaction with me."
+    )
+
+    transcript, frames, audio_for_prosody = capture_and_transcribe(
+        whisper_model=whisper_model,
+        silero_model=silero_model,
+        input_device=input_device,
+        robot_speaker=narrator.speaker,
+        label="test emotion",
+        camera=camera,
+        attempts=script_attempts,
+    )
+
+    if not transcript:
+        fallback_text = "I couldn't quite catch that, but let's continue."
+        narrator.say_brief(fallback_text)
+        session["test_emotion_round"] = {
+            "transcript": "",
+            "fusion": None,
+            "image": None,
+            "response": fallback_text,
+            "captured_at": now_iso(),
+        }
+        append_turn(session, "assistant", fallback_text, intent="test_emotion_fallback")
+        return
+
+    debug_dir = PROFILE_DIR / participant_folder / "debug"
+    frame, facial_result = detect_best_emotion_sample(
+        frames, deepface, debug_dir=debug_dir, requested_emotion="test"
+    )
+
+    text_emotion_result = detect_text_emotion(ollama_client, transcript, model_name=emotion_model)
+    prosody_result = analyze_prosody_from_audio(audio_for_prosody)
+    fused_result = adaptive_reliability_aware_fusion(
+        text_emotion=text_emotion_result,
+        facial_result=facial_result,
+        prosody_emotion=prosody_result,
+    )
+
+    print_ts(
+        "Test-round fusion inputs: "
+        f"text={text_emotion_result.emotion}({text_emotion_result.confidence:.2f}) "
+        f"visual={(facial_result or {}).get('emotion')} "
+        f"prosody={prosody_result.emotion if prosody_result.available else None} "
+        f"-> fused={fused_result.emotion}({fused_result.confidence:.2f})"
+    )
+
+    image_path_str: Optional[str] = None
+    if frame is not None and facial_result is not None:
+        matches = find_local_face_crops(
+            frames,
+            max_needed=1,
+            preferred_frame=frame,
+            preferred_region=facial_result.get("region"),
+        )
+        if matches:
+            match_frame, region = matches[0]
+            cropped = crop_face(match_frame, region)
+            image_id = allocate_image_id(session)
+            path = build_profile_image_path(participant_folder, "test", image_id)
+            if save_frame_to_profile(cropped, path):
+                image_path_str = str(path)
+                print_ts(f"Saved test-emotion image: {path}")
+        else:
+            print_ts(
+                f"DeepFace found a face (confidence={facial_result.get('confidence', 0):.2f}) "
+                "in the test-emotion round, but no candidate frame produced a usable "
+                "bounding box; no image saved."
+            )
+    elif deepface is not None:
+        print_ts(
+            "No face was detected in the test-emotion round; no image saved "
+            "(only cropped frames are saved)."
+        )
+
+    response_text = generate_one_sentence_emotion_response(
+        ollama_client,
+        transcript,
+        fused_result.emotion,
+        fused_result.confidence,
+        model_name=emotion_model,
+    )
+
+    session["test_emotion_round"] = {
+        "transcript": transcript,
+        "fusion": fused_result.as_json,
+        "image": image_path_str,
+        "response": response_text,
+        "captured_at": now_iso(),
+    }
+    append_turn(
+        session, "user", transcript, intent="test_emotion", fusion=fused_result.as_json
+    )
+    narrator.say(response_text)
+    append_turn(session, "assistant", response_text, intent="test_emotion_response")
+
+
+# =============================================================================
+# Step 9: small talk / teacher Q&A (full multimodal fusion, max N questions)
 # =============================================================================
 
 MAX_QA_CONTEXT_TURNS = int(os.environ.get("MAX_QA_CONTEXT_TURNS", "12"))
@@ -2564,55 +3053,20 @@ def run_small_talk_qa_session(
     emotion_model: str,
     participant_folder: str,
     session: dict[str, Any],
-    explanation_level: str = "beginner",
-    previous_session_summary: Optional[str] = None,
+    max_questions: Optional[int],
 ) -> None:
-    """
-    Runs the open-ended teacher Q&A. For every participant turn, if
-    facial-expression checking is enabled (deepface is not None), up to
-    QA_IMAGES_PER_TURN DeepFace-confirmed, cropped face images are saved
-    from the frames captured while the participant was speaking. Every
-    turn's transcript is also run through detect_text_emotion() for a
-    text-based emotion classification -- both are captured as research
-    data alongside the transcript/answer; neither drives Ameca's spoken
-    response, the explanation level, or any other runtime behavior.
-
-    previous_session_summary, if provided (i.e. this is session 2 or 3 for
-    this participant), is a single ready-to-speak sentence (see
-    generate_session_summary()) read back to the participant verbatim as
-    the opening recap, and kept in context for every answer generated
-    this session so Ameca can follow up naturally if they ask about it.
-
-    explanation_level is fixed for the whole session (set once at
-    startup, see --explanation_level) and is never asked of, or inferred
-    from, the participant.
-
-    This runs indefinitely -- there is no question cap. It only ends when
-    the participant explicitly says "bye" or "goodbye" (see
-    indicates_no_further_questions()), or the process is terminated
-    manually (Ctrl+C in the terminal), which propagates up as a
-    KeyboardInterrupt through capture_and_transcribe() and out of this
-    function to run_warm_up()'s cleanup. A failed/empty transcription on
-    its own (e.g. background noise, participant briefly silent) does NOT
-    end the session -- it just goes back to listening for the next turn.
-    """
-    if previous_session_summary:
-        narrator.say(
-            f"{previous_session_summary} Do you have any questions from our "
-            "last discussion, or would you like to dive into a new topic today? "
-        )
-    else:
-        narrator.say(
-            "What would you like to talk about today? or is there "
-            "anything you would like to ask me? It is okay if you are not sure of what "
-            "you want to discuss, I can make some suggestions"
-        )
+    narrator.say(
+        "Now, think of me as your robot teacher for today. Before we start "
+        "the experiment, is there anything you would like to ask me?"
+    )
 
     debug_dir = PROFILE_DIR / participant_folder / "debug"
     asked = 0
+    reached_max = False
+    self_reported_level: Optional[str] = None
 
-    while True:
-        transcript, frames = capture_and_transcribe(
+    while max_questions is None or asked < max_questions:
+        transcript, frames, audio_for_prosody = capture_and_transcribe(
             whisper_model=whisper_model,
             silero_model=silero_model,
             input_device=input_device,
@@ -2622,44 +3076,56 @@ def run_small_talk_qa_session(
             attempts=2,
         )
 
-        if not transcript:
-            # Nothing usable was heard even after capture_and_transcribe's
-            # own retry prompts -- go back to listening rather than ending
-            # the session; only an explicit "bye"/"goodbye" or a manual
-            # Ctrl+C should end it.
-            continue
-
-        if indicates_no_further_questions(transcript):
+        if not transcript or indicates_no_further_questions(transcript):
             break
 
-        # Save up to QA_IMAGES_PER_TURN DeepFace-confirmed, cropped face
-        # images from this turn's frames. This is capture-only: no
-        # emotion is inferred from these images or from the transcript.
-        saved_images: list[str] = []
-        if deepface is not None and frames:
-            matches = find_deepface_confirmed_crops(
-                frames,
-                deepface,
-                max_needed=QA_IMAGES_PER_TURN,
-                debug_dir=debug_dir,
-                requested_emotion="questions",
+        if self_reported_level is None:
+            level_match = re.search(
+                r"\b(beginner|intermediate|advanced)\b", transcript, re.IGNORECASE
             )
-            for frame, region in matches:
-                cropped = crop_face(frame, region)
-                image_id = allocate_image_id(session)
-                path = build_profile_image_path(participant_folder, "questions", image_id)
-                if save_frame_to_profile(cropped, path):
-                    saved_images.append(str(path))
-                    print_ts(f"Saved question-round image: {path}")
+            if level_match:
+                self_reported_level = level_match.group(1).lower()
 
-        # Text-based emotion classification for this turn's transcript.
-        # Captured purely as research data -- does not affect the answer,
-        # the explanation level, or anything else Ameca does.
-        text_emotion = detect_text_emotion(ollama_client, transcript, model_name=emotion_model)
-        print_ts(
-            f"Text emotion for this turn: {text_emotion.emotion} "
-            f"(confidence={text_emotion.confidence:.2f})"
+        frame, facial_result = detect_best_emotion_sample(
+            frames, deepface, debug_dir=debug_dir, requested_emotion="questions"
         )
+        text_emotion_result = detect_text_emotion(ollama_client, transcript, model_name=emotion_model)
+        prosody_result = analyze_prosody_from_audio(audio_for_prosody)
+        fused_result = adaptive_reliability_aware_fusion(
+            text_emotion=text_emotion_result,
+            facial_result=facial_result,
+            prosody_emotion=prosody_result,
+        )
+
+        image_path_str: Optional[str] = None
+        if frame is not None and facial_result is not None:
+            matches = find_local_face_crops(
+                frames,
+                max_needed=1,
+                preferred_frame=frame,
+                preferred_region=facial_result.get("region"),
+            )
+            if matches:
+                match_frame, region = matches[0]
+                cropped = crop_face(match_frame, region)
+                image_id = allocate_image_id(session)
+                path = build_profile_image_path(
+                    participant_folder, "questions", image_id, emotion=fused_result.emotion
+                )
+                if save_frame_to_profile(cropped, path):
+                    image_path_str = str(path)
+                    print_ts(f"Saved question-round image: {path}")
+            else:
+                print_ts(
+                    f"DeepFace found a face (confidence={facial_result.get('confidence', 0):.2f}) "
+                    "for this question, but no candidate frame produced a usable "
+                    "bounding box; no image saved."
+                )
+        elif deepface is not None:
+            print_ts(
+                "No face was detected for this question; no image saved "
+                "(only cropped frames are saved)."
+            )
 
         # Full history for this session's Q&A, then split into a bounded
         # "recent" window (sent verbatim) plus everything older (compressed
@@ -2682,30 +3148,35 @@ def run_small_talk_qa_session(
             ollama_client,
             transcript,
             qa_history=windowed_history,
-            explanation_level=explanation_level,
+            self_reported_level=self_reported_level,
             overflow_summary=overflow_summary,
-            previous_session_summary=previous_session_summary or "",
             model_name=emotion_model,
         )
 
         session["qa_session"].append({
             "question": transcript,
             "answer": answer,
-            "images": saved_images,
-            "text_emotion": text_emotion.as_json,
+            "fusion": fused_result.as_json,
+            "image": image_path_str,
             "captured_at": now_iso(),
         })
-        append_turn(
-            session, "user", transcript,
-            intent="question", images=saved_images, text_emotion=text_emotion.as_json,
-        )
+        append_turn(session, "user", transcript, intent="question", fusion=fused_result.as_json)
         narrator.say(answer)
         append_turn(session, "assistant", answer, intent="answer")
 
         asked += 1
         save_session(session["participant_id"], session)
 
-    narrator.say_and_nod("Great, thank you.")
+        if max_questions is not None and asked >= max_questions:
+            reached_max = True
+            break
+
+    if reached_max:
+        narrator.say_and_nod(
+            "That was your last question for now, please fill out your questionnaire and we can begin the experiment."
+        )
+    else:
+        narrator.say_and_nod("Great, let's begin the experiment.")
 
 # =============================================================================
 # Main warm-up orchestration
@@ -2723,9 +3194,11 @@ def run_warm_up(args: argparse.Namespace) -> None:
     print_ts(
         f"Facial-expression checking: {'ENABLED' if check_facial_expression else 'DISABLED'} "
         + (
-            "(DeepFace-confirmed face crops will be saved during the Q&A session)."
+            "(baseline emotion rounds + free-choice test round will run)."
             if check_facial_expression
-            else "(no face crops will be saved during the Q&A session)."
+            else "(baseline emotion rounds + free-choice test round will be "
+            "skipped; going straight to the closing questions after the "
+            "goals statement)."
         )
     )
 
@@ -2750,63 +3223,8 @@ def run_warm_up(args: argparse.Namespace) -> None:
         or "unknown"
     )
     participant_folder = sanitize_participant_folder_name(participant_id)
-
-    session_number = determine_session_number(participant_folder, args.session_number)
-    existing_sessions = list_existing_session_numbers(participant_folder)
-    if (
-        args.session_number is None
-        and session_number > MAX_SESSIONS_PER_PARTICIPANT
-    ):
-        print_ts(
-            f"Participant '{participant_id}' has already completed "
-            f"{len(existing_sessions)} of {MAX_SESSIONS_PER_PARTICIPANT} sessions "
-            f"(found: {existing_sessions}). Pass --session_number explicitly "
-            "if you want to re-run a specific one."
-        )
-        return
-
-    previous_session_summary = load_previous_session_summary(
-        participant_folder, session_number
-    )
-    if session_number > 1 and previous_session_summary is None:
-        print_ts(
-            f"[WARN] Session {session_number} requested but no summary was "
-            f"found for session {session_number - 1} of participant "
-            f"'{participant_id}' (either that session file is missing, or "
-            "it never reached a normal finish); opening the recap as if "
-            "this were a first session."
-        )
-
-    known_display_name = (
-        find_most_recent_display_name(participant_folder, session_number)
-        if session_number > 1
-        else None
-    )
-    if session_number > 1 and known_display_name:
-        print_ts(f"Reusing known display name from an earlier session: {known_display_name!r}")
-
-    # Explanation level: session 1 = beginner, session 2 = intermediate,
-    # session 3+ = advanced, unless --explanation_level explicitly
-    # overrides it for this run.
-    if args.explanation_level:
-        explanation_level = args.explanation_level
-        print_ts(f"Explanation level: {explanation_level} (explicit override).")
-    else:
-        explanation_level = explanation_level_for_session(session_number)
-        print_ts(
-            f"Explanation level: {explanation_level} "
-            f"(default for session {session_number})."
-        )
-
-    print_ts(
-        f"Starting session {session_number} of {MAX_SESSIONS_PER_PARTICIPANT} "
-        f"for participant '{participant_id}'."
-    )
-
-    session = new_session(participant_id, participant_folder, session_number)
+    session = new_session(participant_id, participant_folder)
     session["check_facial_expression"] = check_facial_expression
-    session["explanation_level"] = explanation_level
-    session["previous_session_summary"] = previous_session_summary
     save_session(participant_id, session)
 
     speaker = RobotSpeaker(
@@ -2858,7 +3276,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
             raise
     print_ts("faster-whisper ready.")
 
-    print_ts(f"Connecting to Ollama at {args.ollama_host} for teacher Q&A response generation...")
+    print_ts(f"Connecting to Ollama at {args.ollama_host} for text-based emotion classification...")
     ollama_client: Optional[Client] = None
     try:
         ollama_client = Client(host=args.ollama_host)
@@ -2866,8 +3284,8 @@ def run_warm_up(args: argparse.Namespace) -> None:
         print_ts(f"Ollama reachable. Using model '{args.emotion_model}'.")
     except Exception as exc:
         print_ts(
-            f"[WARN] Ollama not reachable ({exc}); LLM-generated Q&A responses "
-            "will fall back to templated defaults."
+            f"[WARN] Ollama not reachable ({exc}); text-emotion classification and "
+            "LLM-generated responses will fall back to templated defaults."
         )
         ollama_client = None
 
@@ -2947,53 +3365,75 @@ def run_warm_up(args: argparse.Namespace) -> None:
             save_session(participant_id, session)
 
         # ---- Steps 1-2: name capture ----
-        # Skipped for a returning participant whose name is already known
-        # from an earlier session file -- no need to make them spell it
-        # out again.
-        if known_display_name:
-            display_name = known_display_name
-            session["display_name"] = display_name
-            append_turn(
-                session, "assistant",
-                f"(Name capture skipped -- reusing known name '{display_name}' "
-                "from an earlier session.)",
-                intent="name_reused",
-            )
-        else:
-            display_name, name_transcript = capture_participant_name(
-                narrator, whisper_model, silero_model, args.input_device,
-            )
-            session["display_name"] = display_name
-            append_turn(
-                session, "assistant",
-                "Hi, what is your name? Please spell it out for me -- for example, "
-                "my name is A M E C A, Ameca.",
-                intent="name_prompt",
-            )
-            append_turn(session, "user", name_transcript, intent="name_response")
+        display_name, name_transcript = capture_participant_name(
+            narrator, whisper_model, silero_model, args.input_device,
+        )
+        session["display_name"] = display_name
+        append_turn(
+            session, "assistant",
+            "Hi, what is your name? Please spell it out for me -- for example, "
+            "my name is A M E C A, Ameca.",
+            intent="name_prompt",
+        )
+        append_turn(session, "user", name_transcript, intent="name_response")
         save_session(participant_id, session)
 
         # ---- Step 3: goals statement ----
-        if session_number > 1:
-            goals_text = (
-                f"Good to see you again, {display_name}. This is session "
-                f"{session_number} of {MAX_SESSIONS_PER_PARTICIPANT}."
-            )
-        else:
-            goals_text = (
-                f"Nice to meet you, {display_name}. In this warm up session, I would "
-                "like to hold a bit of small talk with you."
-            )
+        goals_text = (
+            f"Nice to meet you, {display_name}. In this warm up session, I have "
+            f"two goals: to have a base line of your emotional faces; and "
+            "two, to hold small talk with you"
+        )
         narrator.say_brief(goals_text)
         session["goals_stated"] = True
         append_turn(session, "assistant", goals_text, intent="goals_statement")
         save_session(participant_id, session)
 
-        # ---- Step 4: small talk / teacher Q&A (DeepFace-confirmed crops, no emotion capture) ----
-        # For session_number > 1, previous_session_summary opens with a
-        # recap of the previous session and stays in context for every
-        # answer this session, so the participant can pick up an old
-        # thread or move on to something new.
+        # ---- Steps 4-8: facial-emotion baseline + free-choice test round ----
+        # Skipped entirely when facial-expression checking is disabled for
+        # this session -- the warm-up goes straight from the goals
+        # statement to the closing three-question Q&A (step 9) below.
+        if check_facial_expression:
+            # ---- Steps 4-6: baseline emotion rounds (no classification) ----
+            for requested_emotion in args.emotions:
+                script_text = EMOTION_SCRIPTS[requested_emotion]
+                capture_baseline_emotion_round(
+                    narrator=narrator,
+                    whisper_model=whisper_model,
+                    silero_model=silero_model,
+                    input_device=args.input_device,
+                    camera=camera,
+                    deepface=deepface,
+                    requested_emotion=requested_emotion,
+                    script_text=script_text,
+                    participant_folder=participant_folder,
+                    session=session,
+                    script_attempts=args.script_attempts,
+                )
+                save_session(participant_id, session)
+
+            # ---- Steps 7-8: free-choice test-emotion round (full fusion) ----
+            capture_test_emotion_round(
+                narrator=narrator,
+                whisper_model=whisper_model,
+                silero_model=silero_model,
+                input_device=args.input_device,
+                camera=camera,
+                deepface=deepface,
+                ollama_client=ollama_client,
+                emotion_model=args.emotion_model,
+                participant_folder=participant_folder,
+                session=session,
+                script_attempts=args.script_attempts,
+            )
+            save_session(participant_id, session)
+        else:
+            print_ts(
+                "Facial-expression checking is disabled: skipping baseline "
+                "emotion rounds and the free-choice test-emotion round."
+            )
+
+        # ---- Step 9: small talk / teacher Q&A (full fusion) ----
         run_small_talk_qa_session(
             narrator=narrator,
             whisper_model=whisper_model,
@@ -3005,19 +3445,8 @@ def run_warm_up(args: argparse.Namespace) -> None:
             emotion_model=args.emotion_model,
             participant_folder=participant_folder,
             session=session,
-            explanation_level=explanation_level,
-            previous_session_summary=previous_session_summary,
+            max_questions=args.max_questions,
         )
-
-        # ---- Step 5: generate and save this session's summary, for the ----
-        # ---- next session's opening recap (see load_previous_session_summary) ----
-        session["summary"] = generate_session_summary(
-            ollama_client,
-            session["qa_session"],
-            display_name=display_name,
-            model_name=args.emotion_model,
-        )
-        print_ts(f"Session summary: {session['summary']}")
 
         session["ended_at"] = now_iso()
         session_path = save_session(participant_id, session)
@@ -3052,22 +3481,6 @@ def run_warm_up(args: argparse.Namespace) -> None:
             deepface.shutdown()
             print_ts("DeepFace worker shut down.")
 
-        # If the session ended abnormally (e.g. Ctrl+C) before reaching the
-        # normal end-of-session summary step, generate one now from
-        # whatever Q&A was captured, so the NEXT session still gets a
-        # recap instead of opening as if this were a first session.
-        if not session.get("summary"):
-            try:
-                session["summary"] = generate_session_summary(
-                    ollama_client,
-                    session.get("qa_session", []),
-                    display_name=session.get("display_name") or "the participant",
-                    model_name=args.emotion_model,
-                )
-                print_ts(f"Session summary (saved on shutdown): {session['summary']}")
-            except Exception as exc:
-                print_ts(f"[WARN] Could not generate session summary on shutdown: {exc}")
-
         session["ended_at"] = session.get("ended_at") or now_iso()
         try:
             save_session(participant_id, session)
@@ -3078,12 +3491,11 @@ def run_warm_up(args: argparse.Namespace) -> None:
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Run one of a participant's 3 structured warm-up sessions: "
-            "single-utterance name capture, a goals statement, and a short "
-            "teacher Q&A with DeepFace-confirmed face-crop capture per turn "
-            "-- logged to warm_up_sessions/{participant_id}_session{n}.json. "
-            "Sessions 2 and 3 open with a recap of the previous session's "
-            "auto-generated summary."
+            "Run Ameca's structured warm-up session: single-utterance name "
+            "capture, a goals statement, a 6-emotion facial baseline (no "
+            "classification), a free-choice test-emotion round (full "
+            "multimodal fusion), and a short teacher Q&A -- all logged to "
+            "one warm_up_sessions/{participant_id}.json file."
         )
     )
     parser.add_argument(
@@ -3122,13 +3534,16 @@ def parse_arguments() -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         default=CHECK_FACIAL_EXPRESSION_DEFAULT,
         help=(
-            "Whether to save DeepFace-confirmed, cropped face images during "
-            "the Q&A session. When enabled (default), starts the DeepFace "
-            "worker and saves up to QA_IMAGES_PER_TURN images per "
-            "participant turn. Pass --no-check_facial_expression to skip "
-            "the DeepFace worker and all image capture entirely. Defaults "
-            "to the CHECK_FACIAL_EXPRESSION environment variable ('1'/'0') "
-            "if set, else enabled."
+            "Whether to check the participant's facial expression this "
+            "session. When enabled (default), runs the 6-emotion baseline "
+            "(steps 4-6), the free-choice test-emotion round (steps 7-8), "
+            "and facial analysis during the closing Q&A -- and starts the "
+            "DeepFace worker. Pass --no-check_facial_expression to skip all "
+            "of that and go straight from the goals statement to the "
+            "closing three-question Q&A (step 9), which will then run on "
+            "text + prosody fusion only. Defaults to the "
+            "CHECK_FACIAL_EXPRESSION environment variable ('1'/'0') if set, "
+            "else enabled."
         ),
     )
     parser.add_argument(
@@ -3136,7 +3551,9 @@ def parse_arguments() -> argparse.Namespace:
         default=DEEPFACE_PYTHON,
         help=(
             "Python executable in the separate DeepFace/TensorFlow conda "
-            "environment. Only used if --check_facial_expression is enabled."
+            "environment. Only used for steps 7-9 (baseline capture in "
+            "steps 4-6 never calls DeepFace), and only if "
+            "--check_facial_expression is enabled."
         ),
     )
     parser.add_argument(
@@ -3144,11 +3561,11 @@ def parse_arguments() -> argparse.Namespace:
         default="",
         help=(
             "Path to a Haar cascade XML file for local face-region detection "
-            "(used for cropping in the Q&A round). Defaults to OpenCV's "
-            "bundled haarcascade_frontalface_default.xml. Pass this to try a "
-            "different cascade, e.g. RRLab's haarcascade_frontalface_alt.xml "
-            "-- note that cascade was tested and found to have much lower "
-            "recall on this camera setup."
+            "(used for cropping in baseline/test/Q&A rounds). Defaults to "
+            "OpenCV's bundled haarcascade_frontalface_default.xml. Pass this "
+            "to try a different cascade, e.g. RRLab's "
+            "haarcascade_frontalface_alt.xml -- note that cascade was tested "
+            "and found to have much lower recall on this camera setup."
         ),
     )
     parser.add_argument(
@@ -3223,12 +3640,19 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--ollama_host",
         default=OLLAMA_HOST,
-        help="Ollama host URL used for teacher Q&A response generation.",
+        help="Ollama host URL used for text-based emotion classification and response generation.",
     )
     parser.add_argument(
         "--emotion_model",
         default=EMOTION_MODEL_NAME,
-        help="Ollama chat model used for teacher Q&A response generation.",
+        help="Ollama chat model used for text-based emotion classification and response generation.",
+    )
+    parser.add_argument(
+        "--emotions",
+        nargs="+",
+        choices=list(EMOTION_SCRIPTS),
+        default=list(EMOTION_SCRIPTS),
+        help="Baseline emotion scripts to run, in order (default: all 6, including neutral).",
     )
     parser.add_argument(
         "--script_attempts",
@@ -3237,31 +3661,10 @@ def parse_arguments() -> argparse.Namespace:
         help="Maximum automatic listening attempts per prompt.",
     )
     parser.add_argument(
-        "--explanation_level",
-        choices=["beginner", "intermediate", "advanced"],
-        default=os.environ.get("EXPLANATION_LEVEL") or None,
-        help=(
-            "Explicitly override the explanation level for this session, "
-            "set by the experimenter at runtime. Ameca never asks the "
-            "participant to choose or confirm a level. If omitted (the "
-            "default), the level auto-progresses with session number: "
-            "session 1 = beginner, session 2 = intermediate, session 3+ "
-            "= advanced (see explanation_level_for_session()). Also "
-            "settable via the EXPLANATION_LEVEL environment variable."
-        ),
-    )
-    parser.add_argument(
-        "--session_number",
+        "--max_questions",
         type=int,
         default=None,
-        choices=range(1, MAX_SESSIONS_PER_PARTICIPANT + 1),
-        help=(
-            f"Which of this participant's {MAX_SESSIONS_PER_PARTICIPANT} "
-            "sessions to run. Omit to auto-advance to one past the highest "
-            "existing warm_up_sessions/{participant}_session{n}.json file "
-            "for this participant (i.e. 1 the first time, 2 the next, "
-            "etc). Pass explicitly to re-run a specific session."
-        ),
+        help="Maximum number of participant questions in the closing Q&A.",
     )
     parser.add_argument(
         "--video_fps",

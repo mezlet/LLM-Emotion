@@ -10,6 +10,9 @@ from typing import Any, Optional
 # Lesson state
 # =========================
 
+_YES_WORDS = {"yes", "yeah", "yep", "yup", "sure", "please", "affirmative", "okay", "ok"}
+_NO_WORDS = {"no", "nope", "nah", "negative", "skip"}
+
 VALID_INTENTS = {"continue", "clarify", "switch_topic", "resume_topic", "new"}
 
 
@@ -17,24 +20,11 @@ _MINIMAL_ACK_WORDS = {
     "okay", "ok", "yes", "yeah", "yep", "yup", "sure", "alright",
     "go on", "goon", "continue", "next", "got it", "gotit", "mhm", "mmhm",
     "uh huh", "uhhuh", "right", "fine", "cool", "great",
-    # Backchannel/filler transcriptions. Note the hyphen-to-space
-    # normalization below turns "mm-hmm" into "mm hmm" and "uh-huh" into
-    # "uh huh" -- these spaced forms must be listed explicitly, since
-    # faster-whisper commonly transcribes these fillers with a hyphen.
     "mm hmm", "mmhmm", "hmm", "hm", "hmm hmm", "mm", "uh", "um", "erm",
 }
 
 
 def is_minimal_acknowledgement(text: str) -> bool:
-    """
-    True when `text` is a bare acknowledgement/filler with no real
-    content of its own (e.g. "Okay", "Go on", "Yes") -- as opposed to a
-    substantive reply that happens to start with one of those words. Used
-    to detect the "user says 'Okay', robot dumps the next concept without
-    checking anything landed" failure mode: a bare ack after NEW material
-    was just introduced should prompt a quick retention check, not silent
-    forward progress.
-    """
     stripped = re.sub(r"[^a-z\s]", " ", text.strip().lower())
     stripped = re.sub(r"\s+", " ", stripped).strip()
     if not stripped:
@@ -46,16 +36,23 @@ _JUNK_CONCEPT_VALUES = {"none", "null", "n/a", "na", "undefined"}
 
 
 def _is_junk_concept_value(value: Optional[str]) -> bool:
-    """
-    True for values that are effectively "no real concept" -- either
-    empty, or one of the literal placeholder strings that a buggy
-    str(None) coercion could have produced (see _clean_str_field above).
-    Used both to prevent new junk from being recorded and to sanitize
-    already-persisted LessonState data saved before that bug was fixed.
-    """
     if not value:
         return True
     return value.strip().lower() in _JUNK_CONCEPT_VALUES
+
+
+def parse_yes_no(text: str, default: bool = False) -> bool:
+    normalized = re.sub(r"[^a-z\s]", " ", text.strip().lower())
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if not normalized:
+        return default
+
+    words = set(normalized.split())
+    if "not" in words or (words & _NO_WORDS):
+        return False
+    if words & _YES_WORDS:
+        return True
+    return default
 
 
 @dataclass
@@ -74,10 +71,6 @@ class LessonState:
     current_teaching_goal: Optional[str] = None
     last_intent: str = "new"
 
-    # Set to True whenever a turn's reply just introduced genuinely new
-    # material (intent was "new" or "switch_topic"); cleared once the
-    # very next turn has been given a chance to confirm understanding
-    # (see maybe_flag_retention_check() / to_prompt_block()).
     awaiting_retention_check: bool = False
     last_new_concept: Optional[str] = None
 
@@ -103,10 +96,6 @@ class LessonState:
         if _is_junk_concept_value(last_new_concept):
             last_new_concept = None
 
-        # Sanitizes already-persisted profiles saved before the
-        # str(None) -> "None" coercion bug (see _clean_str_field) was
-        # fixed, so a corrupted "None" entry doesn't keep resurfacing in
-        # "already explained" every session going forward.
         covered_concepts = [
             c for c in (data.get("covered_concepts") or []) if not _is_junk_concept_value(c)
         ]
@@ -130,9 +119,6 @@ class LessonState:
             return
         if concept and concept not in self.covered_concepts:
             self.covered_concepts.append(concept)
-        # Keep this bounded; it's a rolling teaching log, not a full
-        # transcript -- the last ~12 concepts are what's actually useful
-        # for "avoid repeating what's already been explained".
         self.covered_concepts = self.covered_concepts[-12:]
 
     def add_pending_question(self, question: str) -> None:
@@ -142,13 +128,6 @@ class LessonState:
         self.pending_questions = self.pending_questions[-6:]
 
     def resolve_pending_questions(self, resolved: list[str]) -> None:
-        """
-        Remove pending questions the planner says this turn's reply
-        addressed. `resolved` entries are free-text descriptions from the
-        planner call, matched loosely (substring / normalized) against
-        stored pending_questions, since exact string equality between two
-        separate LLM calls' phrasing is unreliable.
-        """
         if not resolved or not self.pending_questions:
             return
 
@@ -175,45 +154,18 @@ class LessonState:
         self.current_subtopic = new_subtopic
         self.covered_concepts = []
         self.current_teaching_goal = None
-        # Deliberately NOT clearing pending_questions on a topic switch --
-        # an unresolved question from an earlier topic can still be
-        # revisited later (see "resume_topic" intent).
 
     def maybe_flag_retention_check(self, introduced_new_concept: bool, concept: Optional[str]) -> None:
-        """
-        Call after a turn's reply is finalized (see
-        finalize_lesson_state_after_reply()). If this turn's reply just
-        taught a concept/subtopic that was NOT already in
-        covered_concepts -- regardless of whether the planner's intent
-        was "new"/"switch_topic" (a full topic change) or "continue"
-        (e.g. advancing from tokens to backpropagation within the same
-        ongoing lesson) -- arm awaiting_retention_check so that if the
-        learner's very next message is a bare acknowledgement rather than
-        a real question, the following reply is instructed to do a quick
-        one-line check before advancing further, instead of silently
-        moving on (see the "Okay" -> immediately dumps next concept
-        failure mode). Using topic-level intent alone missed exactly this
-        common case, since curriculum progression within one topic is
-        normally classified "continue", not "new"/"switch_topic".
-        """
         if introduced_new_concept and concept:
             self.awaiting_retention_check = True
             self.last_new_concept = concept
         else:
-            # Any other case means either we already checked (this is
-            # exactly the turn that consumes the flag, in
-            # apply_planner_output) or nothing new was introduced.
             self.awaiting_retention_check = False
             self.last_new_concept = None
 
     # ---- prompt rendering ----
 
     def to_prompt_block(self) -> str:
-        """
-        Short, teaching-state-shaped rolling summary (~150 words max),
-        meant to replace "reconstruct lesson progress from raw message
-        history" with an explicit, compact object passed every turn.
-        """
         if not self.current_topic and not self.covered_concepts and not self.pending_questions:
             return "LESSON STATE\nNo lesson has started yet; this is the first substantive topic of the session."
 
@@ -249,24 +201,12 @@ class LessonState:
             )
 
         block = "\n".join(lines)
-        # Hard cap so a long-running session's lesson state can't balloon
-        # the system prompt the way the old free-text conversation_summary
-        # could.
         return block[:1100]
 
 
 # =========================
 # Curriculum ordering
 # =========================
-#
-# The planner previously free-associated a `subtopic` per turn with no
-# notion of prerequisite order, which let it jump to e.g. activation
-# functions/backpropagation before the learner had even covered tokens,
-# context windows, or attention -- backwards for a beginner. This table
-# gives the planner an explicit "what's the next not-yet-covered step"
-# suggestion for topics with an obvious teaching order. It's guidance,
-# not a hard constraint: an explicit user request to skip ahead or jump
-# to a specific subtopic should still be honored (see build_planner_prompt).
 
 CURRICULUM_ORDER: dict[str, list[str]] = {
     "large_language_models": [
@@ -300,7 +240,7 @@ CURRICULUM_ORDER: dict[str, list[str]] = {
 
 _CURRICULUM_TOPIC_KEYWORDS: dict[str, str] = {
     "large language model": "large_language_models",
-    "large-level model": "large_language_models",  # common ASR mis-hearing
+    "large-level model": "large_language_models",
     "llm": "large_language_models",
     "transformer": "large_language_models",
     "machine learning": "machine_learning_basics",
@@ -313,10 +253,6 @@ _CURRICULUM_TOPIC_KEYWORDS: dict[str, str] = {
 
 
 def match_curriculum_family(topic: Optional[str], subtopic: Optional[str] = None) -> Optional[str]:
-    """
-    Returns the CURRICULUM_ORDER key matching `topic`/`subtopic`'s text,
-    or None if it doesn't correspond to a known ordered curriculum.
-    """
     haystack = f"{topic or ''} {subtopic or ''}".lower()
     for keyword, family in _CURRICULUM_TOPIC_KEYWORDS.items():
         if keyword in haystack:
@@ -329,13 +265,6 @@ def next_curriculum_subtopic(
     covered_concepts: list[str],
     subtopic: Optional[str] = None,
 ) -> Optional[str]:
-    """
-    Given the current topic and what's already been covered, returns the
-    earliest not-yet-covered subtopic in that topic's known curriculum
-    order, or None if the topic doesn't match a known family or every
-    step is already covered (in which case the planner is free to decide
-    what comes next on its own).
-    """
     family = match_curriculum_family(topic, subtopic)
     if not family:
         return None
@@ -345,7 +274,102 @@ def next_curriculum_subtopic(
         if step.lower() not in covered_norm:
             return step
 
-    return None  # every known step already covered
+    return None
+
+
+def build_understanding_check_prompt() -> str:
+    return "Did that make sense so far?"
+
+
+def build_confusion_followup_prompt() -> str:
+    return "No problem -- what part felt confusing, or would another example help?"
+
+
+def build_topic_choice_followup_prompt() -> str:
+    return "Would you like to move on to another topic, or is there something specific you'd like to talk about?"
+
+
+def generate_topic_check_question(
+    client: Any,
+    model_name: str,
+    topic_title: str,
+    explanation_text: str,
+    level: str,
+    safe_json_extract,
+    print_ts=print,
+) -> str:
+    fallback = f"In your own words, what's the main idea behind {topic_title}?"
+    prompt = f"""
+        You are the comprehension-check component of a tutoring robot. The
+        tutor just explained the following at {level} level:
+
+        Topic: {topic_title}
+        Explanation given: {explanation_text}
+
+        Write ONE short question (under 20 words) that tests whether the
+        learner actually understood this specific explanation -- not a
+        generic definition question, but something that requires having
+        followed what was just said.
+
+        Return JSON only: {{"question": "..."}}
+        """.strip()
+    try:
+        response = client.chat(
+            model=model_name, format="json",
+            messages=[
+                {"role": "system", "content": "You return valid JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            options={"temperature": 0.3, "num_predict": 100, "num_ctx": 2048},
+            stream=False,
+        )
+        data = safe_json_extract(response["message"]["content"])
+        if isinstance(data, dict) and str(data.get("question", "")).strip():
+            return str(data["question"]).strip()
+    except Exception as exc:
+        print_ts(f"[COMPREHENSION] Check-question generation failed ({exc}); using fallback.")
+    return fallback
+
+
+def grade_comprehension_check_answer(
+    client: Any,
+    model_name: str,
+    question: str,
+    answer: str,
+    explanation_text: str,
+    safe_json_extract,
+    print_ts=print,
+) -> str:
+    fallback = "Thanks for sharing that -- let's keep going."
+    prompt = f"""
+        You are a warm, encouraging tutor. You just asked the learner:
+        "{question}"
+        based on this explanation you gave: "{explanation_text}"
+
+        They answered: "{answer}"
+
+        Write ONE short, natural spoken response (max 30 words) that:
+        - if their answer is correct or close enough, warmly affirms it
+        - if their answer is wrong or off-target, gently corrects it by
+          restating the key point in one sentence, without making them
+          feel bad
+
+        Do not use the literal words "correct" or "incorrect". Plain text
+        only, no markdown, no preamble.
+        """.strip()
+    try:
+        response = client.chat(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.3, "num_predict": 90, "num_ctx": 2048},
+            stream=False,
+        )
+        text = response["message"]["content"].strip()
+        text = re.sub(r"\s+", " ", text)
+        return text or fallback
+    except Exception as exc:
+        print_ts(f"[COMPREHENSION] Grading call failed ({exc}); using fallback.")
+        return fallback
 
 
 # =========================
@@ -441,19 +465,6 @@ def build_planner_prompt(
 
 
 def _clean_str_field(value: Any) -> str:
-    """
-    Safely coerces a parsed-JSON field to a stripped string, treating
-    JSON null (Python None) as empty rather than as the literal text
-    "None". Plain str(value) does NOT make this distinction --
-    str(None) == "None", which is truthy after .strip() and therefore
-    silently passes every `or fallback` / `if value` check downstream.
-    That bug was observed corrupting LessonState in practice: a model
-    returning {"subtopic": null} produced a stored subtopic of the
-    literal string "None", which then got added to covered_concepts,
-    displayed as "current subtopic: None" in the LESSON STATE block, and
-    even quoted verbatim in a retention-check teaching goal ("check the
-    learner's understanding of 'None'").
-    """
     if value is None:
         return ""
     return str(value).strip()
@@ -465,21 +476,9 @@ def classify_dialogue_turn(
     lesson_state: LessonState,
     history: list[dict],
     safe_json_extract,
-    model_name: str, 
+    model_name: str,
     print_ts=print,
 ) -> dict[str, Any]:
-    """
-    One extra LLM call, run concurrently alongside emotion detection /
-    Self-RAG / question-level classification (they're independent of each
-    other). `client` is the existing ollama.Client instance; `safe_json_extract`
-    and `print_ts` are passed in so this module has no import-time
-    dependency on ameca_demo.py (avoids a circular import -- ameca_demo.py
-    imports this module, not the reverse).
-
-    Fails open: on any error, returns intent="continue" with no state
-    changes, so a planner hiccup degrades gracefully to "just answer the
-    question" rather than blocking the turn.
-    """
     fallback = {
         "intent": "continue",
         "topic": lesson_state.current_topic,
@@ -492,7 +491,7 @@ def classify_dialogue_turn(
     try:
         prompt = build_planner_prompt(user_text, lesson_state, history)
         response = client.chat(
-            model=model_name,  # caller's MODEL_NAME is injected via functools.partial in ameca_demo.py, see INTEGRATION.md
+            model=model_name,
             format="json",
             messages=[
                 {"role": "system", "content": "You return valid JSON only."},
@@ -509,12 +508,6 @@ def classify_dialogue_turn(
         if intent not in VALID_INTENTS:
             intent = "continue"
 
-        # Deterministic safety net: even if the planner call itself
-        # mis-classified a bare acknowledgement as "new"/"switch_topic"
-        # (advancing to fresh material), a retention check was due and
-        # the user gave us nothing but an ack -- force "continue" with a
-        # retention-check teaching_goal rather than trusting the model to
-        # have honored the retention_note instruction above every time.
         if lesson_state.awaiting_retention_check and is_minimal_acknowledgement(user_text):
             intent = "continue"
             topic = lesson_state.current_topic
@@ -524,15 +517,6 @@ def classify_dialogue_turn(
                 f"'{lesson_state.last_new_concept}' before introducing anything new."
             )
         elif is_minimal_acknowledgement(user_text):
-            # No retention check is due, but this is STILL just a bare
-            # acknowledgement with no real question or content of its
-            # own. Left to the model's own judgment, this was observed
-            # producing near-verbatim repeats of the previous reply
-            # rather than progressing the lesson (the model has nothing
-            # concrete to react to). If a curriculum-ordered next step
-            # exists for the current topic, force progression to it
-            # deterministically rather than hoping the soft
-            # curriculum_guidance hint in the prompt gets followed.
             suggested_next_subtopic = next_curriculum_subtopic(
                 topic=lesson_state.current_topic,
                 covered_concepts=lesson_state.covered_concepts,
@@ -583,14 +567,6 @@ def classify_dialogue_turn(
 
 
 def apply_planner_output(lesson_state: LessonState, planner_output: dict[str, Any]) -> LessonState:
-    """
-    Mutates `lesson_state` in place according to the planner's decision,
-    and also returns it for convenience. Call this BEFORE
-    generate_response(), so the updated state (topic/subtopic/teaching
-    goal for THIS turn) is what actually goes into the system prompt --
-    then call resolve/mark-covered helpers again AFTER the reply is known,
-    to fold in what was just answered.
-    """
     intent = planner_output.get("intent", "continue")
     topic = planner_output.get("topic")
     subtopic = planner_output.get("subtopic")
@@ -608,10 +584,6 @@ def apply_planner_output(lesson_state: LessonState, planner_output: dict[str, An
 
     lesson_state.last_intent = intent
 
-    # This turn is the one "consuming" any retention check that was due
-    # (whether it resulted in a real check or was superseded by a new
-    # planner decision) -- maybe_flag_retention_check() below re-arms it
-    # only if THIS turn's reply itself introduces fresh material.
     lesson_state.awaiting_retention_check = False
     lesson_state.last_new_concept = None
 
@@ -627,17 +599,6 @@ def finalize_lesson_state_after_reply(
     lesson_state: LessonState,
     planner_output: dict[str, Any],
 ) -> LessonState:
-    """
-    Call once the teaching reply for this turn has actually been
-    generated: marks the turn's subtopic (or topic, if no subtopic) as a
-    covered concept, so the next turn's "already_explained" list is
-    accurate. Also arms awaiting_retention_check if this concept was NOT
-    already covered before this turn -- i.e. genuinely new material was
-    just taught -- regardless of whether the planner classified the turn
-    as "new"/"switch_topic" or "continue" (curriculum progression within
-    an ongoing topic, e.g. tokens -> backpropagation, is normally
-    "continue" but is still new material that deserves a retention check).
-    """
     concept = planner_output.get("subtopic") or planner_output.get("topic")
     if _is_junk_concept_value(concept):
         concept = None
@@ -660,26 +621,21 @@ def finalize_lesson_state_after_reply(
 # =========================
 # Dynamic reply length
 # =========================
-#
-# Replaces the single fixed MAX_REPLY_SENTENCES (which directly
-# contradicted "be elaborate, teach thoroughly, answer all questions")
-# with per-turn guidance driven by the planner's intent plus whether the
-# message is a compound/multi-part question.
 
 REPLY_LENGTH_BY_CASE = {
-    "clarify": 40,       # simple clarification: short, direct
-    "new_topic": 130,    # new concept / new_topic intent: room to actually teach
-    "continue": 90,      # continuing the current lesson: moderate
-    "multi_part": 220,   # multi-part question: enough room for every sub-part
-    "retention_check": 45,  # quick check-in: short, not a new lecture
+    "clarify": 40,
+    "new_topic": 130,
+    "continue": 90,
+    "multi_part": 220,
+    "retention_check": 55,
 }
 
 
 def resolve_reply_word_budget(
     intent: str,
     is_multi_part: bool,
-    default_min: int = 25,
     awaiting_retention_check: bool = False,
+    default_min: int = 25,
 ) -> int:
     if is_multi_part:
         return REPLY_LENGTH_BY_CASE["multi_part"]

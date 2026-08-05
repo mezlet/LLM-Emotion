@@ -1,0 +1,121 @@
+{
+  "purpose": "Reference lookup only. The tutor may suggest 2-3 of these topics when the participant is unsure what to discuss, filtered to their current explanation level. The participant may ask about anything within AI and Robotics, whether or not it appears here.",
+  "levels": {
+    "beginner": {
+      "goal": "Understand what AI is, how it differs from traditional software, and how to use modern AI tools effectively.",
+      "topics": [
+        {
+          "group": "Introduction to AI & Machine Learning",
+          "items": [
+            "What is AI? (Artificial Intelligence vs. Machine Learning vs. Deep Learning)",
+            "How AI 'learns' from patterns in data vs. explicit programming rules",
+            "Narrow AI (Siri, ChatGPT) vs. General AI (AGI)"
+          ]
+        },
+        {
+          "group": "Data: The Fuel of AI",
+          "items": [
+            "Types of data (structured vs. unstructured: text, images, audio, video)",
+            "Garbage in, garbage out: why data quality and diversity matter"
+          ]
+        },
+        {
+          "group": "Main Types of Machine Learning",
+          "items": [
+            "Supervised learning: learning with labeled examples (e.g. spam filters)",
+            "Unsupervised learning: finding hidden patterns (e.g. customer segmentation)",
+            "Reinforcement learning: learning through trial and reward (e.g. AlphaGo)"
+          ]
+        },
+        {
+          "group": "Generative AI & Large Language Models",
+          "items": [
+            "How models like ChatGPT, Claude, and Gemini generate text",
+            "Text-to-image AI (Midjourney, DALL-E, Stable Diffusion)",
+            "Core prompt engineering techniques (zero-shot, few-shot, role-based prompting)"
+          ]
+        },
+        {
+          "group": "Everyday AI Applications & Ethics",
+          "items": [
+            "Recommendation systems (Netflix, Spotify, TikTok)",
+            "Introduction to AI bias, fairness, and hallucination"
+          ]
+        }
+      ]
+    },
+    "intermediate": {
+      "goal": "Understand how major AI systems work under the hood, and how to build custom AI workflows.",
+      "topics": [
+        {
+          "group": "How Neural Networks Think",
+          "items": [
+            "Inputs, hidden layers, and outputs explained visually",
+            "Computer vision basics: how AI 'sees' objects and faces in images",
+            "NLP basics: how AI understands sentiment and context"
+          ]
+        },
+        {
+          "group": "Deep Dive into Transformers & LLMs",
+          "items": [
+            "What is the transformer architecture?",
+            "Tokens and context windows: how AI reads and remembers context",
+            "Temperature, top-p, and controlling AI output randomness"
+          ]
+        },
+        {
+          "group": "Building with AI",
+          "items": [
+            "Retrieval-Augmented Generation (RAG): connecting LLMs to private data",
+            "Fine-tuning vs. prompting: when to train a custom model vs. guide an existing one",
+            "Automated workflows with tools like Zapier, Make, and Flowise"
+          ]
+        },
+        {
+          "group": "AI Safety, Governance & Ethics",
+          "items": [
+            "Deepfakes, copyright, and intellectual property in AI",
+            "Privacy risks: data leakage and prompt injection basics",
+            "AI alignment and human feedback (RLHF)"
+          ]
+        }
+      ]
+    },
+    "advanced": {
+      "goal": "Design multi-step AI systems, evaluate performance, and reason about AI strategy, architecture, and agents.",
+      "topics": [
+        {
+          "group": "Autonomous AI Agents & Multi-Agent Systems",
+          "items": [
+            "What are AI agents? (reasoning, planning, memory, tool usage)",
+            "Agentic frameworks (AutoGPT, CrewAI, LangChain architecture concepts)",
+            "Human-in-the-loop workflows for complex automation"
+          ]
+        },
+        {
+          "group": "Evaluating & Benchmarking AI Models",
+          "items": [
+            "Evaluating LLM accuracy and reliability (LLM-as-a-judge)",
+            "Measuring performance, toxicity, and hallucination",
+            "Open-source (Llama, Mistral) vs. closed-source (GPT-4, Claude) model selection"
+          ]
+        },
+        {
+          "group": "Multimodal AI Systems",
+          "items": [
+            "Combining text, voice, vision, and real-time interaction in one model",
+            "Real-world spatial AI, robotics, and embodied AI concepts"
+          ]
+        },
+        {
+          "group": "Enterprise AI Strategy & Infrastructure",
+          "items": [
+            "Build vs. buy decision frameworks for enterprise AI",
+            "AI cost optimization: token economics, caching, and latency reduction",
+            "AI regulation & compliance (EU AI Act, NIST AI Framework)"
+          ]
+        }
+      ]
+    }
+  }
+}
