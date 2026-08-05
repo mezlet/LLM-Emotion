@@ -1,0 +1,17 @@
+{
+  "participant_id": "D1234",
+  "participant_folder": "D1234",
+  "session_number": 1,
+  "display_name": "",
+  "started_at": "2026-08-05T17:04:34",
+  "ended_at": "2026-08-05T17:04:51",
+  "goals_stated": false,
+  "previous_session_summary": null,
+  "summary": "Last time, we didn't get to any questions.",
+  "qa_session": [],
+  "conversation": [],
+  "video_path": "warm_up_videos/D1234/D1234_20260805_170436.mp4",
+  "_next_image_id": 1,
+  "check_facial_expression": false,
+  "explanation_level": "beginner"
+}

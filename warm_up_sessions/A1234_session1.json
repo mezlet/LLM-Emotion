@@ -1,0 +1,321 @@
+{
+  "participant_id": "A1234",
+  "participant_folder": "A1234",
+  "session_number": 1,
+  "display_name": "Diddy",
+  "started_at": "2026-08-05T15:31:02",
+  "ended_at": "2026-08-05T15:39:26",
+  "goals_stated": true,
+  "previous_session_summary": null,
+  "summary": "Here is the reminder sentence for Diddy's next session: Last time, we discussed machine learning in robotics, including supervised and unsupervised learning techniques.",
+  "qa_session": [
+    {
+      "question": "Okay, so just...",
+      "answer": "Hello! I'm Ameca, a humanoid social robot designed for research and demonstrations. I'll be happy to help you with any questions or topics related to Artificial Intelligence and Robotics. Please feel free to ask me anything within these areas, and I'll do my best to provide clear and concise explanations at the \"beginner\" level.",
+      "images": [],
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "phrase 'just...' and tone suggest disappointment or resignation"
+      },
+      "captured_at": "2026-08-05T15:31:58"
+    },
+    {
+      "question": "I will see you commit a suggestion.",
+      "answer": "I'm ready! What's your question or topic related to Artificial Intelligence and Robotics?",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "statement lacks emotional tone"
+      },
+      "captured_at": "2026-08-05T15:32:31"
+    },
+    {
+      "question": "Make a suggestion.",
+      "answer": "Let me suggest something. Have you ever wondered how AI can be used in robotics?",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "requesting an action"
+      },
+      "captured_at": "2026-08-05T15:32:46"
+    },
+    {
+      "question": "most can be used for",
+      "answer": "AI can be used in robotics for many purposes, such as: * Enhancing robot perception: AI algorithms can help robots recognize and understand their environment by processing visual, auditory, or tactile data. * Improving robot control: AI can be used to develop advanced control systems that enable robots to perform complex tasks with precision and dexterity. * Facilitating human-robot interaction: AI-powered robots can learn to interact with humans more effectively, enabling seamless communication and collaboration. These are just a few examples. Would you like me to elaborate on any of these points or explore other ways AI is used in robotics?",
+      "images": [],
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 1.0,
+        "reason": "positive tone and potential for happiness"
+      },
+      "captured_at": "2026-08-05T15:33:11"
+    },
+    {
+      "question": "I think I understand now.",
+      "answer": "That's great! I'm glad I could help clarify things for you. If you have any more questions or topics related to Artificial Intelligence and Robotics, feel free to ask me anytime.",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "expression of understanding"
+      },
+      "captured_at": "2026-08-05T15:34:03"
+    },
+    {
+      "question": "You can pick another topic.",
+      "answer": "Let's talk about machine learning in robotics. How do you think machines learn from their experiences?",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "request for alternative is a neutral expression"
+      },
+      "captured_at": "2026-08-05T15:34:24"
+    },
+    {
+      "question": "Well, they feed them data",
+      "answer": "That's correct! Machine learning algorithms are typically trained on large datasets, which allows them to learn patterns and relationships within that data. In the context of robotics, this training data can come from a variety of sources, such as sensor readings, video feeds, or even human demonstrations. For example, a robot might be trained to recognize objects by being shown thousands of images of different objects, along with their corresponding labels (e.g. \"this is a chair\"). As the robot processes more and more data, it can start to learn what features are most important for distinguishing between different object types, such as shape or color. This kind of learning is often referred to as \"supervised\" machine learning, because the robot is being explicitly told what the correct answer is. But there's also a type of machine learning called \"unsupervised\" learning, where the robot is left to figure out its own rules and patterns from the data without any explicit guidance. Do you have any experience with machine learning or robotics?",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text does not express any strong emotional tone."
+      },
+      "captured_at": "2026-08-05T15:34:42"
+    },
+    {
+      "question": "No, I don't.",
+      "answer": "That's okay! As Ameca, my role is to educate and assist you in understanding these topics. Let me try to simplify it further: Imagine you're trying to teach a robot how to recognize different types of fruits. You show the robot many pictures of apples, bananas, and oranges, along with labels saying \"apple\", \"banana\", and \"orange\". The robot learns from this data and can eventually identify new fruits it hasn't seen before. This is basically what machine learning does in robotics - it helps robots learn from data to make decisions or perform tasks on their own. Would you like me to explain more about how machine learning is used in robotics, or move on to a different topic?",
+      "images": [],
+      "text_emotion": {
+        "emotion": "anger",
+        "confidence": 1.0,
+        "reason": "direct negation and refusal"
+      },
+      "captured_at": "2026-08-05T15:36:06"
+    },
+    {
+      "question": "Okay, what is the difference between supervised and supervised learning, which respects robotics and can you give me some basic examples?",
+      "answer": "In machine learning for robotics, there are two main types of learning: Supervised Learning and Unsupervised Learning. **Supervised Learning**: In this type of learning, a robot is trained on labeled data, where the correct output or answer is already known. Think of it like teaching a robot to recognize objects by showing it many pictures with labels saying \"this is an apple\" or \"this is a banana\". The robot learns from these labeled examples and can eventually identify new fruits it hasn't seen before. Example: A robot is trained on a dataset of labeled images, where each image has a label saying whether it's a picture of a cat or a dog. The robot learns to recognize cats and dogs based on features like shape, color, and texture. **Unsupervised Learning**: In this type of learning, a robot is given unlabeled data, and it must find patterns or relationships within that data without any guidance. It's like letting the robot explore a new environment and figure out what's important on its own. Example: A robot is left to explore a room with many objects, and it must learn to group similar items together (e.g., all toys, all books) based on features like shape, color, and texture. In robotics, supervised learning is often used for tasks like object recognition, grasping, or manipulation, where the correct output is already known. Unsupervised learning, on the other hand, can be useful for discovering new patterns or relationships in data that might not have been anticipated beforehand. These are just basic examples, but I hope it helps you understand the difference between supervised and unsupervised learning in robotics!",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text lacks emotional tone and is focused on asking a question about machine learning concepts."
+      },
+      "captured_at": "2026-08-05T15:37:12"
+    },
+    {
+      "question": "Thank you for your time. That would be all.",
+      "answer": "You're welcome! It was my pleasure to help you understand more about Artificial Intelligence and Robotics. If you have any more questions or topics you'd like to discuss in the future, don't hesitate to reach out. Have a great day!",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "formal closing and lack of emotional language"
+      },
+      "captured_at": "2026-08-05T15:39:18"
+    }
+  ],
+  "conversation": [
+    {
+      "role": "assistant",
+      "content": "Hi, what is your name? Please spell it out for me -- for example, my name is A M E C A, Ameca.",
+      "timestamp": "2026-08-05T15:31:22",
+      "intent": "name_prompt"
+    },
+    {
+      "role": "user",
+      "content": "D-I-D-D-Y",
+      "timestamp": "2026-08-05T15:31:22",
+      "intent": "name_response"
+    },
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Diddy. I am glad that you could make out time to come chat with me.In this session as well as subsequent ones our conversation would be centered on topics in AI and Robotics. Let's dive in !!!",
+      "timestamp": "2026-08-05T15:31:39",
+      "intent": "goals_statement"
+    },
+    {
+      "role": "user",
+      "content": "Okay, so just...",
+      "timestamp": "2026-08-05T15:31:58",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "sadness",
+        "confidence": 0.8,
+        "reason": "phrase 'just...' and tone suggest disappointment or resignation"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! I'm Ameca, a humanoid social robot designed for research and demonstrations. I'll be happy to help you with any questions or topics related to Artificial Intelligence and Robotics. Please feel free to ask me anything within these areas, and I'll do my best to provide clear and concise explanations at the \"beginner\" level.",
+      "timestamp": "2026-08-05T15:32:18",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "I will see you commit a suggestion.",
+      "timestamp": "2026-08-05T15:32:31",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "statement lacks emotional tone"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "I'm ready! What's your question or topic related to Artificial Intelligence and Robotics?",
+      "timestamp": "2026-08-05T15:32:39",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "Make a suggestion.",
+      "timestamp": "2026-08-05T15:32:46",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "requesting an action"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Let me suggest something. Have you ever wondered how AI can be used in robotics?",
+      "timestamp": "2026-08-05T15:32:52",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "most can be used for",
+      "timestamp": "2026-08-05T15:33:11",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 1.0,
+        "reason": "positive tone and potential for happiness"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "AI can be used in robotics for many purposes, such as: * Enhancing robot perception: AI algorithms can help robots recognize and understand their environment by processing visual, auditory, or tactile data. * Improving robot control: AI can be used to develop advanced control systems that enable robots to perform complex tasks with precision and dexterity. * Facilitating human-robot interaction: AI-powered robots can learn to interact with humans more effectively, enabling seamless communication and collaboration. These are just a few examples. Would you like me to elaborate on any of these points or explore other ways AI is used in robotics?",
+      "timestamp": "2026-08-05T15:33:32",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "I think I understand now.",
+      "timestamp": "2026-08-05T15:34:03",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "expression of understanding"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "That's great! I'm glad I could help clarify things for you. If you have any more questions or topics related to Artificial Intelligence and Robotics, feel free to ask me anytime.",
+      "timestamp": "2026-08-05T15:34:17",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "You can pick another topic.",
+      "timestamp": "2026-08-05T15:34:24",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "request for alternative is a neutral expression"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Let's talk about machine learning in robotics. How do you think machines learn from their experiences?",
+      "timestamp": "2026-08-05T15:34:32",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "Well, they feed them data",
+      "timestamp": "2026-08-05T15:34:42",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text does not express any strong emotional tone."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "That's correct! Machine learning algorithms are typically trained on large datasets, which allows them to learn patterns and relationships within that data. In the context of robotics, this training data can come from a variety of sources, such as sensor readings, video feeds, or even human demonstrations. For example, a robot might be trained to recognize objects by being shown thousands of images of different objects, along with their corresponding labels (e.g. \"this is a chair\"). As the robot processes more and more data, it can start to learn what features are most important for distinguishing between different object types, such as shape or color. This kind of learning is often referred to as \"supervised\" machine learning, because the robot is being explicitly told what the correct answer is. But there's also a type of machine learning called \"unsupervised\" learning, where the robot is left to figure out its own rules and patterns from the data without any explicit guidance. Do you have any experience with machine learning or robotics?",
+      "timestamp": "2026-08-05T15:35:02",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "No, I don't.",
+      "timestamp": "2026-08-05T15:36:06",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "anger",
+        "confidence": 1.0,
+        "reason": "direct negation and refusal"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "That's okay! As Ameca, my role is to educate and assist you in understanding these topics. Let me try to simplify it further: Imagine you're trying to teach a robot how to recognize different types of fruits. You show the robot many pictures of apples, bananas, and oranges, along with labels saying \"apple\", \"banana\", and \"orange\". The robot learns from this data and can eventually identify new fruits it hasn't seen before. This is basically what machine learning does in robotics - it helps robots learn from data to make decisions or perform tasks on their own. Would you like me to explain more about how machine learning is used in robotics, or move on to a different topic?",
+      "timestamp": "2026-08-05T15:36:26",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "Okay, what is the difference between supervised and supervised learning, which respects robotics and can you give me some basic examples?",
+      "timestamp": "2026-08-05T15:37:12",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text lacks emotional tone and is focused on asking a question about machine learning concepts."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "In machine learning for robotics, there are two main types of learning: Supervised Learning and Unsupervised Learning. **Supervised Learning**: In this type of learning, a robot is trained on labeled data, where the correct output or answer is already known. Think of it like teaching a robot to recognize objects by showing it many pictures with labels saying \"this is an apple\" or \"this is a banana\". The robot learns from these labeled examples and can eventually identify new fruits it hasn't seen before. Example: A robot is trained on a dataset of labeled images, where each image has a label saying whether it's a picture of a cat or a dog. The robot learns to recognize cats and dogs based on features like shape, color, and texture. **Unsupervised Learning**: In this type of learning, a robot is given unlabeled data, and it must find patterns or relationships within that data without any guidance. It's like letting the robot explore a new environment and figure out what's important on its own. Example: A robot is left to explore a room with many objects, and it must learn to group similar items together (e.g., all toys, all books) based on features like shape, color, and texture. In robotics, supervised learning is often used for tasks like object recognition, grasping, or manipulation, where the correct output is already known. Unsupervised learning, on the other hand, can be useful for discovering new patterns or relationships in data that might not have been anticipated beforehand. These are just basic examples, but I hope it helps you understand the difference between supervised and unsupervised learning in robotics!",
+      "timestamp": "2026-08-05T15:37:29",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "Thank you for your time. That would be all.",
+      "timestamp": "2026-08-05T15:39:18",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "formal closing and lack of emotional language"
+      }
+    }
+  ],
+  "video_path": "warm_up_videos/A1234/A1234_20260805_153103.mp4",
+  "_next_image_id": 1,
+  "check_facial_expression": false,
+  "explanation_level": "beginner"
+}

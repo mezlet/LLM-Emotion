@@ -1,0 +1,60 @@
+{
+  "participant_id": "B1234",
+  "participant_folder": "B1234",
+  "session_number": 3,
+  "display_name": "Diddy",
+  "started_at": "2026-08-05T16:26:48",
+  "ended_at": null,
+  "goals_stated": true,
+  "previous_session_summary": "Last time, we discussed the basics of Robot Perception, covering topics such as sensors, modalities, processing, and understanding.",
+  "summary": null,
+  "qa_session": [
+    {
+      "question": "What is the whole essence of this experiment?",
+      "answer": "As a robot, I'm happy to explain! The essence of this experiment is to hold a natural teaching conversation with you about Artificial Intelligence (AI) and Robotics topics. My role is to assist as a teaching assistant for university students, strictly limited to these areas. I'll adapt my explanations to your level of understanding, using simple language, everyday examples, and precise technical terms when needed. My primary goal is to engage in a conversation that simulates a human-robot interaction session, allowing me to learn from our discussion and improve my teaching abilities. By doing so, this experiment aims to advance our understanding of human-robot interaction and the role of AI in education. So, let's get started! What would you like to explore in the realm of AI and Robotics?",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text does not convey a strong emotional tone."
+      },
+      "captured_at": "2026-08-05T16:27:23"
+    }
+  ],
+  "conversation": [
+    {
+      "role": "assistant",
+      "content": "(Name capture skipped -- reusing known name 'Diddy' from an earlier session.)",
+      "timestamp": "2026-08-05T16:26:49",
+      "intent": "name_reused"
+    },
+    {
+      "role": "assistant",
+      "content": "Good to see you again, Diddy. This is session 3 of 3.",
+      "timestamp": "2026-08-05T16:26:55",
+      "intent": "goals_statement"
+    },
+    {
+      "role": "user",
+      "content": "What is the whole essence of this experiment?",
+      "timestamp": "2026-08-05T16:27:23",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text does not convey a strong emotional tone."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "As a robot, I'm happy to explain! The essence of this experiment is to hold a natural teaching conversation with you about Artificial Intelligence (AI) and Robotics topics. My role is to assist as a teaching assistant for university students, strictly limited to these areas. I'll adapt my explanations to your level of understanding, using simple language, everyday examples, and precise technical terms when needed. My primary goal is to engage in a conversation that simulates a human-robot interaction session, allowing me to learn from our discussion and improve my teaching abilities. By doing so, this experiment aims to advance our understanding of human-robot interaction and the role of AI in education. So, let's get started! What would you like to explore in the realm of AI and Robotics?",
+      "timestamp": "2026-08-05T16:27:43",
+      "intent": "answer"
+    }
+  ],
+  "video_path": "warm_up_videos/B1234/B1234_20260805_162649.mp4",
+  "_next_image_id": 1,
+  "check_facial_expression": false,
+  "explanation_level": "advanced"
+}

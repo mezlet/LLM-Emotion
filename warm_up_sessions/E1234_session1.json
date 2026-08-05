@@ -1,0 +1,124 @@
+{
+  "participant_id": "E1234",
+  "participant_folder": "E1234",
+  "session_number": 1,
+  "display_name": "Litcy",
+  "started_at": "2026-08-05T17:05:14",
+  "ended_at": null,
+  "goals_stated": true,
+  "previous_session_summary": null,
+  "summary": null,
+  "qa_session": [
+    {
+      "question": "You can pick a topic.",
+      "answer": "Let's explore the topic of \"Large Language Models\"! What would you like to know about Large Language Models? Would you like me to explain the basics, discuss their applications in robotics, or something else?",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text does not express any strong emotional tone."
+      },
+      "captured_at": "2026-08-05T17:06:10"
+    },
+    {
+      "question": "Let's start with the basics.",
+      "answer": "Excellent choice! **** Large Language Models (LLMs) are a type of artificial intelligence that processes and generates human-like language. **Definition:** A Large Language Model is a neural network trained on massive amounts of text data to learn patterns, relationships, and context within language. This training enables the model to generate coherent and meaningful text, often surpassing human capabilities in certain tasks. **Key Concepts:** 1. **Tokens**: Small pieces of text, such as words or characters, that serve as building blocks for language processing. 2. **Context Windows**: The surrounding text that a model uses to understand the meaning of a token. 3. **Next-Token Prediction**: A fundamental task for LLMs, where they predict the next token in a sequence given the context. **Example:** Imagine you're trying to complete a sentence: \"The capital of France is __________.\" An LLM would analyze the context (France) and predict the most likely next token (Paris). That's a basic overview! Do you have any questions or would you like me to expand on these concepts?",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text lacks emotional tone and is focused on providing information."
+      },
+      "captured_at": "2026-08-05T17:06:35"
+    },
+    {
+      "question": "Can you differentiate between supervised and supervised learning and which respects robotics and can you give me some examples?",
+      "answer": "**Supervised Learning:** In Supervised Learning, the model is trained on labeled data, where each example is accompanied by a target output or correct answer. The goal is to learn a mapping between input data and the corresponding output labels, so the model can make predictions on new, unseen data. **Unsupervised Learning:** In Unsupervised Learning, the model is trained on unlabeled data, and it must find patterns, relationships, or structure within the data without any prior knowledge of the correct answers. The goal is to discover hidden insights or group similar data points into clusters. **Relevance to Robotics:** 1. **Supervised Learning:** In robotics, Supervised Learning can be used for tasks like: * Object recognition: Training a model on labeled images of objects (e.g., cars, chairs) to recognize them in new images. * Gesture recognition: Teaching a robot to recognize specific hand or body gestures by training it on labeled data. 2. **Unsupervised Learning:** In robotics, Unsupervised Learning can be used for tasks like: * Anomaly detection: Identifying unusual sensor readings or behavior patterns in robotic systems without prior knowledge of what constitutes \"normal\" data. * Clustering: Grouping similar sensor readings or motion patterns to identify patterns and trends in robot behavior. **Examples:** 1. **Supervised Learning:** A robot is trained on labeled images of different objects (e.g., apples, bananas) to recognize them using a Supervised Learning algorithm like Convolutional Neural Networks (CNNs). The model learns to associate specific features (shape, color, texture) with the corresponding object labels. 2. **Unsupervised Learning:** A robotic arm is equipped with sensors that detect and track objects in its environment. Using Unsupervised Learning, the robot can identify patterns in sensor readings to cluster similar objects together, allowing it to recognize and manipulate specific types of items. These examples illustrate how Supervised and Unsupervised Learning",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text is a factual question and does not express any emotional tone."
+      },
+      "captured_at": "2026-08-05T17:08:14"
+    }
+  ],
+  "conversation": [
+    {
+      "role": "assistant",
+      "content": "Hi, what is your name? Please spell it out for me -- for example, my name is A M E C A, Ameca.",
+      "timestamp": "2026-08-05T17:05:35",
+      "intent": "name_prompt"
+    },
+    {
+      "role": "user",
+      "content": "My name is L-I-T-C-Y.",
+      "timestamp": "2026-08-05T17:05:35",
+      "intent": "name_response"
+    },
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Litcy. I am glad that you could make out time to come chat with me.In this session as well as subsequent ones our conversation would be centered on topics in AI and Robotics. Let's dive in !!!",
+      "timestamp": "2026-08-05T17:05:52",
+      "intent": "goals_statement"
+    },
+    {
+      "role": "user",
+      "content": "You can pick a topic.",
+      "timestamp": "2026-08-05T17:06:10",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text does not express any strong emotional tone."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Let's explore the topic of \"Large Language Models\"! What would you like to know about Large Language Models? Would you like me to explain the basics, discuss their applications in robotics, or something else?",
+      "timestamp": "2026-08-05T17:06:25",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "Let's start with the basics.",
+      "timestamp": "2026-08-05T17:06:35",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text lacks emotional tone and is focused on providing information."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Excellent choice! **** Large Language Models (LLMs) are a type of artificial intelligence that processes and generates human-like language. **Definition:** A Large Language Model is a neural network trained on massive amounts of text data to learn patterns, relationships, and context within language. This training enables the model to generate coherent and meaningful text, often surpassing human capabilities in certain tasks. **Key Concepts:** 1. **Tokens**: Small pieces of text, such as words or characters, that serve as building blocks for language processing. 2. **Context Windows**: The surrounding text that a model uses to understand the meaning of a token. 3. **Next-Token Prediction**: A fundamental task for LLMs, where they predict the next token in a sequence given the context. **Example:** Imagine you're trying to complete a sentence: \"The capital of France is __________.\" An LLM would analyze the context (France) and predict the most likely next token (Paris). That's a basic overview! Do you have any questions or would you like me to expand on these concepts?",
+      "timestamp": "2026-08-05T17:06:46",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "Can you differentiate between supervised and supervised learning and which respects robotics and can you give me some examples?",
+      "timestamp": "2026-08-05T17:08:14",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text is a factual question and does not express any emotional tone."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "**Supervised Learning:** In Supervised Learning, the model is trained on labeled data, where each example is accompanied by a target output or correct answer. The goal is to learn a mapping between input data and the corresponding output labels, so the model can make predictions on new, unseen data. **Unsupervised Learning:** In Unsupervised Learning, the model is trained on unlabeled data, and it must find patterns, relationships, or structure within the data without any prior knowledge of the correct answers. The goal is to discover hidden insights or group similar data points into clusters. **Relevance to Robotics:** 1. **Supervised Learning:** In robotics, Supervised Learning can be used for tasks like: * Object recognition: Training a model on labeled images of objects (e.g., cars, chairs) to recognize them in new images. * Gesture recognition: Teaching a robot to recognize specific hand or body gestures by training it on labeled data. 2. **Unsupervised Learning:** In robotics, Unsupervised Learning can be used for tasks like: * Anomaly detection: Identifying unusual sensor readings or behavior patterns in robotic systems without prior knowledge of what constitutes \"normal\" data. * Clustering: Grouping similar sensor readings or motion patterns to identify patterns and trends in robot behavior. **Examples:** 1. **Supervised Learning:** A robot is trained on labeled images of different objects (e.g., apples, bananas) to recognize them using a Supervised Learning algorithm like Convolutional Neural Networks (CNNs). The model learns to associate specific features (shape, color, texture) with the corresponding object labels. 2. **Unsupervised Learning:** A robotic arm is equipped with sensors that detect and track objects in its environment. Using Unsupervised Learning, the robot can identify patterns in sensor readings to cluster similar objects together, allowing it to recognize and manipulate specific types of items. These examples illustrate how Supervised and Unsupervised Learning",
+      "timestamp": "2026-08-05T17:08:34",
+      "intent": "answer"
+    }
+  ],
+  "video_path": "warm_up_videos/E1234/E1234_20260805_170515.mp4",
+  "_next_image_id": 1,
+  "check_facial_expression": false,
+  "explanation_level": "beginner"
+}

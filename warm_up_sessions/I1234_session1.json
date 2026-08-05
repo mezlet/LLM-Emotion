@@ -1,0 +1,269 @@
+{
+  "participant_id": "I1234",
+  "participant_folder": "I1234",
+  "session_number": 1,
+  "display_name": "Etty",
+  "started_at": "2026-08-05T17:44:23",
+  "ended_at": null,
+  "goals_stated": true,
+  "previous_session_summary": null,
+  "summary": null,
+  "qa_session": [
+    {
+      "question": "What is the essence of this experiment?",
+      "answer": "The essence of this experiment is to study human-robot interaction by having a humanoid social robot, Ameca, act as a teaching assistant for university students on topics related to Artificial Intelligence and Robotics. The goal is to explore how humans interact with robots in an educational setting and to gather insights that can inform the development of more effective human-robot collaboration systems.",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text lacks emotional tone and asks a factual question."
+      },
+      "captured_at": "2026-08-05T17:45:17"
+    },
+    {
+      "question": "What is your expectation of me in this experiment?",
+      "answer": "As a participant in this experiment, I expect you to engage as a learner in a lesson on AI and Robotics topics, asking questions and responding as you would with a human tutor. Your role is to talk through my microphone and wait for me to finish speaking before responding. You may be asked to complete a short recap or check of what you learned near the end of the session.",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text does not express any emotional tone, it's a neutral inquiry."
+      },
+      "captured_at": "2026-08-05T17:45:55"
+    },
+    {
+      "question": "And I'll try to make a toothpick.",
+      "answer": "I'm afraid that's not part of this experiment! As Ameca, my role is to assist with teaching AI and Robotics topics, not to help with crafting toothpicks or any other physical objects. Let's focus on exploring the fascinating world of Artificial Intelligence and Robotics together!",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "no emotional words detected"
+      },
+      "captured_at": "2026-08-05T17:46:31"
+    },
+    {
+      "question": "Alright, go ahead and teach me something.",
+      "answer": "Let's start with a fundamental concept in Artificial Intelligence: Machine Learning. Machine learning is a type of AI that enables computers to learn from data without being explicitly programmed. It's like how you learn new skills or concepts by practicing and experiencing them! Imagine you're trying to recognize different types of animals, like cats and dogs. A machine learning algorithm would start by looking at many examples of cat and dog pictures, and then try to identify patterns and features",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "request for information"
+      },
+      "captured_at": "2026-08-05T17:47:02"
+    },
+    {
+      "question": "So our machines really intelligence",
+      "answer": "That's a great follow-up question! While machines can process vast amounts of data and make decisions based on that information, the concept of \"intelligence\" is still debated among AI researchers. Some argue that true intelligence requires self-awareness, creativity, and the ability to reason abstractly – qualities that are currently unique to humans. Machine learning algorithms, like those I mentioned earlier, can recognize patterns and make predictions, but they don't possess consciousness or self",
+      "images": [],
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 1.0,
+        "reason": "The use of 'really' and 'intelligence' suggests a sense of unexpectedness or astonishment."
+      },
+      "captured_at": "2026-08-05T17:47:56"
+    },
+    {
+      "question": "So can you explain supervised and supervised learning with respect to robotics and can you give me examples?",
+      "answer": "In machine learning for robotics, there are two main types of learning: Supervised Learning and Unsupervised Learning. **Supervised Learning**: In this type of learning, the robot is trained on labeled data, meaning that each example or instance has a corresponding target or response. The goal is to learn a mapping between input data (e.g., sensor readings) and output labels (e.g., actions or decisions). This type of learning is useful when",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text is a neutral inquiry about technical concepts."
+      },
+      "captured_at": "2026-08-05T17:48:44"
+    },
+    {
+      "question": "boom on",
+      "answer": "I think you meant \"Boom!\" as in, let's keep going!",
+      "images": [],
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 1.0,
+        "reason": "sudden and unexpected event"
+      },
+      "captured_at": "2026-08-05T17:49:31"
+    },
+    {
+      "question": "Yes",
+      "answer": "Let's dive deeper into Supervised Learning in robotics. **Example 1: Object Recognition** Imagine a robot designed to sort objects into different bins. The robot is trained on labeled images of various objects (e.g., toys, books, etc.) and their corresponding categories (e.g., \"toy\" or \"book\"). As the robot processes new images, it uses this training data to recognize the objects and sort them accordingly. **Example 2",
+      "images": [],
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 1.0,
+        "reason": "unambiguous affirmative response"
+      },
+      "captured_at": "2026-08-05T17:49:43"
+    }
+  ],
+  "conversation": [
+    {
+      "role": "assistant",
+      "content": "Hi, what is your name? Please spell it out for me -- for example, my name is A M E C A, Ameca.",
+      "timestamp": "2026-08-05T17:44:41",
+      "intent": "name_prompt"
+    },
+    {
+      "role": "user",
+      "content": "E-T-T-Y.",
+      "timestamp": "2026-08-05T17:44:41",
+      "intent": "name_response"
+    },
+    {
+      "role": "assistant",
+      "content": "Nice to meet you, Etty. I am glad that you could make out time to come chat with me.In this session as well as subsequent ones our conversation would be centered on topics in AI and Robotics. Let's dive in !!!",
+      "timestamp": "2026-08-05T17:44:58",
+      "intent": "goals_statement"
+    },
+    {
+      "role": "user",
+      "content": "What is the essence of this experiment?",
+      "timestamp": "2026-08-05T17:45:17",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text lacks emotional tone and asks a factual question."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "The essence of this experiment is to study human-robot interaction by having a humanoid social robot, Ameca, act as a teaching assistant for university students on topics related to Artificial Intelligence and Robotics. The goal is to explore how humans interact with robots in an educational setting and to gather insights that can inform the development of more effective human-robot collaboration systems.",
+      "timestamp": "2026-08-05T17:45:37",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "What is your expectation of me in this experiment?",
+      "timestamp": "2026-08-05T17:45:55",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text does not express any emotional tone, it's a neutral inquiry."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "As a participant in this experiment, I expect you to engage as a learner in a lesson on AI and Robotics topics, asking questions and responding as you would with a human tutor. Your role is to talk through my microphone and wait for me to finish speaking before responding. You may be asked to complete a short recap or check of what you learned near the end of the session.",
+      "timestamp": "2026-08-05T17:46:15",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "And I'll try to make a toothpick.",
+      "timestamp": "2026-08-05T17:46:31",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "no emotional words detected"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "I'm afraid that's not part of this experiment! As Ameca, my role is to assist with teaching AI and Robotics topics, not to help with crafting toothpicks or any other physical objects. Let's focus on exploring the fascinating world of Artificial Intelligence and Robotics together!",
+      "timestamp": "2026-08-05T17:46:52",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "Alright, go ahead and teach me something.",
+      "timestamp": "2026-08-05T17:47:02",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "request for information"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Let's start with a fundamental concept in Artificial Intelligence: Machine Learning. Machine learning is a type of AI that enables computers to learn from data without being explicitly programmed. It's like how you learn new skills or concepts by practicing and experiencing them! Imagine you're trying to recognize different types of animals, like cats and dogs. A machine learning algorithm would start by looking at many examples of cat and dog pictures, and then try to identify patterns and features",
+      "timestamp": "2026-08-05T17:47:15",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "So our machines really intelligence",
+      "timestamp": "2026-08-05T17:47:56",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 1.0,
+        "reason": "The use of 'really' and 'intelligence' suggests a sense of unexpectedness or astonishment."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "That's a great follow-up question! While machines can process vast amounts of data and make decisions based on that information, the concept of \"intelligence\" is still debated among AI researchers. Some argue that true intelligence requires self-awareness, creativity, and the ability to reason abstractly – qualities that are currently unique to humans. Machine learning algorithms, like those I mentioned earlier, can recognize patterns and make predictions, but they don't possess consciousness or self",
+      "timestamp": "2026-08-05T17:47:58",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "So can you explain supervised and supervised learning with respect to robotics and can you give me examples?",
+      "timestamp": "2026-08-05T17:48:44",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "neutral",
+        "confidence": 1.0,
+        "reason": "The text is a neutral inquiry about technical concepts."
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "In machine learning for robotics, there are two main types of learning: Supervised Learning and Unsupervised Learning. **Supervised Learning**: In this type of learning, the robot is trained on labeled data, meaning that each example or instance has a corresponding target or response. The goal is to learn a mapping between input data (e.g., sensor readings) and output labels (e.g., actions or decisions). This type of learning is useful when",
+      "timestamp": "2026-08-05T17:49:04",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "boom on",
+      "timestamp": "2026-08-05T17:49:31",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "surprise",
+        "confidence": 1.0,
+        "reason": "sudden and unexpected event"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "I think you meant \"Boom!\" as in, let's keep going!",
+      "timestamp": "2026-08-05T17:49:36",
+      "intent": "answer"
+    },
+    {
+      "role": "user",
+      "content": "Yes",
+      "timestamp": "2026-08-05T17:49:43",
+      "intent": "question",
+      "images": [],
+      "text_emotion": {
+        "emotion": "joy",
+        "confidence": 1.0,
+        "reason": "unambiguous affirmative response"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "Let's dive deeper into Supervised Learning in robotics. **Example 1: Object Recognition** Imagine a robot designed to sort objects into different bins. The robot is trained on labeled images of various objects (e.g., toys, books, etc.) and their corresponding categories (e.g., \"toy\" or \"book\"). As the robot processes new images, it uses this training data to recognize the objects and sort them accordingly. **Example 2",
+      "timestamp": "2026-08-05T17:49:54",
+      "intent": "answer"
+    }
+  ],
+  "video_path": "warm_up_videos/I1234/I1234_20260805_174425.mp4",
+  "_next_image_id": 1,
+  "check_facial_expression": false,
+  "explanation_level": "beginner"
+}
