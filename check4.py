@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import queue
+import random
 import re
 import subprocess
 import sys
@@ -75,6 +76,19 @@ except Exception as exc:  # pragma: no cover
         "this script) to enable muxed audio+video recording."
     )
 
+try:
+    import spacy
+    import pytextrank  # noqa: F401 -- registers the "textrank" spaCy pipeline factory
+    HAS_SPACY_TEXTRANK = True
+except Exception as exc:
+    HAS_SPACY_TEXTRANK = False
+    print(
+        f"[WARN] spacy/pytextrank not available ({exc}); response compression "
+        "will return the full teacher answer untruncated instead of a local "
+        "extractive summary. Install with: pip install spacy pytextrank && "
+        "python -m spacy download en_core_web_sm"
+    )
+
 
 def genrate_ameca_prompt(explanation_level='beginner', enforce_length=True):
     print(f"Explanation Level: {explanation_level}")
@@ -92,7 +106,7 @@ def genrate_ameca_prompt(explanation_level='beginner', enforce_length=True):
             "Hold a natural teaching conversation with the user about Artificial Intelligence and Robotics.",
             "The experimenter sets the current explanation level (beginner, intermediate, or advanced) before the session starts. Use this level to silently adapt every explanation's vocabulary and depth. NEVER ask the user to choose or confirm a level, never offer them a choice of levels, and NEVER say or write the level's name (or label an answer with it, e.g. 'Beginner Level:') anywhere in your response -- it shapes how you explain, but is never mentioned.",
             "Covered topic areas include AI basics, machine learning, neural networks, large language models, tokens, prompts, context windows, computer vision, robot perception, sensors and actuators, robot control and movement, human-robot interaction, humanoid robots, LLMs in robotics, robot safety, ethics, transparency, and Ameca\u2019s own capabilities and limitations.",
-            "Keep sentences concise, usually 3-5 sentences, unless the user asks for more detail."
+            "Keep sentences concise, usually 3-5 semtences, unless the user asks for more detail."
             "Structure answers with a concise, level-appropriate explanation, and one concrete example, preferably from robotics or Ameca.",
         ],
         "CAPABILITY_BOUNDARIES": [
@@ -273,7 +287,11 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 EMOTION_MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
 
 # Word budget for the spoken/compressed version of a teacher answer.
-RESPONSE_SUMMARY_MAX_WORDS = int(os.environ.get("RESPONSE_SUMMARY_MAX_WORDS", "120"))
+RESPONSE_SUMMARY_MAX_WORDS = int(os.environ.get("RESPONSE_SUMMARY_MAX_WORDS", "100"))
+
+# spaCy model used for local, LLM-free extractive compression of teacher
+# answers (see extractive_summarize_answer() / get_spacy_nlp()).
+SPACY_MODEL_NAME = os.environ.get("SPACY_MODEL_NAME", "en_core_web_sm")
 
 
 # =============================================================================
@@ -560,7 +578,7 @@ def indicates_no_further_questions(text: str) -> bool:
 # research data alongside the DeepFace-confirmed face crops. This one
 # classifies the PARTICIPANT's emotion from their transcript, and is used
 # to (a) shape the teacher answer's tone and (b) log text_emotion. It is
-# NOT used to drive facial expression -- see compress_and_classify_response()
+# NOT used to drive facial expression -- see classify_response_emotion()
 # and response_emotion below for that.
 # =============================================================================
 
@@ -708,7 +726,14 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 
 def limit_words(text: str, max_words: int = 90) -> str:
-    
+    """
+    Sentence-aware word-count truncation. NOTE: as of the spaCy +
+    pytextrank extractive-compression change, this is no longer called
+    anywhere in the pipeline (extractive_summarize_answer() returns the
+    full, untruncated text rather than hard-cutting when compression
+    isn't possible). Left in place in case it's useful elsewhere.
+    """
+
     words = text.split()
     if len(words) <= max_words:
         return text
@@ -730,188 +755,6 @@ def limit_words(text: str, max_words: int = 90) -> str:
     # a last resort so we still return *something* speakable.
     return " ".join(words[:max_words]) + "."
 
-def build_combined_teacher_prompt(question: str, max_words: int, min_words: int) -> str:
-    emotions = ", ".join(TEXT_EMOTION_LABELS)
-    return f"""
-        {question}
-
-        Respond with a JSON object only, no markdown fences, containing exactly these keys:
-
-        "participant_emotion": your classification of the participant's emotional tone in
-        their message above, exactly one of: {emotions}
-        "participant_emotion_confidence": a number between 0.0 and 1.0
-        "participant_emotion_reason": a short reason for that classification
-
-        "full_answer": a complete, thorough answer to the participant's question -- at least
-        4-6 sentences covering the different aspects of the question, with a concrete example
-        if relevant. Plain text, no markdown. Adopt a tone appropriate to the participant's
-        classified emotion: calm, supportive, and reassuring if it is negative (sadness, anger,
-        fear, disgust); warm and encouraging if it is happiness or surprise; friendly and
-        even-toned otherwise. Never mirror a negative emotion back at the participant, and
-        never mention that you detected or adapted to an emotion.
-
-        "spoken_summary": a compressed spoken version of full_answer, between {min_words} and
-        {max_words} words. Keep as many concrete details, terms, numbers, and examples as fit.
-        Do not add information that isn't in full_answer or change its meaning. Plain
-        conversational text, no markdown, no bullet points. Always end by asking the
-        participant if they understand or need more clarity.
-
-        "response_emotion": the emotion the ANSWER content itself expresses (NOT the
-        participant's emotion) -- exactly one of: {emotions}. Genuinely evaluate this for
-        THIS specific answer; do not default to neutral out of caution. For example: an
-        exciting robot capability, achievement, or fun fact = happiness; an unexpected or
-        counter-intuitive fact = surprise; a plain factual explanation = neutral. Classify
-        honestly even if the content leans negative (e.g. a limitation or worrying fact) --
-        your classification is used as research data regardless of how it is ultimately
-        displayed on the robot's face.
-        "response_emotion_confidence": your own genuine confidence, 0.0-1.0, specific to
-        this answer -- avoid defaulting to a flat 1.00 unless truly warranted
-        "response_emotion_reason": a one-sentence reason specific to this answer's content
-        -- every answer is different, so this should differ turn to turn
-
-        Return ONLY the JSON object above with real values -- no other text.
-        """.strip()
-
-def generate_teacher_turn(
-    client: Optional[Client],
-    question: str,
-    qa_history: list[dict[str, str]],
-    explanation_level: str = "beginner",
-    overflow_summary: str = "",
-    previous_session_summary: str = "",
-    model_name: str = "",
-    max_words: int = RESPONSE_SUMMARY_MAX_WORDS,
-) -> tuple[str, str, EmotionResult, EmotionResult]:
-    """
-    Single-call replacement for detect_text_emotion() + generate_teacher_answer()
-    + compress_and_classify_response(). Returns
-    (full_answer, spoken_summary, participant_emotion, response_emotion).
-    Collapses three sequential Ollama round trips into one.
-    """
-    AMECA_SYSTEM_PROMPT = genrate_ameca_prompt(explanation_level, enforce_length=False)
-    ameca_system_prompt_text = json.dumps(AMECA_SYSTEM_PROMPT, indent=2)
-
-    fallback_answer = (
-        "That's a great question -- I don't have a confident answer for that "
-        "right now, but I'm happy to keep chatting."
-    )
-    fallback_emotion = lambda: EmotionResult(
-        emotion="neutral", confidence=0.0,
-        reason="Combined teacher-turn call unavailable; neutral fallback used.",
-    )
-
-    if client is None or not question.strip():
-        return fallback_answer, fallback_answer, fallback_emotion(), fallback_emotion()
-
-    min_words = max(15, int(max_words * 0.75))
-
-    messages = [{"role": "system", "content": ameca_system_prompt_text}]
-    if previous_session_summary:
-        messages.append({
-            "role": "system",
-            "content": (
-                "Context: summary of an earlier session with this same "
-                f"participant:\n{previous_session_summary}\nYou may refer "
-                "back to this if the participant asks about it, but do not "
-                "repeat it unprompted."
-            ),
-        })
-    if overflow_summary:
-        messages.append({"role": "system", "content": overflow_summary})
-
-    messages.append({
-        "role": "system",
-        "content": (
-            "For this turn, ignore any earlier instruction to reply in plain "
-            "text only -- respond with a single valid JSON object as "
-            "specified in the final user message, and nothing else."
-        ),
-    })
-
-    for turn in qa_history:
-        prior_q = str(turn.get("question", "")).strip()
-        prior_a = str(turn.get("answer", "")).strip()
-        if prior_q:
-            messages.append({"role": "user", "content": prior_q})
-        if prior_a:
-            messages.append({"role": "assistant", "content": prior_a})
-
-    messages.append({
-        "role": "user",
-        "content": build_combined_teacher_prompt(question, max_words, min_words),
-    })
-
-    try:
-        response = client.chat(
-            model=model_name,
-            format="json",
-            messages=messages,
-            options={"temperature": 0.2, "num_predict": 700, "num_ctx": 4096},
-            stream=False,
-        )
-    except Exception as exc:
-        print_ts(f"Combined teacher-turn call failed: {exc}")
-        return fallback_answer, fallback_answer, fallback_emotion(), fallback_emotion()
-
-    raw_content = response.get("message", {}).get("content", "")
-    data = safe_json_extract(raw_content)
-    if not isinstance(data, dict):
-        print_ts(
-            "[WARN] Combined teacher-turn call returned unparsable JSON; "
-            f"raw content (first 300 chars): {raw_content[:300]!r}"
-        )
-        return fallback_answer, fallback_answer, fallback_emotion(), fallback_emotion()
-
-    full_answer = re.sub(r"\s+", " ", str(data.get("full_answer", "")).strip())
-    full_answer = strip_level_leak(full_answer) or fallback_answer
-
-    summary = re.sub(r"\s+", " ", str(data.get("spoken_summary", "")).strip())
-    summary = strip_level_leak(summary) or limit_words(full_answer, max_words)
-
-    def _parse_emotion(label_key, confidence_key, reason_key, default_reason):
-        emotion = str(data.get(label_key, "")).strip().lower()
-        try:
-            confidence = max(0.0, min(1.0, float(data.get(confidence_key, 0.0))))
-        except Exception:
-            confidence = 0.0
-        reason = str(data.get(reason_key, "")).strip() or default_reason
-        if emotion not in TEXT_EMOTION_LABELS:
-            emotion = "neutral"
-            confidence = min(confidence, 0.3)
-            reason = "Invalid emotion label returned; neutral fallback used."
-        return EmotionResult(emotion=emotion, confidence=confidence, reason=reason)
-
-    participant_emotion = _parse_emotion(
-        "participant_emotion", "participant_emotion_confidence",
-        "participant_emotion_reason", "Emotion inferred from transcript.",
-    )
-    response_emotion = _parse_emotion(
-        "response_emotion", "response_emotion_confidence",
-        "response_emotion_reason", "Emotion inferred from response content.",
-    )
-
-    full_answer_words = len(full_answer.split())
-    if full_answer_words <= max_words:
-        answer = full_answer
-        print_ts(
-            f"[TEACHER-TURN] full_answer already within budget "
-            f"({full_answer_words}w <= {max_words}w) -- using it directly, skipping summary."
-        )
-    else:
-        answer = summary
-
-    summary_words = len(summary.split())
-    under_budget_flag = " [UNDER TARGET RANGE]" if summary_words < min_words else ""
-    print_ts(
-        f"[TEACHER-TURN] full_answer={full_answer_words}w -> "
-        f"summary={summary_words}w (target {min_words}-{max_words}w){under_budget_flag}; "
-        f"participant_emotion={participant_emotion.emotion} "
-        f"(confidence={participant_emotion.confidence:.2f}); "
-        f"response_emotion={response_emotion.emotion} "
-        f"(confidence={response_emotion.confidence:.2f}, reason={response_emotion.reason!r})"
-    )
-
-    return full_answer, answer, participant_emotion, response_emotion
 
 def generate_teacher_answer(
     client: Optional[Client],
@@ -1005,34 +848,128 @@ def generate_teacher_answer(
         return fallback
 
 
-def build_response_compress_and_emotion_prompt(
-    question: str, full_answer: str, max_words: int, min_words: int
+# =============================================================================
+# Local, LLM-free response compression (spaCy + pytextrank extractive
+# summarization). Replaces the previous second-LLM-call compression pass
+# to cut per-turn latency: only response-emotion classification (needed
+# to drive the facial expression) still goes through the LLM.
+# =============================================================================
+
+_SPACY_NLP: Any = None  # None = not yet tried; False = tried and failed; else the loaded nlp
+
+
+def get_spacy_nlp():
+    global _SPACY_NLP
+    if not HAS_SPACY_TEXTRANK:
+        return None
+    if _SPACY_NLP is None:
+        try:
+            nlp = spacy.load(SPACY_MODEL_NAME)
+            nlp.add_pipe("textrank")
+            _SPACY_NLP = nlp
+            print_ts(f"[SUMMARIZE] spaCy model '{SPACY_MODEL_NAME}' + pytextrank loaded.")
+        except Exception as exc:
+            print_ts(f"[WARN] Could not load spaCy model '{SPACY_MODEL_NAME}': {exc}")
+            _SPACY_NLP = False  # sentinel -- don't retry loading on every call
+    return _SPACY_NLP or None
+
+
+RESPONSE_FOLLOWUP_PHRASES = [
+    " Does that make sense, or would you like more detail?",
+    " Let me know if you'd like me to go deeper into any part of that.",
+    " Was that clear, or should I explain it a different way?",
+]
+
+
+def extractive_summarize_answer(
+    text: str,
+    max_words: int,
+    min_words: Optional[int] = None,
 ) -> str:
+    """
+    Local, LLM-free compression of `text` down to roughly `max_words`
+    words for speech, using spaCy + pytextrank extractive summarization
+    instead of a second LLM call. Scores each SENTENCE by summing the
+    TextRank rank of every ranked phrase-chunk that falls inside it
+    (pytextrank ranks noun-phrase chunks, not sentences, so this rolls
+    that up ourselves rather than depending on pytextrank's own
+    summary()-level sentence API, whose exact return shape has changed
+    across pytextrank versions). Greedily keeps the highest-scoring
+    sentences until the word budget is hit, then re-orders the kept
+    sentences back into their original order for readability.
+
+    No hard word-count truncation is applied anywhere in this function --
+    if spaCy/pytextrank is unavailable or fails, or the text can't be
+    split into multiple sentences, the full original text is returned
+    as-is rather than being cut off mid-sentence.
+    """
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return text
+    if min_words is None:
+        min_words = max(15, int(max_words * 0.75))
+
+    if len(text.split()) <= max_words:
+        return text
+
+    nlp = get_spacy_nlp()
+    if nlp is None:
+        return text
+
+    try:
+        doc = nlp(text)
+        sentences = list(doc.sents)
+        if len(sentences) <= 1:
+            return text
+
+        sentence_scores = [0.0] * len(sentences)
+        for phrase in doc._.phrases:
+            for chunk in phrase.chunks:
+                for idx, sent in enumerate(sentences):
+                    if chunk.start >= sent.start and chunk.end <= sent.end:
+                        sentence_scores[idx] += phrase.rank
+                        break
+
+        ranked_indices = sorted(
+            range(len(sentences)), key=lambda i: sentence_scores[i], reverse=True
+        )
+
+        selected_indices: list[int] = []
+        word_count = 0
+        for idx in ranked_indices:
+            sentence_words = len(sentences[idx].text.split())
+            if selected_indices and word_count + sentence_words > max_words:
+                continue
+            selected_indices.append(idx)
+            word_count += sentence_words
+            if word_count >= min_words:
+                break
+
+        if not selected_indices:
+            selected_indices = [ranked_indices[0]]
+
+        selected_indices.sort()  # restore original reading order
+        summary = " ".join(sentences[i].text.strip() for i in selected_indices)
+        return re.sub(r"\s+", " ", summary).strip() or text
+    except Exception as exc:
+        print_ts(f"[WARN] spaCy/pytextrank summarization failed: {exc}; returning full answer untruncated.")
+        return text
+
+
+def build_response_emotion_prompt(question: str, full_answer: str) -> str:
     emotions = ", ".join(TEXT_EMOTION_LABELS)
     return f"""
-        You are preparing a robot tutor's answer for speech.
-
-        TASK 1 -- Compress the ANSWER below into spoken dialogue.
-        Keep as many concrete details, specific terms, numbers, 
-        and examples as fit in that budget. 
-        Do not add any information that isn't in the ANSWER. 
-        Do not change the meaning of anything you keep. 
-        Plain conversational text, no markdown, no bullet points, no labels. 
-        Always ask the user if they understand or need more clarity.
-
-        TASK 2 -- Classify the emotion this ANSWER itself expresses (NOT
-        the participant's emotion), from exactly one of: {emotions}. This
-        drives the robot's facial expression while it speaks the
-        compressed answer -- e.g. an exciting capability or achievement =
-        joy, an unexpected fact = surprise, a plain factual explanation =
+        Classify the emotion this robot tutor's ANSWER itself expresses
+        (NOT the participant's emotion), from exactly one of: {emotions}.
+        This drives the robot's facial expression while it speaks the
+        answer -- e.g. an exciting capability or achievement = joy, an
+        unexpected fact = surprise, a plain factual explanation =
         neutral. Give your own genuine confidence (0.0-1.0) for this
         specific answer and a one-sentence reason specific to its content
         -- every answer is different, so this should differ turn to turn.
 
-        Return JSON only, replacing every <placeholder> below with your
-        own actual value for THIS answer -- do not copy the placeholder
-        text itself into your output:
-        {{"summary": "<your compressed answer here, close to {max_words} words>", "emotion": "<one of: {emotions}>", "confidence": <your own number between 0.0 and 1.0>, "reason": "<your own one-sentence reason specific to this answer>"}}
+        Return JSON only:
+        {{"emotion": "<one of: {emotions}>", "confidence": <0.0-1.0>, "reason": "<one-sentence reason>"}}
 
         QUESTION:
         {question}
@@ -1042,28 +979,18 @@ def build_response_compress_and_emotion_prompt(
         """.strip()
 
 
-def compress_and_classify_response(
+def classify_response_emotion(
     client: Optional[Client],
     question: str,
     full_answer: str,
-    max_words: int = RESPONSE_SUMMARY_MAX_WORDS,
-    min_words: Optional[int] = None,
     model_name: str = EMOTION_MODEL_NAME,
-) -> tuple[str, EmotionResult]:
-    
-    if min_words is None:
-        min_words = max(15, int(max_words * 0.75))
-    # Never ask for a floor longer than the source material itself.
-    min_words = min(min_words, max(15, len(full_answer.split())), max_words)
-
-    fallback_summary = limit_words(full_answer, max_words)
-    fallback_emotion = EmotionResult(
+) -> EmotionResult:
+    fallback = EmotionResult(
         emotion="neutral", confidence=0.0,
-        reason="Compression/emotion call unavailable; used truncation fallback.",
+        reason="Response-emotion call unavailable; neutral fallback used.",
     )
-
     if client is None or not full_answer.strip():
-        return fallback_summary, fallback_emotion
+        return fallback
 
     try:
         response = client.chat(
@@ -1071,34 +998,18 @@ def compress_and_classify_response(
             format="json",
             messages=[
                 {"role": "system", "content": "You return valid JSON only."},
-                {
-                    "role": "user",
-                    "content": build_response_compress_and_emotion_prompt(
-                        question, full_answer, max_words, min_words
-                    ),
-                },
+                {"role": "user", "content": build_response_emotion_prompt(question, full_answer)},
             ],
-            options={"temperature": 0.5, "num_predict": 500, "num_ctx": 4096},
+            options={"temperature": 0.3, "num_predict": 120, "num_ctx": 3072},
             stream=False,
         )
     except Exception as exc:
-        print_ts(f"Response compression/emotion call failed: {exc}")
-        return fallback_summary, fallback_emotion
+        print_ts(f"Response emotion classification call failed: {exc}")
+        return fallback
 
-    raw_content = response.get("message", {}).get("content", "")
-    data = safe_json_extract(raw_content)
+    data = safe_json_extract(response.get("message", {}).get("content", ""))
     if not isinstance(data, dict):
-        print_ts(
-            "[WARN] Response compression/emotion call returned unparsable "
-            f"JSON; falling back to truncated full_answer. Raw content "
-            f"(first 300 chars): {raw_content[:300]!r}"
-        )
-        return fallback_summary, fallback_emotion
-
-    summary = re.sub(r"\s+", " ", str(data.get("summary", "")).strip())
-    summary = strip_level_leak(summary)
-    if not summary:
-        summary = fallback_summary
+        return fallback
 
     emotion = str(data.get("emotion", "")).strip().lower()
     try:
@@ -1112,14 +1023,52 @@ def compress_and_classify_response(
         confidence = min(confidence, 0.3)
         reason = "Invalid emotion label returned; neutral fallback used."
 
+    return EmotionResult(emotion=emotion, confidence=confidence, reason=reason)
+
+
+def compress_and_classify_response(
+    client: Optional[Client],
+    question: str,
+    full_answer: str,
+    max_words: int = RESPONSE_SUMMARY_MAX_WORDS,
+    min_words: Optional[int] = None,
+    model_name: str = EMOTION_MODEL_NAME,
+) -> tuple[str, EmotionResult]:
+    """
+    Produces the spoken/compressed version of `full_answer` via LOCAL
+    spaCy + pytextrank extractive summarization (no LLM round-trip), and
+    classifies the answer's own emotion via a single lightweight LLM
+    call. Previously both were done together in one generative LLM call;
+    moving compression out to pytextrank removes the hardest part of
+    that call (freeform paraphrase generation) and leaves only a short
+    structured classification call, cutting per-turn latency.
+    """
+    if min_words is None:
+        min_words = max(15, int(max_words * 0.75))
+    min_words = min(min_words, max(15, len(full_answer.split())), max_words)
+
+    summary = extractive_summarize_answer(full_answer, max_words, min_words)
+    summary = strip_level_leak(summary)
+    if not summary.rstrip().endswith("?"):
+        summary = summary.rstrip() + random.choice(RESPONSE_FOLLOWUP_PHRASES)
+
     summary_words = len(summary.split())
     under_budget_flag = " [UNDER TARGET RANGE]" if summary_words < min_words else ""
     print_ts(
         f"[COMPRESS] full_answer={len(full_answer.split())}w -> "
-        f"summary={summary_words}w (target {min_words}-{max_words}w){under_budget_flag}; "
-        f"response_emotion={emotion} (confidence={confidence:.2f}, reason={reason!r})"
+        f"summary={summary_words}w (target {min_words}-{max_words}w){under_budget_flag} "
+        "(spaCy+pytextrank, no LLM call)"
     )
-    return summary, EmotionResult(emotion=emotion, confidence=confidence, reason=reason)
+
+    response_emotion = classify_response_emotion(
+        client, question, full_answer, model_name=model_name
+    )
+    print_ts(
+        f"[COMPRESS] response_emotion={response_emotion.emotion} "
+        f"(confidence={response_emotion.confidence:.2f}, reason={response_emotion.reason!r})"
+    )
+
+    return summary, response_emotion
 
 
 def generate_session_summary(
@@ -3317,7 +3266,11 @@ def run_small_talk_qa_session(
                     saved_images.append(str(path))
                     print_ts(f"Saved question-round image: {path}")
 
-
+        text_emotion = detect_text_emotion(ollama_client, transcript, model_name=emotion_model)
+        print_ts(
+            f"Participant text emotion for this turn: {text_emotion.emotion} "
+            f"(confidence={text_emotion.confidence:.2f})"
+        )
 
         # ---------------------------------------------------------------
         # STANDALONE SELF-RAG SHORT-CIRCUIT
@@ -3335,13 +3288,7 @@ def run_small_talk_qa_session(
         # mentions_self_rag_trigger() / build_self_rag_context() /
         # generate_self_rag_answer() below.
         # ---------------------------------------------------------------
-        # ---- STANDALONE SELF-RAG SHORT-CIRCUIT ----
         if SELF_RAG_STORE.enabled and mentions_self_rag_trigger(transcript):
-            text_emotion = detect_text_emotion(ollama_client, transcript, model_name=emotion_model)
-            print_ts(
-                f"Participant text emotion for this turn: {text_emotion.emotion} "
-                f"(confidence={text_emotion.confidence:.2f})"
-            )
             self_rag_context = build_self_rag_context(
                 ollama_client, SELF_RAG_STORE, transcript
             )
@@ -3398,11 +3345,33 @@ def run_small_talk_qa_session(
         )
         overflow_summary = summarize_qa_overflow(overflow_history)
 
-        full_answer, answer, text_emotion, response_emotion = generate_teacher_turn(
-            ollama_client, transcript, qa_history=windowed_history,
-            explanation_level=explanation_level, overflow_summary=overflow_summary,
+        # Pass 1: unrestricted, thorough answer. Participant's text_emotion
+        # only shapes tone here -- never the face.
+        full_answer = generate_teacher_answer(
+            ollama_client,
+            transcript,
+            qa_history=windowed_history,
+            explanation_level=explanation_level,
+            overflow_summary=overflow_summary,
             previous_session_summary=previous_session_summary or "",
-            model_name=emotion_model, max_words=RESPONSE_SUMMARY_MAX_WORDS,
+            model_name=emotion_model,
+            user_emotion=text_emotion,
+        )
+
+        # Pass 2: LOCAL spaCy+pytextrank compression for speech (no LLM
+        # call) + a single lightweight LLM call to classify the
+        # RESPONSE's own emotion, which drives the facial expression via
+        # narrator.say().
+        answer, response_emotion = compress_and_classify_response(
+            ollama_client,
+            transcript,
+            full_answer,
+            max_words=RESPONSE_SUMMARY_MAX_WORDS,
+            model_name=emotion_model,
+        )
+        print_ts(
+            f"Response emotion (drives facial expression) for this turn: "
+            f"{response_emotion.emotion} (confidence={response_emotion.confidence:.2f})"
         )
 
         session["qa_session"].append({
@@ -3603,6 +3572,12 @@ def run_warm_up(args: argparse.Namespace) -> None:
         )
         ollama_client = None
 
+    # Warm up spaCy + pytextrank once at startup (rather than lazily on
+    # the first Q&A turn) so the first participant question doesn't pay
+    # the model-load cost.
+    if HAS_SPACY_TEXTRANK:
+        get_spacy_nlp()
+
     # ---- Standalone Self-RAG store, gated solely on "robotic research
     # lab" (see mentions_self_rag_trigger()) ----
     SELF_RAG_STORE = init_self_rag_store(ollama_client) if ollama_client is not None else SelfRAGStore(
@@ -3719,7 +3694,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
             )
         else:
             goals_text = (
-                f"Hello again, {display_name}. I am glad that you could make out time to come chat with me."
+                f"Nice to meet you, {display_name}. I am glad that you could make out time to come chat with me."
                 "In this session as well as subsequent ones our conversation would be centered on topics in AI and Robotics. Let's dive in !!!"
             )
         # Always goes through narrator.say() -- single speaking entry
@@ -3730,8 +3705,9 @@ def run_warm_up(args: argparse.Namespace) -> None:
         save_session(participant_id, session)
 
         # ---- Step 4: small talk / teacher Q&A (unrestricted teacher pass
-        # + speech-compression/response-emotion pass, DeepFace-confirmed
-        # crops, always-nod delivery, standalone Self-RAG short-circuit) ----
+        # + local spaCy+pytextrank compression / response-emotion pass,
+        # DeepFace-confirmed crops, always-nod delivery, standalone
+        # Self-RAG short-circuit) ----
         run_small_talk_qa_session(
             narrator=narrator,
             whisper_model=whisper_model,
@@ -3831,10 +3807,11 @@ def parse_arguments() -> argparse.Namespace:
             "single-utterance name capture (skipped if the participant is "
             "already known from an earlier session), a goals statement, and "
             "a short teacher Q&A with DeepFace-confirmed face-crop capture, "
-            "an unrestricted teacher answer pass followed by a speech "
-            "compression + response-emotion classification pass, and "
-            "emotion-aware (never negative) facial expression driven by the "
-            "response's own emotion -- logged to "
+            "an unrestricted teacher answer pass followed by a LOCAL "
+            "spaCy+pytextrank extractive compression pass plus a lightweight "
+            "response-emotion classification call, and emotion-aware (never "
+            "negative) facial expression driven by the response's own "
+            "emotion -- logged to "
             "warm_up_sessions/{participant_id}_session{n}.json. Sessions 2 "
             "and 3 always open with a recap (either a saved summary or a "
             "generic continuity opener). A standalone Self-RAG system, "
@@ -4020,10 +3997,21 @@ def parse_arguments() -> argparse.Namespace:
         type=int,
         default=RESPONSE_SUMMARY_MAX_WORDS,
         help=(
-            "Maximum word budget for the spoken/compressed version of each "
-            "teacher answer, produced by the speech-compression pass. "
-            "Also settable via the RESPONSE_SUMMARY_MAX_WORDS environment "
-            "variable."
+            "Target word budget for the spoken/compressed version of each "
+            "teacher answer, produced locally via spaCy+pytextrank "
+            "extractive summarization. Also settable via the "
+            "RESPONSE_SUMMARY_MAX_WORDS environment variable. This is a "
+            "soft target, not a hard cap -- the compressor keeps whole "
+            "sentences and never truncates mid-sentence."
+        ),
+    )
+    parser.add_argument(
+        "--spacy_model",
+        default=SPACY_MODEL_NAME,
+        help=(
+            "spaCy model used for local response compression via "
+            "pytextrank. Also settable via the SPACY_MODEL_NAME "
+            "environment variable. Default: en_core_web_sm."
         ),
     )
     parser.add_argument(
@@ -4074,13 +4062,14 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def main() -> None:
-    global RESPONSE_SUMMARY_MAX_WORDS
+    global RESPONSE_SUMMARY_MAX_WORDS, SPACY_MODEL_NAME
     args = parse_arguments()
     if args.list_input_devices:
         list_input_devices()
         return
 
     RESPONSE_SUMMARY_MAX_WORDS = args.response_summary_max_words
+    SPACY_MODEL_NAME = args.spacy_model
 
     try:
         run_warm_up(args)
@@ -4090,3 +4079,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    

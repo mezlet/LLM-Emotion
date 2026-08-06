@@ -256,7 +256,7 @@ DEEPFACE_TO_PROFILE_EMOTION = {
 # Multimodal emotion-classification configuration
 # =============================================================================
 
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "https://drill-cubic-efficiency-eval.trycloudflare.com/")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 EMOTION_MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
 
 FUSION_EMOTIONS = [
