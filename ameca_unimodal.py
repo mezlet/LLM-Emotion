@@ -4445,46 +4445,6 @@ def extra_reponse_propmt_guideline(clean_emotion_summary):
         "detected_emotion_summary": json.dumps(clean_emotion_summary),
         "interpretation_rules": "The detected emotion was inferred purely from the transcribed text of what the user said. Use it only to adjust tone, following the guidance below.",
         "required_result_type": "return JSON only in this exact shape:{\"reply\":\"assistant response without emoji\",\"emoji\":\"one facial emoji\",\"tone\":\"short tone label\"}",
-        "Self_RAG_grounding_rules": [
-            "Do not mention Self-RAG, vector databases, embeddings, ChromaDB, or retrieval unless the user explicitly asks how the system works.",
-        ],
-        "possible_topics": {
-            "beginner": [
-                "Introduction to Artificial Intelligence (e.g. \"What does Artificial Intelligence mean?\", \"What is the difference between AI, Machine Learning, and Deep Learning?\", \"What are the types of AI?\")",
-                "Introduction to Robotics (e.g. \"What is a robot?\", \"What is the difference between robots and ordinary machines?\", \"What are the main components of a robot?\")",
-                "AI and Robotics in Everyday Life (e.g. \"How do voice assistants work?\")",
-                "How Robots Sense Their Environment",
-            ],
-            "intermediate": [
-                "Introduction to Machine Learning",
-                "Computer Vision",
-                "Natural Language Processing",
-                "Speech Recognition and Voice-Controlled Robots",
-                "Sensor Fusion",
-                "Robot Perception",
-                "Robot Kinematics",
-                "Human-Robot Interaction",
-                "Emotion-Aware Robotics",
-                "Introduction to Generative AI",
-                "Building a Simple RAG System",
-            ],
-            "advanced": [
-                "Deep Learning",
-                "Convolutional Neural Networks",
-                "Transformers",
-                "Multimodal Artificial Intelligence",
-                "Large Language Models for Robotics",
-                "Robot Localization",
-                "Autonomous Robot Planning",
-                "Advanced Retrieval-Augmented Generation",
-            ],
-        },
-
-        "additional_conversation_behavior_rules:": [
-            "Do not greet repeatedly. After the first greeting, respond directly to what the user said.",
-            "Do not reintroduce yourself unless the user asks who you are, and never begin with \"As Ameca\" or \"As a humanoid social robot\".",
-            "Use the user's name occasionally, not in every response."
-        ],
         "emoji_rules": [
             "Always end with exactly one context-appropriate facial emoji from this set: 🙂 😊 😮 😢 😨",
             "Do not use any other emoji or emoticon symbols, and don't overreact emotionally.",

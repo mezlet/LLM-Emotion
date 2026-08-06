@@ -144,7 +144,7 @@ AMECA_SYSTEM_PROMPT = {
 FAST_WHISPER_CONFIG = {
     "profile": "home_macbook_cpu",
     "model": os.environ.get("WHISPER_MODEL", "base"),
-    "device": os.environ.get("WHISPER_DEVICE", "cuda"),
+    "device": os.environ.get("WHISPER_DEVICE", "cpu"),
     "compute_type": os.environ.get("WHISPER_COMPUTE_TYPE", "int8"),
     "language": "en",
     "beam_size": 1,
@@ -256,7 +256,7 @@ DEEPFACE_TO_PROFILE_EMOTION = {
 # Multimodal emotion-classification configuration
 # =============================================================================
 
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "https://drill-cubic-efficiency-eval.trycloudflare.com/")
 EMOTION_MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
 
 FUSION_EMOTIONS = [
@@ -2855,7 +2855,7 @@ def capture_baseline_emotion_round(
         requested_emotion=requested_emotion,
     )
 
-    narrator.say_brief("Next.")
+    narrator.say_brief("Expression has been saved.")
     append_turn(session, "assistant", "Next.", intent="baseline_ack")
 
 # =============================================================================

@@ -261,7 +261,7 @@ CHECK_FACIAL_EXPRESSION_DEFAULT = os.environ.get("CHECK_FACIAL_EXPRESSION", "1")
 QA_IMAGES_PER_TURN = int(os.environ.get("QA_IMAGES_PER_TURN", "2"))
 
 # Ollama connection used for teacher Q&A response generation.
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "https://drill-cubic-efficiency-eval.trycloudflare.com/")
 EMOTION_MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
 
 
