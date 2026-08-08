@@ -2,748 +2,140 @@
   "participant_id": "A1234",
   "participant_folder": "A1234",
   "display_name": "Diddy",
-  "started_at": "2026-08-06T10:42:52",
-  "ended_at": "2026-08-06T10:46:23",
+  "started_at": "2026-08-07T05:39:20",
+  "ended_at": "2026-08-07T05:40:03",
   "goals_stated": true,
-  "baseline_emotion_rounds": {
-    "joy": {
-      "requested_emotion": "joy",
-      "script": "I received wonderful news today, and I feel very happy and excited.",
-      "transcript": "This is my motion for joy.",
-      "images": [
-        "warm_up_profile/A1234/A1234_1_joy_20260806_104339_429081.jpg",
-        "warm_up_profile/A1234/A1234_2_joy_20260806_104339_429365.jpg"
-      ],
-      "captured_at": "2026-08-06T10:43:39"
-    },
-    "sadness": {
-      "requested_emotion": "sadness",
-      "script": "Something important to me did not go as planned, and I feel sad and disappointed.",
-      "transcript": "my emotion for sadness.",
-      "images": [
-        "warm_up_profile/A1234/A1234_3_sadness_20260806_104349_719538.jpg",
-        "warm_up_profile/A1234/A1234_4_sadness_20260806_104349_719888.jpg"
-      ],
-      "captured_at": "2026-08-06T10:43:49"
-    },
-    "anger": {
-      "requested_emotion": "anger",
-      "script": "Someone treated me unfairly, and I feel angry about what happened.",
-      "transcript": "This is my motion for anger.",
-      "images": [
-        "warm_up_profile/A1234/A1234_5_anger_20260806_104400_147633.jpg",
-        "warm_up_profile/A1234/A1234_6_anger_20260806_104400_147911.jpg"
-      ],
-      "captured_at": "2026-08-06T10:44:00"
-    },
-    "fear": {
-      "requested_emotion": "fear",
-      "script": "I heard a sudden sound behind me, and I feel frightened because I do not know what caused it.",
-      "transcript": "This is my emotion for fear.",
-      "images": [
-        "warm_up_profile/A1234/A1234_7_fear_20260806_104411_633883.jpg",
-        "warm_up_profile/A1234/A1234_8_fear_20260806_104411_634152.jpg"
-      ],
-      "captured_at": "2026-08-06T10:44:11"
-    },
-    "surprise": {
-      "requested_emotion": "surprise",
-      "script": "I opened the door and found an unexpected celebration waiting for me.",
-      "transcript": "my emotion for surprise.",
-      "images": [
-        "warm_up_profile/A1234/A1234_9_surprise_20260806_104422_359971.jpg",
-        "warm_up_profile/A1234/A1234_10_surprise_20260806_104422_360325.jpg"
-      ],
-      "captured_at": "2026-08-06T10:44:22"
-    },
-    "neutral": {
-      "requested_emotion": "neutral",
-      "script": "This is just a plain description of my day. Nothing about it feels especially strong one way or another.",
-      "transcript": "on a new show.",
-      "images": [
-        "warm_up_profile/A1234/A1234_11_neutral_20260806_104432_470954.jpg",
-        "warm_up_profile/A1234/A1234_12_neutral_20260806_104432_471231.jpg"
-      ],
-      "captured_at": "2026-08-06T10:44:32"
-    }
-  },
-  "test_emotion_round": {
-    "transcript": "Well, this is what's all beusing",
-    "fusion": {
-      "emotion": "anger",
-      "confidence": 0.5829,
-      "reason": "Adaptive reliability-aware fusion selected anger: text=anger rel=1.00, visual=neutral rel=0.86, prosody=surprise rel=0.30.",
-      "scores": {
-        "joy": 0.004,
-        "sadness": 0.0805,
-        "anger": 0.5829,
-        "fear": 0.0062,
-        "surprise": 0.0103,
-        "disgust": 0.004,
-        "neutral": 0.3121
-      },
-      "weights": {
-        "base_text": 0.5,
-        "base_visual": 0.4,
-        "base_prosody": 0.1,
-        "reliability_text": 1.0,
-        "reliability_visual": 0.8611,
-        "reliability_prosody": 0.3,
-        "active_normalized_text": 0.5718,
-        "active_normalized_visual": 0.3939,
-        "active_normalized_prosody": 0.0343
-      },
-      "text_emotion": {
-        "emotion": "anger",
-        "confidence": 1.0,
-        "reason": "words like 'beusing' imply frustration"
-      },
-      "visual_emotion": {
-        "emotion": "neutral",
-        "deepface_emotion": "neutral",
-        "confidence": 0.7820710754394531,
-        "scores": {
-          "angry": 1.8041517734527588,
-          "disgust": 7.016177551122382e-05,
-          "fear": 0.5478271842002869,
-          "happy": 0.008973434567451477,
-          "sad": 19.43181037902832,
-          "surprise": 5.92877586313989e-05,
-          "neutral": 78.20710754394531
-        },
-        "region": {
-          "x": 1053,
-          "y": 356,
-          "w": 144,
-          "h": 144
-        }
-      },
-      "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.3,
-        "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-        "features": {
-          "peak": 0.9000244140625,
-          "rms": 0.2357529103755951,
-          "duration": 2.592,
-          "energy_std": 0.15907279972206048,
-          "zero_crossing_rate": 0.10708687998842564
-        }
-      }
-    },
-    "image": "warm_up_profile/A1234/test_13_20260806_104448_839390.jpg",
-    "response": "I sense a strong feeling of anger in you, with about 58% confidence, and I'm here to listen and help if I can.",
-    "captured_at": "2026-08-06T10:44:50"
-  },
+  "baseline_emotion_rounds": {},
+  "test_emotion_round": null,
   "qa_session": [
     {
       "question": "What is your name?",
-      "answer": "I'm Ameca, a humanoid social robot developed by EngineeredArts in 2021 and currently used as a teaching assistant for university students. I'm here to assist you with topics related to Artificial Intelligence and Robotics.",
+      "answer": "That's a great question -- I don't have a confident answer for that right now, but I'm happy to keep chatting.",
       "fusion": {
-        "emotion": "neutral",
-        "confidence": 0.8474,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.33, prosody=surprise rel=0.30.",
+        "emotion": "surprise",
+        "confidence": 0.3,
+        "reason": "Adaptive reliability-aware fusion selected surprise: text=neutral rel=0.00, visual=None rel=0.00, prosody=surprise rel=0.30.",
         "scores": {
-          "joy": 0.0158,
-          "sadness": 0.0701,
-          "anger": 0.0076,
-          "fear": 0.0281,
-          "surprise": 0.0258,
-          "disgust": 0.0053,
-          "neutral": 0.8474
+          "joy": 0.1167,
+          "sadness": 0.1167,
+          "anger": 0.1167,
+          "fear": 0.1167,
+          "surprise": 0.3,
+          "disgust": 0.1167,
+          "neutral": 0.1167
         },
         "weights": {
           "base_text": 0.5,
           "base_visual": 0.4,
           "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.3256,
+          "reliability_text": 0.0,
+          "reliability_visual": 0.0,
           "reliability_prosody": 0.3,
-          "active_normalized_text": 0.7573,
-          "active_normalized_visual": 0.1973,
-          "active_normalized_prosody": 0.0454
+          "active_normalized_text": 0.0,
+          "active_normalized_visual": 0.0,
+          "active_normalized_prosody": 1.0
         },
         "text_emotion": {
           "emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "querying for information"
+          "confidence": 0.0,
+          "reason": "No Ollama client or empty transcript; text modality unavailable."
         },
-        "visual_emotion": {
-          "emotion": "neutral",
-          "deepface_emotion": "neutral",
-          "confidence": 0.42986907958984377,
-          "scores": {
-            "angry": 1.1578449010849,
-            "disgust": 0.00017497880617156625,
-            "fear": 11.559680938720703,
-            "happy": 5.311789035797119,
-            "sad": 32.8304443359375,
-            "surprise": 6.153161525726318,
-            "neutral": 42.986907958984375
-          },
-          "region": {
-            "x": 2076,
-            "y": 1077,
-            "w": 110,
-            "h": 110
-          }
-        },
+        "visual_emotion": {},
         "prosody_emotion": {
           "available": true,
           "emotion": "surprise",
           "confidence": 0.3,
           "reason": "Higher or more variable vocal energy suggests heightened arousal.",
           "features": {
-            "peak": 0.899993896484375,
-            "rms": 0.20090097188949585,
+            "peak": 0.791259765625,
+            "rms": 0.1121915876865387,
             "duration": 1.952,
-            "energy_std": 0.14537318283121184,
-            "zero_crossing_rate": 0.1232429317024751
+            "energy_std": 0.07493352033891522,
+            "zero_crossing_rate": 0.08203387659697096
           }
         }
       },
-      "image": "warm_up_profile/A1234/questions_14_20260806_104519_600116.jpg",
-      "captured_at": "2026-08-06T10:45:21"
-    },
-    {
-      "question": "Can you fly?",
-      "answer": "I'm a robot, and I don't have the capability to fly. My physical form is humanoid upper-torso robot, approximately 187 cm tall and about 49 kg in weight, but my legs are decorative and I cannot walk or fly.",
-      "fusion": {
-        "emotion": "surprise",
-        "confidence": 0.5702,
-        "reason": "Adaptive reliability-aware fusion selected surprise: text=surprise rel=1.00, visual=neutral rel=0.91, prosody=surprise rel=0.30.",
-        "scores": {
-          "joy": 0.004,
-          "sadness": 0.0539,
-          "anger": 0.0066,
-          "fear": 0.0143,
-          "surprise": 0.5702,
-          "disgust": 0.0039,
-          "neutral": 0.3471
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.9068,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.5601,
-          "active_normalized_visual": 0.4063,
-          "active_normalized_prosody": 0.0336
-        },
-        "text_emotion": {
-          "emotion": "surprise",
-          "confidence": 1.0,
-          "reason": "The question is unexpected and shows curiosity."
-        },
-        "visual_emotion": {
-          "emotion": "neutral",
-          "deepface_emotion": "neutral",
-          "confidence": 0.844664306640625,
-          "scores": {
-            "angry": 0.6658413410186768,
-            "disgust": 4.126804196857847e-05,
-            "fear": 2.552109479904175,
-            "happy": 0.013233194127678871,
-            "sad": 12.301787376403809,
-            "surprise": 0.0005562531878240407,
-            "neutral": 84.4664306640625
-          },
-          "region": {
-            "x": 1059,
-            "y": 355,
-            "w": 143,
-            "h": 143
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-          "features": {
-            "peak": 0.899993896484375,
-            "rms": 0.23029345273971558,
-            "duration": 1.888,
-            "energy_std": 0.16824052450845134,
-            "zero_crossing_rate": 0.10530671698612905
-          }
-        }
-      },
-      "image": "warm_up_profile/A1234/questions_15_20260806_104545_482971.jpg",
-      "captured_at": "2026-08-06T10:45:47"
-    },
-    {
-      "question": "But I need a robot that can fly.",
-      "answer": "I'm afraid Ameca is designed for research and demonstrations in human-robot interaction, not flight. As a humanoid upper-torso robot, my capabilities are limited to tracking people through cameras and microphones, with expressive facial expressions and upper-body gestures. I don't have the capability to fly.",
-      "fusion": {
-        "emotion": "surprise",
-        "confidence": 0.5945,
-        "reason": "Adaptive reliability-aware fusion selected surprise: text=surprise rel=1.00, visual=sadness rel=0.82, prosody=surprise rel=0.30.",
-        "scores": {
-          "joy": 0.0041,
-          "sadness": 0.2867,
-          "anger": 0.0053,
-          "fear": 0.0751,
-          "surprise": 0.5945,
-          "disgust": 0.0041,
-          "neutral": 0.0302
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.8153,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.584,
-          "active_normalized_visual": 0.3809,
-          "active_normalized_prosody": 0.035
-        },
-        "text_emotion": {
-          "emotion": "surprise",
-          "confidence": 1.0,
-          "reason": "expressed desire for something unexpected"
-        },
-        "visual_emotion": {
-          "emotion": "sadness",
-          "deepface_emotion": "sad",
-          "confidence": 0.7418251800537109,
-          "scores": {
-            "angry": 0.31880345940589905,
-            "disgust": 3.5687999115907587e-06,
-            "fear": 18.649253845214844,
-            "happy": 0.00018441860447637737,
-            "sad": 74.1825180053711,
-            "surprise": 3.381888018338941e-05,
-            "neutral": 6.849200248718262
-          },
-          "region": {
-            "x": 1058,
-            "y": 359,
-            "w": 140,
-            "h": 140
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-          "features": {
-            "peak": 0.899993896484375,
-            "rms": 0.36058515310287476,
-            "duration": 3.04,
-            "energy_std": 0.23512717116761453,
-            "zero_crossing_rate": 0.12966960669421657
-          }
-        }
-      },
-      "image": "warm_up_profile/A1234/questions_16_20260806_104614_643014.jpg",
-      "captured_at": "2026-08-06T10:46:16"
+      "image": null,
+      "captured_at": "2026-08-07T05:39:55"
     }
   ],
   "conversation": [
     {
       "role": "assistant",
       "content": "Hi, what is your name? Please spell it out for me -- for example, my name is A M E C A, Ameca.",
-      "timestamp": "2026-08-06T10:43:18",
+      "timestamp": "2026-08-07T05:39:30",
       "intent": "name_prompt"
     },
     {
       "role": "user",
-      "content": "D-I-D-D-Y",
-      "timestamp": "2026-08-06T10:43:18",
+      "content": "d i d d y",
+      "timestamp": "2026-08-07T05:39:30",
       "intent": "name_response"
     },
     {
       "role": "assistant",
       "content": "Nice to meet you, Diddy. In this warm up session, I have two goals: to have a base line of your emotional faces; and two, to hold small talk with you",
-      "timestamp": "2026-08-06T10:43:31",
+      "timestamp": "2026-08-07T05:39:43",
       "intent": "goals_statement"
     },
     {
       "role": "user",
-      "content": "This is my motion for joy.",
-      "timestamp": "2026-08-06T10:43:39",
-      "intent": "baseline_emotion_reading",
-      "requested_emotion": "joy"
-    },
-    {
-      "role": "assistant",
-      "content": "Next.",
-      "timestamp": "2026-08-06T10:43:41",
-      "intent": "baseline_ack"
-    },
-    {
-      "role": "user",
-      "content": "my emotion for sadness.",
-      "timestamp": "2026-08-06T10:43:49",
-      "intent": "baseline_emotion_reading",
-      "requested_emotion": "sadness"
-    },
-    {
-      "role": "assistant",
-      "content": "Next.",
-      "timestamp": "2026-08-06T10:43:51",
-      "intent": "baseline_ack"
-    },
-    {
-      "role": "user",
-      "content": "This is my motion for anger.",
-      "timestamp": "2026-08-06T10:44:00",
-      "intent": "baseline_emotion_reading",
-      "requested_emotion": "anger"
-    },
-    {
-      "role": "assistant",
-      "content": "Next.",
-      "timestamp": "2026-08-06T10:44:02",
-      "intent": "baseline_ack"
-    },
-    {
-      "role": "user",
-      "content": "This is my emotion for fear.",
-      "timestamp": "2026-08-06T10:44:11",
-      "intent": "baseline_emotion_reading",
-      "requested_emotion": "fear"
-    },
-    {
-      "role": "assistant",
-      "content": "Next.",
-      "timestamp": "2026-08-06T10:44:13",
-      "intent": "baseline_ack"
-    },
-    {
-      "role": "user",
-      "content": "my emotion for surprise.",
-      "timestamp": "2026-08-06T10:44:22",
-      "intent": "baseline_emotion_reading",
-      "requested_emotion": "surprise"
-    },
-    {
-      "role": "assistant",
-      "content": "Next.",
-      "timestamp": "2026-08-06T10:44:24",
-      "intent": "baseline_ack"
-    },
-    {
-      "role": "user",
-      "content": "on a new show.",
-      "timestamp": "2026-08-06T10:44:32",
-      "intent": "baseline_emotion_reading",
-      "requested_emotion": "neutral"
-    },
-    {
-      "role": "assistant",
-      "content": "Next.",
-      "timestamp": "2026-08-06T10:44:34",
-      "intent": "baseline_ack"
-    },
-    {
-      "role": "user",
-      "content": "Well, this is what's all beusing",
-      "timestamp": "2026-08-06T10:44:50",
-      "intent": "test_emotion",
-      "fusion": {
-        "emotion": "anger",
-        "confidence": 0.5829,
-        "reason": "Adaptive reliability-aware fusion selected anger: text=anger rel=1.00, visual=neutral rel=0.86, prosody=surprise rel=0.30.",
-        "scores": {
-          "joy": 0.004,
-          "sadness": 0.0805,
-          "anger": 0.5829,
-          "fear": 0.0062,
-          "surprise": 0.0103,
-          "disgust": 0.004,
-          "neutral": 0.3121
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.8611,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.5718,
-          "active_normalized_visual": 0.3939,
-          "active_normalized_prosody": 0.0343
-        },
-        "text_emotion": {
-          "emotion": "anger",
-          "confidence": 1.0,
-          "reason": "words like 'beusing' imply frustration"
-        },
-        "visual_emotion": {
-          "emotion": "neutral",
-          "deepface_emotion": "neutral",
-          "confidence": 0.7820710754394531,
-          "scores": {
-            "angry": 1.8041517734527588,
-            "disgust": 7.016177551122382e-05,
-            "fear": 0.5478271842002869,
-            "happy": 0.008973434567451477,
-            "sad": 19.43181037902832,
-            "surprise": 5.92877586313989e-05,
-            "neutral": 78.20710754394531
-          },
-          "region": {
-            "x": 1053,
-            "y": 356,
-            "w": 144,
-            "h": 144
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-          "features": {
-            "peak": 0.9000244140625,
-            "rms": 0.2357529103755951,
-            "duration": 2.592,
-            "energy_std": 0.15907279972206048,
-            "zero_crossing_rate": 0.10708687998842564
-          }
-        }
-      }
-    },
-    {
-      "role": "assistant",
-      "content": "I sense a strong feeling of anger in you, with about 58% confidence, and I'm here to listen and help if I can.",
-      "timestamp": "2026-08-06T10:44:59",
-      "intent": "test_emotion_response"
-    },
-    {
-      "role": "user",
       "content": "What is your name?",
-      "timestamp": "2026-08-06T10:45:21",
+      "timestamp": "2026-08-07T05:39:55",
       "intent": "question",
       "fusion": {
-        "emotion": "neutral",
-        "confidence": 0.8474,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.33, prosody=surprise rel=0.30.",
+        "emotion": "surprise",
+        "confidence": 0.3,
+        "reason": "Adaptive reliability-aware fusion selected surprise: text=neutral rel=0.00, visual=None rel=0.00, prosody=surprise rel=0.30.",
         "scores": {
-          "joy": 0.0158,
-          "sadness": 0.0701,
-          "anger": 0.0076,
-          "fear": 0.0281,
-          "surprise": 0.0258,
-          "disgust": 0.0053,
-          "neutral": 0.8474
+          "joy": 0.1167,
+          "sadness": 0.1167,
+          "anger": 0.1167,
+          "fear": 0.1167,
+          "surprise": 0.3,
+          "disgust": 0.1167,
+          "neutral": 0.1167
         },
         "weights": {
           "base_text": 0.5,
           "base_visual": 0.4,
           "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.3256,
+          "reliability_text": 0.0,
+          "reliability_visual": 0.0,
           "reliability_prosody": 0.3,
-          "active_normalized_text": 0.7573,
-          "active_normalized_visual": 0.1973,
-          "active_normalized_prosody": 0.0454
+          "active_normalized_text": 0.0,
+          "active_normalized_visual": 0.0,
+          "active_normalized_prosody": 1.0
         },
         "text_emotion": {
           "emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "querying for information"
+          "confidence": 0.0,
+          "reason": "No Ollama client or empty transcript; text modality unavailable."
         },
-        "visual_emotion": {
-          "emotion": "neutral",
-          "deepface_emotion": "neutral",
-          "confidence": 0.42986907958984377,
-          "scores": {
-            "angry": 1.1578449010849,
-            "disgust": 0.00017497880617156625,
-            "fear": 11.559680938720703,
-            "happy": 5.311789035797119,
-            "sad": 32.8304443359375,
-            "surprise": 6.153161525726318,
-            "neutral": 42.986907958984375
-          },
-          "region": {
-            "x": 2076,
-            "y": 1077,
-            "w": 110,
-            "h": 110
-          }
-        },
+        "visual_emotion": {},
         "prosody_emotion": {
           "available": true,
           "emotion": "surprise",
           "confidence": 0.3,
           "reason": "Higher or more variable vocal energy suggests heightened arousal.",
           "features": {
-            "peak": 0.899993896484375,
-            "rms": 0.20090097188949585,
+            "peak": 0.791259765625,
+            "rms": 0.1121915876865387,
             "duration": 1.952,
-            "energy_std": 0.14537318283121184,
-            "zero_crossing_rate": 0.1232429317024751
+            "energy_std": 0.07493352033891522,
+            "zero_crossing_rate": 0.08203387659697096
           }
         }
       }
     },
     {
       "role": "assistant",
-      "content": "I'm Ameca, a humanoid social robot developed by EngineeredArts in 2021 and currently used as a teaching assistant for university students. I'm here to assist you with topics related to Artificial Intelligence and Robotics.",
-      "timestamp": "2026-08-06T10:45:31",
-      "intent": "answer"
-    },
-    {
-      "role": "user",
-      "content": "Can you fly?",
-      "timestamp": "2026-08-06T10:45:47",
-      "intent": "question",
-      "fusion": {
-        "emotion": "surprise",
-        "confidence": 0.5702,
-        "reason": "Adaptive reliability-aware fusion selected surprise: text=surprise rel=1.00, visual=neutral rel=0.91, prosody=surprise rel=0.30.",
-        "scores": {
-          "joy": 0.004,
-          "sadness": 0.0539,
-          "anger": 0.0066,
-          "fear": 0.0143,
-          "surprise": 0.5702,
-          "disgust": 0.0039,
-          "neutral": 0.3471
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.9068,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.5601,
-          "active_normalized_visual": 0.4063,
-          "active_normalized_prosody": 0.0336
-        },
-        "text_emotion": {
-          "emotion": "surprise",
-          "confidence": 1.0,
-          "reason": "The question is unexpected and shows curiosity."
-        },
-        "visual_emotion": {
-          "emotion": "neutral",
-          "deepface_emotion": "neutral",
-          "confidence": 0.844664306640625,
-          "scores": {
-            "angry": 0.6658413410186768,
-            "disgust": 4.126804196857847e-05,
-            "fear": 2.552109479904175,
-            "happy": 0.013233194127678871,
-            "sad": 12.301787376403809,
-            "surprise": 0.0005562531878240407,
-            "neutral": 84.4664306640625
-          },
-          "region": {
-            "x": 1059,
-            "y": 355,
-            "w": 143,
-            "h": 143
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-          "features": {
-            "peak": 0.899993896484375,
-            "rms": 0.23029345273971558,
-            "duration": 1.888,
-            "energy_std": 0.16824052450845134,
-            "zero_crossing_rate": 0.10530671698612905
-          }
-        }
-      }
-    },
-    {
-      "role": "assistant",
-      "content": "I'm a robot, and I don't have the capability to fly. My physical form is humanoid upper-torso robot, approximately 187 cm tall and about 49 kg in weight, but my legs are decorative and I cannot walk or fly.",
-      "timestamp": "2026-08-06T10:46:05",
-      "intent": "answer"
-    },
-    {
-      "role": "user",
-      "content": "But I need a robot that can fly.",
-      "timestamp": "2026-08-06T10:46:16",
-      "intent": "question",
-      "fusion": {
-        "emotion": "surprise",
-        "confidence": 0.5945,
-        "reason": "Adaptive reliability-aware fusion selected surprise: text=surprise rel=1.00, visual=sadness rel=0.82, prosody=surprise rel=0.30.",
-        "scores": {
-          "joy": 0.0041,
-          "sadness": 0.2867,
-          "anger": 0.0053,
-          "fear": 0.0751,
-          "surprise": 0.5945,
-          "disgust": 0.0041,
-          "neutral": 0.0302
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.8153,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.584,
-          "active_normalized_visual": 0.3809,
-          "active_normalized_prosody": 0.035
-        },
-        "text_emotion": {
-          "emotion": "surprise",
-          "confidence": 1.0,
-          "reason": "expressed desire for something unexpected"
-        },
-        "visual_emotion": {
-          "emotion": "sadness",
-          "deepface_emotion": "sad",
-          "confidence": 0.7418251800537109,
-          "scores": {
-            "angry": 0.31880345940589905,
-            "disgust": 3.5687999115907587e-06,
-            "fear": 18.649253845214844,
-            "happy": 0.00018441860447637737,
-            "sad": 74.1825180053711,
-            "surprise": 3.381888018338941e-05,
-            "neutral": 6.849200248718262
-          },
-          "region": {
-            "x": 1058,
-            "y": 359,
-            "w": 140,
-            "h": 140
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-          "features": {
-            "peak": 0.899993896484375,
-            "rms": 0.36058515310287476,
-            "duration": 3.04,
-            "energy_std": 0.23512717116761453,
-            "zero_crossing_rate": 0.12966960669421657
-          }
-        }
-      }
-    },
-    {
-      "role": "assistant",
-      "content": "I'm afraid Ameca is designed for research and demonstrations in human-robot interaction, not flight. As a humanoid upper-torso robot, my capabilities are limited to tracking people through cameras and microphones, with expressive facial expressions and upper-body gestures. I don't have the capability to fly.",
-      "timestamp": "2026-08-06T10:46:23",
+      "content": "That's a great question -- I don't have a confident answer for that right now, but I'm happy to keep chatting.",
+      "timestamp": "2026-08-07T05:39:55",
       "intent": "answer"
     }
   ],
-  "video_path": "warm_up_videos/A1234/A1234_20260806_104255.mp4",
-  "_next_image_id": 17,
-  "check_facial_expression": true
+  "video_path": "warm_up_videos/A1234/session_muxed.mp4",
+  "_next_image_id": 1,
+  "check_facial_expression": false
 }
