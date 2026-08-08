@@ -1,0 +1,153 @@
+ Yes, Letty. I read the code as a **full Ameca teaching-session pipeline**, not only a prompt file.
+
+Here is what I understand as a bullet flow chart:
+
+* **Program starts**
+
+  * `main()` parses command-line arguments.
+  * If input devices are requested, it lists microphones and exits.
+  * Otherwise it calls `run_warm_up(args)`.
+
+* **Session setup**
+
+  * The code gets the participant ID.
+  * It creates a safe folder name for the participant.
+  * It decides the session number automatically unless the experimenter passes `--session_number`.
+  * It loads the previous session summary if this is session 2 or 3.
+  * It chooses the explanation level:
+
+    * session 1 → `beginner`
+    * session 2 → `intermediate`
+    * session 3 → `advanced`
+  * This level can also be overridden manually with `--explanation_level`.
+
+* **Topic menu**
+
+  * Each level has its own topic list.
+  * Beginner topics include machine learning, robot sensing, and LLMs.
+  * Intermediate topics include neural networks, robot control, and HRI.
+  * Advanced topics include LLM internals, deep learning, and robot arm topics.
+
+* **Robot components are initialized**
+
+  * `RobotSpeaker` handles Tritium TTS.
+  * `RobotGesture` plays turn-end gestures, like nodding.
+  * `RobotExpression` maps response emotions to Ameca facial-expression sequences.
+  * `Narrator` becomes the single speaking interface that combines expression + TTS + nodding.
+
+* **Speech and listening pipeline**
+
+  * The code loads Silero VAD.
+  * It loads faster-whisper.
+  * It listens through the microphone.
+  * While Ameca is speaking, it uses an echo/barge-in guard.
+  * If the participant starts talking too early, it stores recent audio and prepends it once listening begins properly.
+
+* **Camera / face capture**
+
+  * A camera object is created.
+  * If facial checking is enabled, DeepFace is started.
+  * During participant questions, frames can be captured.
+  * DeepFace-confirmed face crops are saved for the question turn.
+
+* **Opening flow**
+
+  * If there is a previous session summary, Ameca starts by reminding the user what happened last time.
+  * If there is no previous summary, Ameca asks whether the participant has questions before starting.
+  * It also lists topics for the current explanation level.
+
+* **Main Q&A loop**
+
+  * The system listens for the participant’s question.
+  * If no transcript is captured, it keeps listening.
+  * If the participant says goodbye/bye, the loop ends.
+  * Otherwise, the transcript becomes the user question.
+
+* **Participant emotion detection**
+
+  * The transcript is sent to the local LLM.
+  * The model classifies the user’s text emotion into Ekman labels:
+
+    * joy, sadness, anger, fear, surprise, disgust, neutral.
+  * That emotion is used to influence Ameca’s response tone.
+
+* **Self-RAG branch**
+
+  * If the question mentions the robotic research lab / RRLab trigger, the normal teaching prompt is skipped.
+  * Self-RAG retrieves local lab knowledge.
+  * It grades whether the retrieved context is useful.
+  * If useful, it generates a lab-grounded answer.
+  * That answer goes straight to `narrator.say()`.
+  * This branch is separate from the normal tutor prompt.
+
+* **Normal tutor-answer branch**
+
+  * If Self-RAG is not triggered, the system builds recent Q&A history.
+  * It keeps a window of recent turns.
+  * Older history can be summarized.
+  * Then it calls `generate_teacher_answer()` to produce Ameca’s spoken teaching answer.
+
+* **Prompt generation**
+
+  * `genrate_ameca_prompt()` creates the main Ameca system prompt.
+  * It defines Ameca as a humanoid social robot and teaching assistant.
+  * It tells the model to teach AI and Robotics only.
+  * It includes identity, capability boundaries, experiment expectations, user adaptation, safety rules, and strict response rules.
+
+* **Prompt rendering**
+
+  * The nested prompt dictionary is converted into a plain-text system message by `render_ameca_system_prompt()`.
+  * This is done so the local model receives clearer system instructions instead of a deeply nested JSON-like object.
+
+* **Teacher answer generation**
+
+  * `generate_teacher_answer()` builds:
+
+    * the Ameca system prompt,
+    * a runtime response contract,
+    * previous session context,
+    * overflow summary,
+    * user emotion tone instruction,
+    * recent Q&A history,
+    * and the current participant question.
+  * It asks the LLM to return JSON containing:
+
+    * `answer`
+    * `emotion`
+    * `confidence`
+    * `reason`
+
+* **Output validation**
+
+  * The model’s JSON is parsed.
+  * If parsing fails, a fallback answer is used.
+  * If the answer leaks `beginner`, `intermediate`, or `advanced`, it is rejected.
+  * If the answer is too long, it is rejected.
+  * It is not truncated after generation.
+
+* **Robot delivery**
+
+  * The final answer is saved to the session.
+  * The response emotion is used to choose Ameca’s facial expression.
+  * `narrator.say()` speaks the answer.
+  * After speaking, Ameca nods as a turn-end cue.
+
+* **Session memory**
+
+  * Each question, answer, image list, detected user emotion, response emotion, and timestamp are saved.
+  * At the end, the code generates a short summary of the session.
+  * That summary is saved so the next session can open with continuity.
+
+* **End behavior**
+
+  * After the Q&A loop ends, Ameca says “Great, thank you.”
+  * The session is saved.
+  * Camera, video recorder, and DeepFace worker are cleaned up in `finally`.
+  * If the session ended early, it still tries to generate a summary before shutdown.
+
+My understanding in one sentence:
+
+**This code runs a structured three-session Ameca teaching experiment where the robot captures participant speech, transcribes it, detects text emotion, optionally captures face images, decides whether to use Self-RAG for RRLab questions, otherwise generates a level-adapted AI/Robotics tutor answer, classifies the robot response emotion, speaks through Tritium TTS, plays facial expressions/nods, and saves the full session for continuity.**
+
+I have not started fixing anything yet.
+
