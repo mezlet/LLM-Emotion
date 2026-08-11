@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 
 from __future__ import annotations
@@ -51,6 +50,8 @@ try:
 except Exception as exc:
     HAS_TTS_ACTIVITY_MONITOR = False
     print(f"[WARN] tts_active module not available, TTS-activity echo guard disabled: {exc}")
+
+TTS_ACTIVITY_MONITOR_RUNNING = False
 
 try:
     import mediapipe as mp
@@ -206,7 +207,7 @@ CAMERA_SAMPLE_EVERY_SECONDS = float(
     os.environ.get("CAMERA_SAMPLE_EVERY_SECONDS", "0.5")
 )
 FACE_MAX_CANDIDATE_FRAMES = int(
-    os.environ.get("FACE_MAX_CANDIDATE_FRAMES", "2")
+    os.environ.get("FACE_MAX_CANDIDATE_FRAMES", "5")
 )
 
 DEEPFACE_PYTHON = os.environ.get("DEEPFACE_PYTHON", "")
@@ -272,12 +273,21 @@ FUSION_PROSODY_WEIGHT = float(os.environ.get("FUSION_PROSODY_WEIGHT", "0.1"))
 VISION_DEBUG = os.environ.get("VISION_DEBUG", "0") == "1"
 CHECK_FACIAL_EXPRESSION_DEFAULT = os.environ.get("CHECK_FACIAL_EXPRESSION", "1") == "1"
 
-# Participant-specific AU calibration. Py-Feat is intentionally optional: if it
-# is unavailable, the warm-up continues normally and no AU profile is produced.
+# Participant-specific AU calibration. Py-Feat is intentionally optional and
+# crash-isolated in pyfeat_worker.py: if it is unavailable or segfaults, the warm-up
+# continues normally and no AU profile is produced.
 # Only the TWO DeepFace-confirmed face crops already saved for each baseline
 # emotion are used -- no additional warm-up frames are sampled for AU work.
 AU_CALIBRATION_ENABLED_DEFAULT = os.environ.get("AU_CALIBRATION_ENABLED", "1") == "1"
 PYFEAT_DEVICE = os.environ.get("PYFEAT_DEVICE", "cpu")  # set to cuda after benchmarking if desired
+# Py-Feat runs OUTSIDE this process.  If PYFEAT_PYTHON is not set we use the
+# current interpreter, but the subprocess boundary still protects the Ameca
+# session from a native crash/segmentation fault.  A dedicated pyfeat_env is
+# recommended for dependency isolation.
+PYFEAT_PYTHON = os.environ.get("PYFEAT_PYTHON", sys.executable)
+PYFEAT_WORKER_SCRIPT = os.environ.get("PYFEAT_WORKER_SCRIPT", "pyfeat_worker.py")
+PYFEAT_STARTUP_TIMEOUT_SECONDS = float(os.environ.get("PYFEAT_STARTUP_TIMEOUT_SECONDS", "90"))
+PYFEAT_REQUEST_TIMEOUT_SECONDS = float(os.environ.get("PYFEAT_REQUEST_TIMEOUT_SECONDS", "30"))
 AU_PROFILE_FILENAME = os.environ.get("AU_PROFILE_FILENAME", "au_calibration.json")
 
 # PILOT-TUNE: these are explicit configuration values so they can be replaced by
@@ -393,7 +403,7 @@ def allocate_image_id(session: dict[str, Any]) -> int:
 def save_session(participant_id: str, session: dict[str, Any]) -> Path:
     """
     Atomic write of the whole session to
-    warm_up_sessions/{participant_folder}_{timestamp}.json.
+    warm_up_sessions/{participant_folder}.json.
     Called after every major step (not just at the end), so a crash or
     Ctrl+C mid-session still leaves a usable, up-to-date session file.
     """
@@ -474,75 +484,253 @@ def cosine_similarity_nonnegative(a: np.ndarray, b: np.ndarray) -> float:
 
 class PyFeatAUDetector:
     """
-    Thin optional wrapper around py-feat Detectorv2.
+    Crash-isolated Py-Feat client.
 
-    The detector is instantiated once, then reused. `extract_paths()` accepts
-    the already-saved warm-up face crops and returns one 20-AU vector per crop.
+    Py-Feat/Detectorv2 is intentionally loaded in a separate Python process.
+    This matters because native-library failures (for example SIGSEGV during
+    `from feat import Detectorv2`) cannot be caught by Python try/except in the
+    main Ameca process.  If the worker crashes, this client raises a normal
+    RuntimeError and the warm-up continues without AU calibration.
     """
 
-    def __init__(self, device: str = PYFEAT_DEVICE) -> None:
-        try:
-            from feat import Detectorv2
-        except Exception as exc:
+    def __init__(
+        self,
+        device: str = PYFEAT_DEVICE,
+        python_executable: str = PYFEAT_PYTHON,
+        worker_script: str = PYFEAT_WORKER_SCRIPT,
+        startup_timeout: float = PYFEAT_STARTUP_TIMEOUT_SECONDS,
+        request_timeout: float = PYFEAT_REQUEST_TIMEOUT_SECONDS,
+    ) -> None:
+        self.device = device
+        self.python_executable = python_executable or sys.executable
+        self.worker_script = worker_script
+        self.startup_timeout = float(startup_timeout)
+        self.request_timeout = float(request_timeout)
+        self.proc: Optional[subprocess.Popen[str]] = None
+        self.responses: "queue.Queue[dict[str, Any]]" = queue.Queue()
+        self._request_counter = 0
+        self._ready = False
+        self.au_columns: list[str] = []
+        self._start_worker()
+
+    def _worker_exit_description(self) -> str:
+        if self.proc is None:
+            return "worker process was never created"
+        code = self.proc.poll()
+        if code is None:
+            return "worker is still running"
+        if code < 0:
+            signal_number = -code
+            if signal_number == 11:
+                return "worker exited on SIGSEGV (segmentation fault)"
+            return f"worker exited on signal {signal_number}"
+        return f"worker exited with code {code}"
+
+    def _start_worker(self) -> None:
+        python_path = Path(self.python_executable)
+        if not python_path.is_file():
             raise RuntimeError(
-                "Py-Feat is not available. Install it with `pip install py-feat` "
-                "in the environment running this script."
+                f"Py-Feat Python executable not found: {self.python_executable}. "
+                "Pass --pyfeat_python /path/to/pyfeat_env/bin/python."
+            )
+
+        worker_path = Path(self.worker_script)
+        if not worker_path.is_file():
+            raise RuntimeError(
+                f"Py-Feat worker script not found: {self.worker_script}. "
+                "Place pyfeat_worker.py next to experiment_warm_up.py or pass "
+                "--pyfeat_worker_script explicitly."
+            )
+
+        print_ts(
+            "Starting isolated Py-Feat worker: "
+            f"python={self.python_executable!r} device={self.device!r}"
+        )
+
+        self.proc = subprocess.Popen(
+            [
+                self.python_executable,
+                self.worker_script,
+                "--device",
+                self.device,
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            start_new_session=not sys.platform.startswith("win"),
+        )
+        threading.Thread(target=self._drain_stderr, daemon=True).start()
+
+        ready_queue: "queue.Queue[str]" = queue.Queue()
+
+        def read_ready_line() -> None:
+            assert self.proc is not None and self.proc.stdout is not None
+            # readline() returns "" immediately if the subprocess crashes/closes.
+            ready_queue.put(self.proc.stdout.readline().strip())
+
+        threading.Thread(target=read_ready_line, daemon=True).start()
+
+        try:
+            ready_line = ready_queue.get(timeout=self.startup_timeout)
+        except queue.Empty as exc:
+            description = self._worker_exit_description()
+            self.shutdown(force=True)
+            raise RuntimeError(
+                "Py-Feat worker did not become ready within "
+                f"{self.startup_timeout:.1f}s ({description})."
             ) from exc
 
-        self.device = device
-        print_ts(f"Loading Py-Feat Detectorv2 for AU calibration on device={device!r}...")
-        self.detector = Detectorv2(device=device, identity_model=None)
-        self.au_columns: list[str] = []
-        print_ts("Py-Feat Detectorv2 ready.")
+        if not ready_line:
+            # Give poll() a moment to observe a just-terminated child.
+            time.sleep(0.05)
+            description = self._worker_exit_description()
+            self.shutdown(force=True)
+            raise RuntimeError(
+                f"Py-Feat worker terminated before READY ({description})."
+            )
+
+        try:
+            ready = json.loads(ready_line)
+        except json.JSONDecodeError as exc:
+            self.shutdown(force=True)
+            raise RuntimeError(
+                f"Unexpected Py-Feat worker startup output: {ready_line!r}"
+            ) from exc
+
+        if not ready.get("ok") or ready.get("type") != "ready":
+            error = ready.get("error", "unknown startup error")
+            self.shutdown(force=True)
+            raise RuntimeError(f"Py-Feat worker failed to initialize: {error}")
+
+        self.au_columns = [str(c) for c in (ready.get("au_columns") or [])]
+        self._ready = True
+        threading.Thread(target=self._read_responses, daemon=True).start()
+        print_ts("Py-Feat worker ready; AU extraction is crash-isolated.")
+
+    def _drain_stderr(self) -> None:
+        if not self.proc or not self.proc.stderr:
+            return
+        for line in self.proc.stderr:
+            line = line.rstrip()
+            if line:
+                print_ts(f"[Py-Feat worker] {line}")
+
+    def _read_responses(self) -> None:
+        if not self.proc or not self.proc.stdout:
+            return
+        for line in self.proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                self.responses.put(json.loads(line))
+            except json.JSONDecodeError:
+                print_ts(f"[Py-Feat worker] Ignoring non-JSON stdout: {line[:200]!r}")
+
+    def is_alive(self) -> bool:
+        return bool(
+            self._ready
+            and self.proc is not None
+            and self.proc.poll() is None
+        )
 
     def extract_paths(self, image_paths: list[str]) -> list[Optional[np.ndarray]]:
         paths = [str(Path(p).resolve()) for p in image_paths if p]
         if not paths:
             return []
+        if not self.is_alive():
+            raise RuntimeError(
+                f"Py-Feat worker is unavailable ({self._worker_exit_description()})."
+            )
 
-        # The two saved face crops can have different dimensions. output_size
-        # makes batching valid while preserving aspect ratio via Py-Feat's loader.
-        fex = self.detector.detect(
-            paths if len(paths) > 1 else paths[0],
-            data_type="image",
-            batch_size=max(1, len(paths)),
-            output_size=256,
-        )
-        if fex is None or len(fex) == 0:
-            return [None for _ in paths]
+        self._request_counter += 1
+        request_id = f"au_{self._request_counter}"
+        request = {
+            "request_id": request_id,
+            "cmd": "extract",
+            "image_paths": paths,
+            "output_size": 256,
+        }
 
-        au_df = fex.aus
-        self.au_columns = [str(c) for c in au_df.columns]
-        if not self.au_columns:
-            return [None for _ in paths]
+        assert self.proc is not None and self.proc.stdin is not None
+        try:
+            self.proc.stdin.write(json.dumps(request) + "\n")
+            self.proc.stdin.flush()
+        except (BrokenPipeError, OSError) as exc:
+            raise RuntimeError(
+                f"Could not send AU request; {self._worker_exit_description()}."
+            ) from exc
 
-        def norm_path(value: Any) -> str:
+        deadline = time.time() + self.request_timeout
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                raise RuntimeError(
+                    f"Py-Feat worker crashed during AU extraction "
+                    f"({self._worker_exit_description()})."
+                )
+
+            remaining = max(0.05, min(0.25, deadline - time.time()))
             try:
-                return str(Path(str(value)).resolve())
-            except Exception:
-                return str(value)
-
-        inputs = [norm_path(v) for v in fex["input"].tolist()] if "input" in fex.columns else []
-        vectors: list[Optional[np.ndarray]] = []
-        for path in paths:
-            row_indices = [i for i, source in enumerate(inputs) if source == path]
-            if not row_indices:
-                vectors.append(None)
+                response = self.responses.get(timeout=remaining)
+            except queue.Empty:
                 continue
 
-            # Crops should contain one face, but if Py-Feat finds more than one,
-            # use the highest face-detection score for deterministic behavior.
-            if len(row_indices) > 1 and "FaceScore" in fex.columns:
-                best_idx = max(row_indices, key=lambda i: float(fex.iloc[i]["FaceScore"]))
-            else:
-                best_idx = row_indices[0]
+            if response.get("request_id") != request_id:
+                # Only one request is normally in flight.  Ignore an unrelated
+                # response rather than accidentally assigning it to this call.
+                continue
 
-            vector = np.asarray(
-                [float(fex.iloc[best_idx][col]) for col in self.au_columns],
-                dtype=np.float32,
-            )
-            vectors.append(vector)
-        return vectors
+            if not response.get("ok"):
+                raise RuntimeError(
+                    str(response.get("error", "Unknown Py-Feat extraction error"))
+                )
+
+            self.au_columns = [str(c) for c in (response.get("au_columns") or [])]
+            raw_vectors = response.get("vectors") or []
+            vectors: list[Optional[np.ndarray]] = []
+            for item in raw_vectors:
+                if item is None:
+                    vectors.append(None)
+                else:
+                    vectors.append(np.asarray(item, dtype=np.float32))
+
+            # Preserve one output slot per input path even if the worker returns
+            # fewer items because a face/AU row could not be produced.
+            while len(vectors) < len(paths):
+                vectors.append(None)
+            return vectors[:len(paths)]
+
+        raise RuntimeError(
+            "Py-Feat AU extraction timed out after "
+            f"{self.request_timeout:.1f}s ({self._worker_exit_description()})."
+        )
+
+    def shutdown(self, force: bool = False) -> None:
+        if self.proc is None:
+            return
+
+        if not force and self.proc.poll() is None:
+            try:
+                if self.proc.stdin:
+                    self.proc.stdin.write(json.dumps({"cmd": "shutdown"}) + "\n")
+                    self.proc.stdin.flush()
+                self.proc.wait(timeout=3)
+            except Exception:
+                force = True
+
+        if force and self.proc.poll() is None:
+            try:
+                self.proc.terminate()
+                self.proc.wait(timeout=2)
+            except Exception:
+                try:
+                    self.proc.kill()
+                except Exception:
+                    pass
+
+        self._ready = False
 
 
 def _round_vector(vector: np.ndarray) -> list[float]:
@@ -1129,54 +1317,70 @@ def generate_one_sentence_emotion_response(
 NO_MORE_QUESTIONS_PHRASES = {
     "no", "nothing", "no thank you", "nothing thanks", "that's all",
     "i'm good", "im good", "no questions", "nope", "i don't have any",
-    "i have no questions", "no i'm good", "not really",
+    "i have no questions", "no i'm good", "no thanks", "not really", "that's it",
 }
 
 
+NO_MORE_QUESTIONS_PATTERNS = [
+    re.compile(r"^(?:no\s+)?i\s+(?:do\s+not|don't|dont)\s+have\s+(?:a|any)\s+questions?$"),
+    re.compile(r"^i\s+have\s+no\s+questions?$"),
+    re.compile(r"^no\s+(?:more\s+)?questions?(?:\s+(?:thanks|thank\s+you))?$"),
+    re.compile(r"^nothing\s+(?:else|more)(?:\s+(?:thanks|thank\s+you))?$"),
+]
+
+
 def indicates_no_further_questions(text: str) -> bool:
-    lowered = text.strip().lower().rstrip(".!?")
+    lowered = text.strip().lower().replace("’", "'")
+    lowered = re.sub(r"[^a-z0-9'\s]+", " ", lowered)
+    lowered = re.sub(r"\s+", " ", lowered).strip()
     if not lowered:
         return True
     if lowered in NO_MORE_QUESTIONS_PHRASES:
         return True
-    return any(
-        phrase in lowered
-        for phrase in ["no more questions", "that's it", "i'm good", "im good"]
-    )
+    return any(pattern.fullmatch(lowered) is not None for pattern in NO_MORE_QUESTIONS_PATTERNS)
 
 
 def generate_qa_answer(
     client: Optional[Client],
     question: str,
+    history: Optional[list[dict[str, Any]]] = None,
     model_name: str = EMOTION_MODEL_NAME,
 ) -> str:
-    ameca_system_prompt_text = json.dumps(AMECA_SYSTEM_PROMPT, indent=2)
     fallback = (
-        "That's a great question -- I don't have a confident answer for that "
-        "right now, but I'm happy to keep chatting."
+        "I don't have a confident answer for that right now, but I can still "
+        "help with another AI or robotics question."
     )
     if client is None or not question.strip():
         return fallback
 
-    prompt = f"""
-        {ameca_system_prompt_text}
+    system_text = (
+        json.dumps(AMECA_SYSTEM_PROMPT, indent=2)
+        + "\n\nAnswer the participant's current question directly. "
+        + "Use prior Q&A only when it helps resolve a follow-up reference. "
+        + "Plain text only, no markdown, no more than 45 words."
+    )
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_text}]
 
-        Question:
-        {question}
+    for item in (history or [])[-3:]:
+        previous_question = str(item.get("question", "")).strip()
+        previous_answer = str(item.get("answer", "")).strip()
+        if previous_question:
+            messages.append({"role": "user", "content": previous_question})
+        if previous_answer:
+            messages.append({"role": "assistant", "content": previous_answer})
 
-        Plain text only, no markdown, no more than 45 words
-        """.strip()
+    messages.append({"role": "user", "content": question.strip()})
 
     try:
         response = client.chat(
             model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            options={"temperature": 0.5, "num_predict": 90, "num_ctx": 1024},
+            messages=messages,
+            options={"temperature": 0.5, "num_predict": 90, "num_ctx": 2048},
             stream=False,
         )
-        text = response.get("message", {}).get("content", "").strip()
-        text = re.sub(r"\s+", " ", text)
-        return text or fallback
+        answer = response.get("message", {}).get("content", "").strip()
+        answer = re.sub(r"\s+", " ", answer)
+        return answer or fallback
     except Exception as exc:
         print_ts(f"Q&A answer generation failed: {exc}")
         return fallback
@@ -1229,7 +1433,7 @@ class RobotSpeaker:
         self._quiet_since: Optional[float] = None
 
     def bump_speaking_tail(self, extra: Optional[float] = None) -> None:
-        if HAS_TTS_ACTIVITY_MONITOR:
+        if TTS_ACTIVITY_MONITOR_RUNNING:
             tail = self.speaking_cooldown_s
         else:
             tail = self.speaking_cooldown_s if extra is None else extra
@@ -1238,7 +1442,7 @@ class RobotSpeaker:
     def is_speaking_or_cooling_down(self) -> bool:
         cooling_down = time.time() < self._speaking_until
 
-        if not HAS_TTS_ACTIVITY_MONITOR:
+        if not TTS_ACTIVITY_MONITOR_RUNNING:
             return cooling_down
 
         now = time.time()
@@ -1424,12 +1628,14 @@ def save_audio_to_temp_wav(audio_16k: np.ndarray) -> Optional[str]:
         print_ts("Captured audio was too quiet or silent.")
         return None
 
-    gain = min(0.9 / max(peak, 1e-6), 10.0)
-    normalized = np.clip(audio_16k * gain, -1.0, 1.0)
+    # Preserve the captured amplitude. The same WAV is used for prosody, so
+    # per-utterance peak normalization would destroy the energy differences that
+    # the current prosody heuristic relies on (e.g. quiet vs high-arousal speech).
+    audio_to_write = np.clip(audio_16k, -1.0, 1.0)
 
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         wav_path = tmp.name
-    sf.write(wav_path, normalized, TARGET_SAMPLE_RATE)
+    sf.write(wav_path, audio_to_write, TARGET_SAMPLE_RATE)
     return wav_path
 
 
@@ -2205,7 +2411,7 @@ class SessionMediaVideoDriver:
 
 
 # =============================================================================
-# Isolated DeepFace worker (used only for steps 7-9, NOT steps 4-6)
+# Isolated DeepFace worker (baseline face confirmation + test/Q&A emotion analysis)
 # =============================================================================
 
 @dataclass
@@ -2258,6 +2464,7 @@ class DeepFaceClient:
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
+            start_new_session=not sys.platform.startswith("win"),
         )
         threading.Thread(target=self._drain_stderr, daemon=True).start()
 
@@ -2825,7 +3032,10 @@ def find_deepface_confirmed_crops(
                 _save_debug_frame(frame, debug_dir, f"{requested_emotion}_frame{idx}_noface")
             continue
 
-        region = detect_face_region_local(frame)
+        # Current DeepFace worker responses can include a usable face region.
+        # Prefer that exact region from the frame DeepFace already confirmed;
+        # fall back to the local MediaPipe/Haar detector only when it is absent.
+        region = result.region or detect_face_region_local(frame)
         if not region:
             no_local_region_count += 1
             if debug_dir is not None:
@@ -2984,16 +3194,10 @@ def capture_baseline_emotion_round(
     script_attempts: int,
     face_confirmation_attempts: int = 2,
 ) -> None:
-    """
-    Step 4-6: prompt for one target emotion, capture the reading, and save
-    the two sharpest frames CROPPED to a locally-detected face bounding
-    box -- but only after DeepFace itself confirms a face is actually
-    present in that frame (see find_deepface_confirmed_crops()).
+    """Capture exactly two DeepFace-confirmed face crops when possible.
 
-    If DeepFace can't confirm a face in ANY candidate frame from the
-    utterance, the participant is told explicitly and asked to show the
-    emotion again, up to face_confirmation_attempts times, rather than
-    silently saving nothing and moving on to the next emotion.
+    AU calibration later requires two saved crops per emotion, so one saved
+    image is treated as an incomplete baseline rather than a successful round.
     """
     debug_dir = PROFILE_DIR / participant_folder / "debug"
     transcript = ""
@@ -3001,8 +3205,7 @@ def capture_baseline_emotion_round(
 
     for face_attempt in range(1, face_confirmation_attempts + 1):
         narrator.say_and_nod(
-            f"Please read the sentence and show me "
-            f"the emotion for {requested_emotion}."
+            f"Please read the sentence and show me the emotion for {requested_emotion}."
         )
 
         print("\n" + "=" * 76)
@@ -3026,9 +3229,7 @@ def capture_baseline_emotion_round(
                 f"No usable speech captured for '{requested_emotion}' "
                 f"(face-confirmation attempt {face_attempt}/{face_confirmation_attempts})."
             )
-            if face_attempt < face_confirmation_attempts:
-                continue
-            break
+            continue
 
         if not frames:
             print_ts(
@@ -3036,58 +3237,51 @@ def capture_baseline_emotion_round(
                 "baseline round (camera/frame-collector issue?)."
             )
             if face_attempt < face_confirmation_attempts:
-                narrator.say(
-                    "I could not see you clearly. Let's try that emotion again."
-                )
-                continue
-            break
+                narrator.say("I could not see you clearly. Let's try that emotion again.")
+            continue
 
+        remaining = max(0, 2 - len(saved_images))
         matches = find_deepface_confirmed_crops(
             frames,
             deepface,
-            max_needed=2,
+            max_needed=remaining,
             debug_dir=debug_dir,
             requested_emotion=requested_emotion,
         )
 
-        if matches:
-            for frame, region in matches:
-                cropped = crop_face(frame, region)
-                image_id = allocate_image_id(session)
-                path = build_profile_image_path(
-                    participant_folder, "baseline", image_id, emotion=requested_emotion
-                )
-                if save_frame_to_profile(cropped, path):
-                    saved_images.append(str(path))
-                    print_ts(f"Saved baseline image: {path}")
-            break  # got at least one DeepFace-confirmed, cropped image
+        for frame, region in matches:
+            if len(saved_images) >= 2:
+                break
+            cropped = crop_face(frame, region)
+            image_id = allocate_image_id(session)
+            path = build_profile_image_path(
+                participant_folder, "baseline", image_id, emotion=requested_emotion
+            )
+            if save_frame_to_profile(cropped, path):
+                saved_images.append(str(path))
+                print_ts(f"Saved baseline image: {path}")
+
+        if len(saved_images) >= 2:
+            break
 
         print_ts(
-            f"DeepFace could not confirm a face in any candidate frame for "
-            f"'{requested_emotion}' (attempt {face_attempt}/{face_confirmation_attempts})."
+            f"Baseline '{requested_emotion}' is incomplete: "
+            f"saved {len(saved_images)}/2 required crops "
+            f"after attempt {face_attempt}/{face_confirmation_attempts}."
         )
         if face_attempt < face_confirmation_attempts:
             narrator.say(
-                f"I could not see your face clearly for {requested_emotion}. "
+                f"I still need another clear image for {requested_emotion}. "
                 "Please show me that emotion again."
             )
-        else:
-            narrator.say(
-                f"I still could not see your face clearly for {requested_emotion}. "
-                "Let's move on for now."
-            )
 
-    if not saved_images:
-        print_ts(
-            f"No DeepFace-confirmed, cropped image saved for '{requested_emotion}' "
-            f"after {face_confirmation_attempts} attempt(s)."
-        )
-
+    complete = len(saved_images) == 2
     session["baseline_emotion_rounds"][requested_emotion] = {
         "requested_emotion": requested_emotion,
         "script": script_text,
         "transcript": transcript,
         "images": saved_images,
+        "complete": complete,
         "captured_at": now_iso(),
     }
     append_turn(
@@ -3098,8 +3292,21 @@ def capture_baseline_emotion_round(
         requested_emotion=requested_emotion,
     )
 
-    narrator.say_brief("Expression has been saved.")
-    append_turn(session, "assistant", "Next.", intent="baseline_ack")
+    if complete:
+        acknowledgement = "Expression has been saved."
+    elif saved_images:
+        acknowledgement = (
+            "I saved one usable image, but I could not capture the second clear image. "
+            "Let's continue for now."
+        )
+    else:
+        acknowledgement = (
+            "I could not save a clear image for that emotion. Let's continue for now."
+        )
+
+    narrator.say_brief(acknowledgement)
+    append_turn(session, "assistant", acknowledgement, intent="baseline_ack")
+
 
 # =============================================================================
 # Step 7-8: free-choice test-emotion round (full multimodal fusion)
@@ -3131,8 +3338,8 @@ def capture_test_emotion_round(
     text + prosody only, and no image is saved.
     """
     narrator.say(
-        "Please show me the emotion you might use most during your "
-        "interaction with me."
+        "Please choose an emotion you might use during our interaction. "
+        "Show it on your face and say one short sentence that expresses that emotion."
     )
 
     transcript, frames, audio_for_prosody = capture_and_transcribe(
@@ -3256,7 +3463,7 @@ def run_small_talk_qa_session(
     narrator.say(
         "Now, think of me as your robot teacher for today. Before we start "
         "the experiment, is there anything you would like to ask me? You "
-        "can ask up to three questions."
+        f"can ask up to {max_questions} question{'s' if max_questions != 1 else ''}."
     )
 
     debug_dir = PROFILE_DIR / participant_folder / "debug"
@@ -3274,7 +3481,11 @@ def run_small_talk_qa_session(
             attempts=2,
         )
 
-        if not transcript or indicates_no_further_questions(transcript):
+        if not transcript:
+            break
+        if indicates_no_further_questions(transcript):
+            append_turn(session, "user", transcript, intent="no_further_questions")
+            save_session(session["participant_id"], session)
             break
 
         frame, facial_result = detect_best_emotion_sample(
@@ -3318,7 +3529,9 @@ def run_small_talk_qa_session(
                 "(only cropped frames are saved)."
             )
 
-        answer = generate_qa_answer(ollama_client, transcript, model_name=emotion_model)
+        answer = generate_qa_answer(
+            ollama_client, transcript, history=session.get("qa_session", []), model_name=emotion_model
+        )
 
         session["qa_session"].append({
             "question": transcript,
@@ -3340,7 +3553,8 @@ def run_small_talk_qa_session(
 
     if reached_max:
         narrator.say_and_nod(
-            "That was your three questions, please fill out your questionnaire and we can begin the experiment."
+            f"That was your {max_questions} question{'s' if max_questions != 1 else ''}. "
+            "Please fill out your questionnaire and we can begin the experiment."
         )
     else:
         narrator.say_and_nod("Great, let's begin the experiment.")
@@ -3351,6 +3565,7 @@ def run_small_talk_qa_session(
 
 def run_warm_up(args: argparse.Namespace) -> None:
     global FACE_CASCADE_PATH_OVERRIDE, REQUIRE_EYE_CONFIRMATION
+    global TTS_ACTIVITY_MONITOR_RUNNING
     global CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS
     if args.face_cascade_path:
         FACE_CASCADE_PATH_OVERRIDE = args.face_cascade_path
@@ -3465,10 +3680,13 @@ def run_warm_up(args: argparse.Namespace) -> None:
                     target=lambda: _asyncio.run(listen_levels_for_device(dev_id, name, scale)),
                     daemon=True,
                 ).start()
+                TTS_ACTIVITY_MONITOR_RUNNING = True
                 print_ts("[TTS] TTS activity monitor started.")
             else:
+                TTS_ACTIVITY_MONITOR_RUNNING = False
                 print_ts("[WARN] Acapela/Tritium output device not found; TTS activity monitor disabled.")
         except Exception as exc:
+            TTS_ACTIVITY_MONITOR_RUNNING = False
             print_ts(f"[WARN] Could not start TTS activity monitor: {exc}")
 
     try:
@@ -3547,9 +3765,9 @@ def run_warm_up(args: argparse.Namespace) -> None:
 
         # ---- Step 3: goals statement ----
         goals_text = (
-            f"Nice to meet you, {display_name}. In this warm up session, I have "
-            f"two goals: to have a base line of your emotional faces; and "
-            "two, to hold small talk with you"
+            f"Nice to meet you, {display_name}. In this warm-up session, I have "
+            "two goals: first, to capture a baseline of your facial expressions; "
+            "and second, to have a short teaching conversation with you."
         )
         narrator.say_brief(goals_text)
         session["goals_stated"] = True
@@ -3584,28 +3802,29 @@ def run_warm_up(args: argparse.Namespace) -> None:
             if args.au_calibration:
                 au_detector: Optional[PyFeatAUDetector] = None
                 try:
-                    au_detector = PyFeatAUDetector(device=args.pyfeat_device)
+                    au_detector = PyFeatAUDetector(
+                        device=args.pyfeat_device,
+                        python_executable=args.pyfeat_python,
+                        worker_script=args.pyfeat_worker_script,
+                        startup_timeout=args.pyfeat_startup_timeout,
+                        request_timeout=args.pyfeat_timeout,
+                    )
                     session["au_calibration"] = build_au_calibration_from_saved_crops(
                         participant_folder=participant_folder,
                         session=session,
                         detector=au_detector,
                     )
                 except Exception as exc:
+                    # A worker SIGSEGV is converted into a normal RuntimeError here,
+                    # so the participant session continues to the test round/Q&A.
                     print_ts(f"[WARN] AU calibration unavailable: {exc}")
                     session["au_calibration"] = {
                         "status": "unavailable",
                         "reason": str(exc),
                     }
                 finally:
-                    # Warm-up AU extraction is finished after the profile is built;
-                    # release the model before test/Q&A so it does not occupy GPU
-                    # memory if the experimenter selected a CUDA Py-Feat device.
-                    au_detector = None
-                    if torch.cuda.is_available():
-                        try:
-                            torch.cuda.empty_cache()
-                        except Exception:
-                            pass
+                    if au_detector is not None:
+                        au_detector.shutdown()
                 save_session(participant_id, session)
 
             # ---- Steps 7-8: free-choice test-emotion round (full fusion) ----
@@ -3688,7 +3907,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Run Ameca's structured warm-up session: single-utterance name "
-            "capture, a goals statement, a 6-emotion facial baseline (no "
+            "capture, a goals statement, a facial baseline (no emotion "
             "classification), a free-choice test-emotion round (full "
             "multimodal fusion), and a short teacher Q&A -- all logged to "
             "one warm_up_sessions/{participant_id}.json file."
@@ -3747,8 +3966,8 @@ def parse_arguments() -> argparse.Namespace:
         default=DEEPFACE_PYTHON,
         help=(
             "Python executable in the separate DeepFace/TensorFlow conda "
-            "environment. Only used for steps 7-9 (baseline capture in "
-            "steps 4-6 never calls DeepFace), and only if "
+            "environment. Used for baseline face confirmation and for facial "
+            "emotion analysis in the test/Q&A rounds, when "
             "--check_facial_expression is enabled."
         ),
     )
@@ -3859,6 +4078,32 @@ def parse_arguments() -> argparse.Namespace:
         help="Py-Feat Detectorv2 device for warm-up AU extraction (default: cpu).",
     )
     parser.add_argument(
+        "--pyfeat_python",
+        default=PYFEAT_PYTHON,
+        help=(
+            "Python executable used for the crash-isolated Py-Feat worker. "
+            "A dedicated pyfeat_env is recommended; default is PYFEAT_PYTHON "
+            "or the current interpreter."
+        ),
+    )
+    parser.add_argument(
+        "--pyfeat_worker_script",
+        default=PYFEAT_WORKER_SCRIPT,
+        help="Path to pyfeat_worker.py (default: pyfeat_worker.py).",
+    )
+    parser.add_argument(
+        "--pyfeat_startup_timeout",
+        type=float,
+        default=PYFEAT_STARTUP_TIMEOUT_SECONDS,
+        help="Maximum seconds to wait for Detectorv2 to initialize in the worker.",
+    )
+    parser.add_argument(
+        "--pyfeat_timeout",
+        type=float,
+        default=PYFEAT_REQUEST_TIMEOUT_SECONDS,
+        help="Maximum seconds for one AU extraction request.",
+    )
+    parser.add_argument(
         "--emotions",
         nargs="+",
         choices=list(EMOTION_SCRIPTS),
@@ -3942,3 +4187,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    
