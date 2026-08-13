@@ -189,6 +189,8 @@ TTS_SPEAKING_QUIET_HOLD_SECONDS = float(os.environ.get("TTS_SPEAKING_QUIET_HOLD_
 
 EXPRESSION_HOST = os.environ.get("EXPRESSION_HOST", "http://emah")
 NOD_SEQUENCE_NAME = os.environ.get("NOD_SEQUENCE_NAME", "nod_double")
+NOD_WAIT_TIMEOUT_SECONDS = float(os.environ.get("NOD_WAIT_TIMEOUT_SECONDS", "15.0"))
+NOD_WAIT_GRACE_SECONDS = float(os.environ.get("NOD_WAIT_GRACE_SECONDS", "8.0"))
 
 RESOLUTION_MAP = {
     "HD2K":   (4416, 1242, 15),
@@ -221,7 +223,7 @@ DEEPFACE_REQUEST_TIMEOUT_SECONDS = float(
     os.environ.get("DEEPFACE_REQUEST_TIMEOUT_SECONDS", "5")
 )
 
-# The 6 baseline emotions (5 affective + neutral). Order is preserved.
+# The 7 Ekman labels used by the experiment (6 basic emotions + neutral).
 EMOTION_SCRIPTS: dict[str, str] = {
     "joy": "I received wonderful news today, and I feel very happy and excited.",
     "sadness": (
@@ -237,6 +239,9 @@ EMOTION_SCRIPTS: dict[str, str] = {
     ),
     "surprise": (
         "I opened the door and found an unexpected celebration waiting for me."
+    ),
+    "disgust": (
+        "I smelled something rotten, and I feel disgusted by it."
     ),
     "neutral": (
         "This is just a plain description of my day. Nothing about it "
@@ -265,9 +270,25 @@ FUSION_EMOTIONS = [
     "joy", "sadness", "anger", "fear", "surprise", "disgust", "neutral",
 ]
 
-FUSION_TEXT_WEIGHT = float(os.environ.get("FUSION_TEXT_WEIGHT", "0.5"))
-FUSION_VISUAL_WEIGHT = float(os.environ.get("FUSION_VISUAL_WEIGHT", "0.4"))
-FUSION_PROSODY_WEIGHT = float(os.environ.get("FUSION_PROSODY_WEIGHT", "0.1"))
+FUSION_TEXT_WEIGHT = float(os.environ.get("FUSION_TEXT_WEIGHT", "0.4"))
+FUSION_VISUAL_WEIGHT = float(os.environ.get("FUSION_VISUAL_WEIGHT", "0.5"))
+FUSION_PROSODY_WEIGHT = 0.10
+TEXT_VISUAL_FUSION_POOL = 1.0 - FUSION_PROSODY_WEIGHT
+
+# Conservative acoustic-prosody classifier shared with the experiment code.
+# Loudness alone is never treated as surprise; ambiguous speech abstains.
+PROSODY_MIN_DURATION_SECONDS = float(os.environ.get("PROSODY_MIN_DURATION_SECONDS", "0.45"))
+PROSODY_MIN_VOICED_RATIO = float(os.environ.get("PROSODY_MIN_VOICED_RATIO", "0.12"))
+PROSODY_MAX_CONFIDENCE = float(os.environ.get("PROSODY_MAX_CONFIDENCE", "0.35"))
+PROSODY_LOW_RMS = float(os.environ.get("PROSODY_LOW_RMS", "0.08"))
+PROSODY_HIGH_RMS = float(os.environ.get("PROSODY_HIGH_RMS", "0.30"))
+PROSODY_VERY_HIGH_RMS = float(os.environ.get("PROSODY_VERY_HIGH_RMS", "0.45"))
+PROSODY_HIGH_PITCH_MEDIAN_HZ = float(os.environ.get("PROSODY_HIGH_PITCH_MEDIAN_HZ", "220"))
+PROSODY_HIGH_PITCH_RANGE_HZ = float(os.environ.get("PROSODY_HIGH_PITCH_RANGE_HZ", "90"))
+PROSODY_VERY_HIGH_PITCH_RANGE_HZ = float(os.environ.get("PROSODY_VERY_HIGH_PITCH_RANGE_HZ", "140"))
+PROSODY_LOW_PITCH_RANGE_HZ = float(os.environ.get("PROSODY_LOW_PITCH_RANGE_HZ", "45"))
+PROSODY_ANGER_ZCR = float(os.environ.get("PROSODY_ANGER_ZCR", "0.075"))
+PROSODY_ANGER_CENTROID_HZ = float(os.environ.get("PROSODY_ANGER_CENTROID_HZ", "1200"))
 
 
 VISION_DEBUG = os.environ.get("VISION_DEBUG", "0") == "1"
@@ -276,8 +297,10 @@ CHECK_FACIAL_EXPRESSION_DEFAULT = os.environ.get("CHECK_FACIAL_EXPRESSION", "1")
 # Participant-specific AU calibration. Py-Feat is intentionally optional and
 # crash-isolated in pyfeat_worker.py: if it is unavailable or segfaults, the warm-up
 # continues normally and no AU profile is produced.
-# Only the TWO DeepFace-confirmed face crops already saved for each baseline
-# emotion are used -- no additional warm-up frames are sampled for AU work.
+# Only the saved DeepFace-confirmed face crops from each baseline emotion are
+# used -- no additional warm-up frames are sampled for AU work. Four crops are
+# retained per emotion so every reference image contributes its own AU vector.
+AU_BASELINE_CROPS_PER_EMOTION = int(os.environ.get("AU_BASELINE_CROPS_PER_EMOTION", "4"))
 AU_CALIBRATION_ENABLED_DEFAULT = os.environ.get("AU_CALIBRATION_ENABLED", "1") == "1"
 PYFEAT_DEVICE = os.environ.get("PYFEAT_DEVICE", "cpu")  # set to cuda after benchmarking if desired
 # Py-Feat runs OUTSIDE this process.  If PYFEAT_PYTHON is not set we use the
@@ -294,6 +317,9 @@ AU_PROFILE_FILENAME = os.environ.get("AU_PROFILE_FILENAME", "au_calibration.json
 # thresholds estimated from pilot-data distributions rather than hidden constants.
 AU_NEUTRAL_MIN_CONSISTENCY = float(os.environ.get("AU_NEUTRAL_MIN_CONSISTENCY", "0.80"))
 AU_MIN_REFERENCE_CONSISTENCY = float(os.environ.get("AU_MIN_REFERENCE_CONSISTENCY", "0.55"))
+AU_READY_MIN_USABLE_EMOTIONS = int(os.environ.get("AU_READY_MIN_USABLE_EMOTIONS", "4"))
+AU_PARTIAL_MIN_USABLE_EMOTIONS = int(os.environ.get("AU_PARTIAL_MIN_USABLE_EMOTIONS", "2"))
+AU_CALIBRATION_MAX_RETRIES = int(os.environ.get("AU_CALIBRATION_MAX_RETRIES", "1"))
 
 
 # =============================================================================
@@ -366,13 +392,17 @@ def is_filler_only_transcript(text: str) -> bool:
     return bool(FILLER_ONLY_PATTERN.match(cleaned))
 
 # =============================================================================
-# Session persistence (single JSON file per participant)
+# Warm-up persistence (single JSON file per participant).
+# This file is a separate calibration/preparation record and is never counted
+# as experiment session 1.
 # =============================================================================
 
 def new_session(participant_id: str, participant_folder: str) -> dict[str, Any]:
     return {
         "participant_id": participant_id,
         "participant_folder": participant_folder,
+        "session_type": "warm_up",
+        "counts_as_experiment_session": False,
         "display_name": "",
         "started_at": now_iso(),
         "ended_at": None,
@@ -469,18 +499,31 @@ def save_frame_to_profile(frame: np.ndarray, path: Path) -> bool:
 # =============================================================================
 
 def clamp01(value: float) -> float:
-    return max(0.0, min(1.0, float(value)))
-
+    """Clamp a finite scalar to [0, 1]; NaN/Inf are invalid evidence."""
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if not np.isfinite(numeric):
+        return 0.0
+    return max(0.0, min(1.0, numeric))
 
 def cosine_similarity_nonnegative(a: np.ndarray, b: np.ndarray) -> float:
-    """Cosine similarity clipped to [0, 1]; negative/opposite directions -> 0."""
+    """Finite cosine similarity clipped to [0, 1]."""
     a = np.asarray(a, dtype=np.float32)
     b = np.asarray(b, dtype=np.float32)
-    denom = float(np.linalg.norm(a) * np.linalg.norm(b))
-    if denom <= 1e-8:
+    if (
+        a.size == 0 or b.size == 0 or a.size != b.size
+        or not np.all(np.isfinite(a)) or not np.all(np.isfinite(b))
+    ):
         return 0.0
-    return clamp01(float(np.dot(a, b) / denom))
-
+    denom = float(np.linalg.norm(a) * np.linalg.norm(b))
+    if not np.isfinite(denom) or denom <= 1e-8:
+        return 0.0
+    similarity = float(np.dot(a, b) / denom)
+    if not np.isfinite(similarity):
+        return 0.0
+    return clamp01(similarity)
 
 class PyFeatAUDetector:
     """
@@ -693,8 +736,13 @@ class PyFeatAUDetector:
             for item in raw_vectors:
                 if item is None:
                     vectors.append(None)
-                else:
-                    vectors.append(np.asarray(item, dtype=np.float32))
+                    continue
+                vector = np.asarray(item, dtype=np.float32)
+                if vector.size == 0 or not np.all(np.isfinite(vector)):
+                    print_ts("[WARN] Py-Feat returned a NaN/Inf AU vector; rejecting that calibration crop.")
+                    vectors.append(None)
+                    continue
+                vectors.append(vector)
 
             # Preserve one output slot per input path even if the worker returns
             # fewer items because a face/AU row could not be produced.
@@ -734,8 +782,10 @@ class PyFeatAUDetector:
 
 
 def _round_vector(vector: np.ndarray) -> list[float]:
-    return [round(float(v), 6) for v in np.asarray(vector, dtype=np.float32)]
-
+    array = np.asarray(vector, dtype=np.float32)
+    if array.size == 0 or not np.all(np.isfinite(array)):
+        return []
+    return [round(float(v), 6) for v in array]
 
 def au_profile_path(participant_folder: str) -> Path:
     path = PROFILE_DIR / participant_folder / AU_PROFILE_FILENAME
@@ -743,30 +793,85 @@ def au_profile_path(participant_folder: str) -> Path:
     return path
 
 
+def _mean_pairwise_rms_distance(vectors: list[np.ndarray]) -> float:
+    """Mean RMS distance over every unique pair of finite AU vectors."""
+    if len(vectors) < 2:
+        return float("inf")
+    distances: list[float] = []
+    for i in range(len(vectors)):
+        for j in range(i + 1, len(vectors)):
+            a = np.asarray(vectors[i], dtype=np.float32)
+            b = np.asarray(vectors[j], dtype=np.float32)
+            if a.size == 0 or a.size != b.size or not np.all(np.isfinite(a)) or not np.all(np.isfinite(b)):
+                return float("inf")
+            distances.append(float(np.linalg.norm(a - b) / np.sqrt(max(1, a.size))))
+    return float(np.mean(distances)) if distances else float("inf")
+
+
+def _mean_pairwise_cosine_similarity(vectors: list[np.ndarray]) -> float:
+    """Mean non-negative cosine similarity over every unique vector pair."""
+    if len(vectors) < 2:
+        return 0.0
+    similarities: list[float] = []
+    for i in range(len(vectors)):
+        for j in range(i + 1, len(vectors)):
+            similarities.append(cosine_similarity_nonnegative(vectors[i], vectors[j]))
+    return clamp01(float(np.mean(similarities))) if similarities else 0.0
+
+def normalize_ekman_emotion(emotion: str) -> str:
+    """Normalize emotion names to the seven labels used by this experiment."""
+    value = str(emotion or "").strip().lower()
+
+    aliases = {
+        "happy": "joy",
+        "happiness": "joy",
+        "joyful": "joy",
+        "sad": "sadness",
+        "angry": "anger",
+        "afraid": "fear",
+        "scared": "fear",
+        "surprised": "surprise",
+        "disgusted": "disgust",
+        "none": "neutral",
+    }
+
+    value = aliases.get(value, value)
+
+    valid = {
+        "joy",
+        "sadness",
+        "anger",
+        "fear",
+        "surprise",
+        "disgust",
+        "neutral",
+    }
+
+    return value if value in valid else "neutral"
+
 def build_au_calibration_from_saved_crops(
     *,
     participant_folder: str,
     session: dict[str, Any],
     detector: PyFeatAUDetector,
 ) -> dict[str, Any]:
-    """
-    Build the participant-specific AU profile from ONLY the two baseline face
-    crops already selected/saved for each emotion during warm-up.
+    """Build a finite, QC-checked personalized AU calibration profile.
 
-    Neutral is treated as the shared baseline. If its two crops are missing,
-    AU extraction fails, or the two neutral vectors fail QC, the entire AU
-    verification layer is marked unusable for this participant.
+    Exactly four saved face crops are used for each baseline emotion. Py-Feat
+    extracts one AU vector per crop and all four vectors are retained in the
+    profile for nearest-reference matching during the experiment.
     """
     rounds = session.get("baseline_emotion_rounds", {}) or {}
     raw: dict[str, dict[str, Any]] = {}
+    required = max(1, int(AU_BASELINE_CROPS_PER_EMOTION))
 
     for emotion, round_data in rounds.items():
-        image_paths = [str(p) for p in (round_data.get("images", []) or [])[:2]]
-        if len(image_paths) != 2:
+        image_paths = [str(p) for p in (round_data.get("images", []) or [])[:required]]
+        if len(image_paths) != required:
             raw[emotion] = {
                 "images": image_paths,
                 "vectors": [],
-                "status": "requires_exactly_two_saved_crops",
+                "status": f"requires_exactly_{required}_saved_crops",
             }
             continue
 
@@ -776,98 +881,203 @@ def build_au_calibration_from_saved_crops(
             print_ts(f"[WARN] AU extraction failed for {emotion}: {exc}")
             extracted = []
 
-        vectors = [v for v in extracted if v is not None]
-        if len(vectors) != 2:
+        finite_vectors: list[np.ndarray] = []
+        invalid_count = 0
+        for value in extracted:
+            if value is None:
+                invalid_count += 1
+                continue
+            vector = np.asarray(value, dtype=np.float32)
+            if vector.size == 0 or not np.all(np.isfinite(vector)):
+                invalid_count += 1
+                continue
+            finite_vectors.append(vector)
+
+        if len(finite_vectors) != required:
             raw[emotion] = {
                 "images": image_paths,
-                "vectors": [_round_vector(v) for v in vectors],
-                "status": "au_extraction_failed",
+                "vectors": [_round_vector(v) for v in finite_vectors],
+                "invalid_vector_count": invalid_count,
+                "status": "invalid_au_vector" if invalid_count else "au_extraction_failed",
+            }
+            continue
+
+        stacked = np.stack(finite_vectors)
+        mean = np.mean(stacked, axis=0)
+        if not np.all(np.isfinite(mean)):
+            raw[emotion] = {
+                "images": image_paths,
+                "vectors": [_round_vector(v) for v in finite_vectors],
+                "status": "invalid_au_mean",
             }
             continue
 
         raw[emotion] = {
             "images": image_paths,
-            "vectors": [_round_vector(v) for v in vectors],
-            "mean": _round_vector(np.mean(np.stack(vectors), axis=0)),
+            "vectors": [_round_vector(v) for v in finite_vectors],
+            "mean": _round_vector(mean),
             "status": "ok",
         }
 
     profile: dict[str, Any] = {
-        "version": 1,
+        "version": 3,
         "participant_folder": participant_folder,
         "created_at": now_iso(),
         "extractor": "py-feat Detectorv2",
         "device": detector.device,
         "au_columns": list(detector.au_columns),
         "uses_only_saved_warmup_crops": True,
-        "crops_per_emotion": 2,
+        "crops_per_emotion": required,
+        "reference_emotions": [normalize_ekman_emotion(e) for e in raw.keys()],
         "parameters": {
             "neutral_min_consistency": AU_NEUTRAL_MIN_CONSISTENCY,
             "min_reference_consistency": AU_MIN_REFERENCE_CONSISTENCY,
-            "note": "PILOT-TUNE thresholds from observed calibration distributions.",
+            "ready_min_usable_emotions": AU_READY_MIN_USABLE_EMOTIONS,
+            "partial_min_usable_emotions": AU_PARTIAL_MIN_USABLE_EMOTIONS,
+            "max_recapture_retries_per_emotion": AU_CALIBRATION_MAX_RETRIES,
+            "note": "Four-reference AU calibration; consistency uses all pairwise comparisons.",
         },
         "status": "building",
         "neutral": None,
         "emotions": {},
+        "usable_emotion_count": 0,
     }
 
     neutral_data = raw.get("neutral")
     if not neutral_data or neutral_data.get("status") != "ok":
         profile["status"] = "missing_or_invalid_neutral_reference"
     else:
-        n1, n2 = [np.asarray(v, dtype=np.float32) for v in neutral_data["vectors"]]
-        n = max(1, len(n1))
-        normalized_distance = float(np.linalg.norm(n1 - n2) / np.sqrt(n))
-        neutral_consistency = clamp01(1.0 - normalized_distance)
-        neutral_mean = np.mean(np.stack([n1, n2]), axis=0)
-
-        profile["neutral"] = {
-            **neutral_data,
-            "normalized_distance": round(normalized_distance, 6),
-            "consistency": round(neutral_consistency, 6),
-            "mean": _round_vector(neutral_mean),
-        }
-
-        if neutral_consistency < AU_NEUTRAL_MIN_CONSISTENCY:
-            # IMPORTANT: the shared neutral baseline contaminates every delta
-            # prototype when unreliable, so disable the whole AU layer.
-            profile["status"] = "unreliable_neutral_reference"
+        neutral_vectors = [np.asarray(v, dtype=np.float32) for v in neutral_data["vectors"]]
+        same_size = bool(neutral_vectors) and all(v.size == neutral_vectors[0].size for v in neutral_vectors)
+        finite = same_size and neutral_vectors[0].size > 0 and all(np.all(np.isfinite(v)) for v in neutral_vectors)
+        if not finite:
+            profile["status"] = "missing_or_invalid_neutral_reference"
         else:
-            for emotion, data in raw.items():
-                if emotion == "neutral" or data.get("status") != "ok":
-                    continue
-                v1, v2 = [np.asarray(v, dtype=np.float32) for v in data["vectors"]]
-                delta1 = v1 - neutral_mean
-                delta2 = v2 - neutral_mean
-                prototype = np.mean(np.stack([delta1, delta2]), axis=0)
-                consistency = cosine_similarity_nonnegative(delta1, delta2)
-                usable = consistency >= AU_MIN_REFERENCE_CONSISTENCY
-                profile["emotions"][emotion] = {
-                    **data,
-                    "delta_vectors": [_round_vector(delta1), _round_vector(delta2)],
-                    "delta_prototype": _round_vector(prototype),
-                    "reference_consistency": round(consistency, 6),
-                    "usable": bool(usable),
+            neutral_mean = np.mean(np.stack(neutral_vectors), axis=0)
+            normalized_distance = _mean_pairwise_rms_distance(neutral_vectors)
+            if not np.isfinite(normalized_distance) or not np.all(np.isfinite(neutral_mean)):
+                profile["status"] = "missing_or_invalid_neutral_reference"
+            else:
+                neutral_consistency = clamp01(1.0 - normalized_distance)
+                profile["neutral"] = {
+                    **neutral_data,
+                    "normalized_distance": round(normalized_distance, 6),
+                    "consistency": round(neutral_consistency, 6),
+                    "mean": _round_vector(neutral_mean),
+                    "pairwise_comparison_count": int(required * (required - 1) / 2),
                 }
 
-            usable_count = sum(
-                1 for item in profile["emotions"].values() if item.get("usable")
-            )
-            profile["status"] = "ready" if usable_count > 0 else "no_usable_emotion_prototypes"
-            profile["usable_emotion_count"] = usable_count
+                # The old prototype-consistency thresholds are retained as QC
+                # diagnostics, but they no longer discard finite reference images.
+                # The new experiment compares live AUs directly with all four
+                # saved AU vectors, so a variable neutral expression should not
+                # invalidate the entire reference bank.
+                profile["neutral"]["consistency_passed"] = bool(
+                    neutral_consistency >= AU_NEUTRAL_MIN_CONSISTENCY
+                )
+
+                for emotion, data in raw.items():
+                    if emotion == "neutral":
+                        continue
+                    if data.get("status") != "ok":
+                        profile["emotions"][emotion] = {
+                            **data, "reference_consistency": 0.0,
+                            "consistency_passed": False, "usable": False
+                        }
+                        continue
+
+                    vectors = [np.asarray(v, dtype=np.float32) for v in data["vectors"]]
+                    deltas = [v - neutral_mean for v in vectors]
+                    if any(not np.all(np.isfinite(delta)) for delta in deltas):
+                        profile["emotions"][emotion] = {
+                            **data, "status": "invalid_delta_vector",
+                            "reference_consistency": 0.0,
+                            "consistency_passed": False, "usable": False
+                        }
+                        continue
+
+                    prototype = np.mean(np.stack(deltas), axis=0)
+                    if not np.all(np.isfinite(prototype)):
+                        profile["emotions"][emotion] = {
+                            **data, "status": "invalid_delta_prototype",
+                            "reference_consistency": 0.0,
+                            "consistency_passed": False, "usable": False
+                        }
+                        continue
+
+                    consistency = _mean_pairwise_cosine_similarity(deltas)
+                    profile["emotions"][emotion] = {
+                        **data,
+                        "delta_vectors": [_round_vector(delta) for delta in deltas],
+                        "delta_prototype": _round_vector(prototype),
+                        "reference_consistency": round(consistency, 6),
+                        "pairwise_comparison_count": int(required * (required - 1) / 2),
+                        "consistency_passed": bool(consistency >= AU_MIN_REFERENCE_CONSISTENCY),
+                        # For direct nearest-reference matching, four finite raw
+                        # AU vectors are sufficient even when their prototype
+                        # consistency is below the old pilot threshold.
+                        "usable": True,
+                    }
+
+                usable_count = sum(
+                    1 for item in profile["emotions"].values() if item.get("usable")
+                )
+                profile["usable_emotion_count"] = usable_count
+                expected_affective = max(0, len(raw) - (1 if "neutral" in raw else 0))
+                profile["complete_reference_bank"] = bool(
+                    len(neutral_vectors) == required
+                    and usable_count == expected_affective
+                )
+                if profile["complete_reference_bank"]:
+                    profile["status"] = "ready"
+                elif usable_count >= AU_PARTIAL_MIN_USABLE_EMOTIONS:
+                    profile["status"] = "partial"
+                else:
+                    profile["status"] = "insufficient"
 
     output_path = au_profile_path(participant_folder)
     temp_path = output_path.with_suffix(output_path.suffix + ".tmp")
     with temp_path.open("w", encoding="utf-8") as file:
-        json.dump(profile, file, indent=2, ensure_ascii=False)
+        json.dump(profile, file, indent=2, ensure_ascii=False, allow_nan=False)
     temp_path.replace(output_path)
 
     profile["profile_path"] = str(output_path)
     print_ts(
-        f"AU calibration profile: status={profile['status']} path={output_path}"
+        f"AU calibration profile: status={profile['status']} "
+        f"usable_emotions={profile.get('usable_emotion_count', 0)} "
+        f"crops_per_emotion={required} path={output_path}"
     )
     return profile
 
+def au_calibration_emotions_needing_retry(
+    profile: dict[str, Any],
+    requested_emotions: list[str],
+    already_retried: set[str],
+) -> list[str]:
+    """Return baseline emotions that should be recaptured once for AU QC."""
+    requested = [normalize_ekman_emotion(e) for e in requested_emotions]
+    status = str(profile.get("status", ""))
+
+    # Neutral is the shared reference. Repair it first, then rebuild before
+    # deciding which emotion prototypes need their own retry.
+    neutral = profile.get("neutral") or {}
+    neutral_bad = (
+        status in {"missing_or_invalid_neutral_reference", "unreliable_neutral_reference"}
+        or not neutral
+        or not np.all(np.isfinite(np.asarray(neutral.get("mean", []), dtype=np.float32)))
+    )
+    if "neutral" in requested and neutral_bad and "neutral" not in already_retried:
+        return ["neutral"]
+
+    retry: list[str] = []
+    emotion_profiles = profile.get("emotions", {}) or {}
+    for emotion in requested:
+        if emotion == "neutral" or emotion in already_retried:
+            continue
+        item = emotion_profiles.get(emotion) or {}
+        if not item.get("usable"):
+            retry.append(emotion)
+    return retry
 
 def _save_debug_frame(frame: np.ndarray, debug_dir: Path, tag: str) -> None:
     if not VISION_DEBUG:
@@ -894,6 +1104,7 @@ class EmotionResult:
     emotion: str
     confidence: float
     reason: str
+    scores: Optional[dict[str, float]] = None
 
 
 @dataclass
@@ -969,21 +1180,39 @@ def safe_json_extract(raw: str) -> Optional[dict]:
 # =============================================================================
 
 def build_emotion_prompt(transcribed_text: str) -> str:
-    emotions = ", ".join(FUSION_EMOTIONS)
     return f"""
         You are an emotion classification system for a human-robot interaction warm-up.
 
-        Classify the emotional state expressed by the text below into exactly one of
-        Ekman's basic emotions (plus neutral): {emotions}
+        Estimate a score distribution across ALL of these Ekman emotion labels:
+        joy, sadness, anger, fear, surprise, disgust, neutral.
 
-        Use the words as the primary signal. Do not add markdown or extra text.
+        Use the words as the primary signal. Every score must be between 0.0 and 1.0
+        and the seven scores must sum to 1.0. Do not add markdown or extra text.
 
         Return JSON only in this exact shape:
-        {{"emotion": "one of the emotions above", "confidence": 0.0, "reason": "short explanation"}}
+        {{"scores": {{"joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0,
+        "surprise": 0.0, "disgust": 0.0, "neutral": 0.0}},
+        "reason": "short explanation"}}
 
         Text:
         {transcribed_text}
         """.strip()
+
+
+def _normalize_text_emotion_scores(raw_scores: Any) -> dict[str, float]:
+    scores = {emotion: 0.0 for emotion in FUSION_EMOTIONS}
+    if not isinstance(raw_scores, dict):
+        return scores
+    for emotion in FUSION_EMOTIONS:
+        try:
+            value = float(raw_scores.get(emotion, 0.0))
+        except Exception:
+            value = 0.0
+        scores[emotion] = max(0.0, value) if np.isfinite(value) else 0.0
+    total = float(sum(scores.values()))
+    if total <= 0.0:
+        return {emotion: 0.0 for emotion in FUSION_EMOTIONS}
+    return {emotion: value / total for emotion, value in scores.items()}
 
 
 def detect_text_emotion(
@@ -991,11 +1220,13 @@ def detect_text_emotion(
     transcribed_text: str,
     model_name: str = EMOTION_MODEL_NAME,
 ) -> EmotionResult:
+    empty_scores = {emotion: 0.0 for emotion in FUSION_EMOTIONS}
     if client is None or not transcribed_text.strip():
         return EmotionResult(
             emotion="neutral",
             confidence=0.0,
             reason="No Ollama client or empty transcript; text modality unavailable.",
+            scores=empty_scores,
         )
 
     try:
@@ -1003,10 +1234,10 @@ def detect_text_emotion(
             model=model_name,
             format="json",
             messages=[
-                {"role": "system", "content": "You return valid JSON only."},
+                {"role": "system", "content": "Return valid JSON only with all seven emotion scores."},
                 {"role": "user", "content": build_emotion_prompt(transcribed_text)},
             ],
-            options={"temperature": 0.1, "num_predict": 120, "num_ctx": 2048},
+            options={"temperature": 0.1, "num_predict": 180, "num_ctx": 2048},
             stream=False,
         )
     except Exception as exc:
@@ -1015,6 +1246,7 @@ def detect_text_emotion(
             emotion="neutral",
             confidence=0.0,
             reason=f"LLM call failed: {exc}",
+            scores=empty_scores,
         )
 
     raw = response.get("message", {}).get("content", "")
@@ -1024,92 +1256,339 @@ def detect_text_emotion(
             emotion="neutral",
             confidence=0.0,
             reason="Could not parse model output for text emotion.",
+            scores=empty_scores,
         )
 
-    emotion = str(data.get("emotion", "")).strip().lower()
-    try:
-        confidence = max(0.0, min(1.0, float(data.get("confidence", 0.0))))
-    except Exception:
-        confidence = 0.0
-    reason = str(data.get("reason", "")).strip() or "Emotion inferred from transcript."
+    scores = _normalize_text_emotion_scores(data.get("scores"))
 
-    if emotion not in FUSION_EMOTIONS:
-        emotion = "neutral"
-        confidence = min(confidence, 0.3)
-        reason = "Invalid emotion label returned; neutral fallback used."
+    # Backwards-compatible fallback if an older model response still returns
+    # only {emotion, confidence} rather than the requested distribution.
+    if sum(scores.values()) <= 0.0:
+        legacy_emotion = str(data.get("emotion", "")).strip().lower()
+        try:
+            legacy_confidence = clamp01(float(data.get("confidence", 0.0)))
+        except Exception:
+            legacy_confidence = 0.0
+        if legacy_emotion in FUSION_EMOTIONS and legacy_confidence > 0.0:
+            remaining = (1.0 - legacy_confidence) / max(1, len(FUSION_EMOTIONS) - 1)
+            scores = {emotion: remaining for emotion in FUSION_EMOTIONS}
+            scores[legacy_emotion] = legacy_confidence
 
-    return EmotionResult(emotion=emotion, confidence=confidence, reason=reason)
+    if sum(scores.values()) <= 0.0:
+        return EmotionResult(
+            emotion="neutral",
+            confidence=0.0,
+            reason="Text classifier returned no usable emotion-score distribution.",
+            scores=empty_scores,
+        )
+
+    emotion, confidence = max(scores.items(), key=lambda item: item[1])
+    reason = str(data.get("reason", "")).strip() or "Emotion distribution inferred from transcript."
+    return EmotionResult(
+        emotion=emotion,
+        confidence=clamp01(confidence),
+        reason=reason,
+        scores=scores,
+    )
 
 
 # =============================================================================
 # Prosody-based emotion analysis
 # =============================================================================
 
+def _prosody_frame_features(audio: np.ndarray, sample_rate: int) -> dict[str, float]:
+    """Extract dependency-free acoustic features from one utterance.
+
+    Pitch is estimated from FFT autocorrelation over overlapping voiced frames.
+    The estimates are intentionally coarse: they are used only as weak prosodic
+    evidence, not as a stand-alone emotion ground truth.
+    """
+    x = np.asarray(audio, dtype=np.float32).reshape(-1)
+    if x.size == 0:
+        return {}
+
+    # Remove DC offset without peak-normalising; absolute energy remains useful.
+    x = x - float(np.mean(x))
+    peak = float(np.max(np.abs(x))) if x.size else 0.0
+    rms = float(np.sqrt(np.mean(x ** 2))) if x.size else 0.0
+    duration = float(x.size / max(1, sample_rate))
+    zcr = float(np.mean(np.abs(np.diff(np.signbit(x))))) if x.size > 1 else 0.0
+
+    frame_len = max(256, int(round(0.040 * sample_rate)))
+    hop = max(128, int(round(0.020 * sample_rate)))
+    if x.size < frame_len:
+        padded = np.zeros(frame_len, dtype=np.float32)
+        padded[:x.size] = x
+        x_for_frames = padded
+    else:
+        x_for_frames = x
+
+    frames: list[np.ndarray] = []
+    frame_rms: list[float] = []
+    for start_idx in range(0, max(1, x_for_frames.size - frame_len + 1), hop):
+        frame = x_for_frames[start_idx:start_idx + frame_len]
+        if frame.size < frame_len:
+            break
+        frames.append(frame)
+        frame_rms.append(float(np.sqrt(np.mean(frame ** 2))))
+
+    if not frames:
+        frames = [x_for_frames[:frame_len]]
+        frame_rms = [float(np.sqrt(np.mean(frames[0] ** 2)))]
+
+    rms_array = np.asarray(frame_rms, dtype=np.float32)
+    energy_std = float(np.std(rms_array))
+    energy_mean = float(np.mean(rms_array))
+    energy_cv = float(energy_std / max(1e-8, energy_mean))
+    energy_p90 = float(np.percentile(rms_array, 90))
+    energy_p10 = float(np.percentile(rms_array, 10))
+    energy_range = max(0.0, energy_p90 - energy_p10)
+
+    # Voiced-frame threshold adapts to microphone level while keeping a small
+    # absolute floor so room noise is not interpreted as pitch.
+    active_threshold = max(0.008, float(np.percentile(rms_array, 35)) * 0.70)
+    window = np.hanning(frame_len).astype(np.float32)
+    min_lag = max(1, int(sample_rate / 350.0))
+    max_lag = min(frame_len - 2, int(sample_rate / 70.0))
+    nfft = 1 << ((2 * frame_len - 1).bit_length())
+
+    pitches: list[float] = []
+    centroids: list[float] = []
+    flatness_values: list[float] = []
+
+    freqs = np.fft.rfftfreq(frame_len, d=1.0 / sample_rate)
+    for frame, frms in zip(frames, frame_rms):
+        if frms < active_threshold:
+            continue
+        centered = frame - float(np.mean(frame))
+        weighted = centered * window
+
+        # Spectral descriptors.
+        mag = np.abs(np.fft.rfft(weighted)).astype(np.float64)
+        mag_sum = float(np.sum(mag))
+        if mag_sum > 1e-12:
+            centroids.append(float(np.sum(freqs * mag) / mag_sum))
+            flatness_values.append(float(
+                np.exp(np.mean(np.log(mag + 1e-12))) / (np.mean(mag) + 1e-12)
+            ))
+
+        # FFT autocorrelation pitch estimate.
+        spectrum = np.fft.rfft(weighted, n=nfft)
+        ac = np.fft.irfft(spectrum * np.conj(spectrum), n=nfft)[:frame_len]
+        ac0 = float(ac[0]) if ac.size else 0.0
+        if ac0 <= 1e-10 or max_lag <= min_lag:
+            continue
+        search = ac[min_lag:max_lag + 1]
+        rel_idx = int(np.argmax(search))
+        lag = min_lag + rel_idx
+        periodicity = float(ac[lag] / ac0)
+        if periodicity >= 0.30:
+            f0 = float(sample_rate / lag)
+            if 70.0 <= f0 <= 350.0:
+                pitches.append(f0)
+
+    active_count = sum(1 for v in frame_rms if v >= active_threshold)
+    voiced_ratio = float(len(pitches) / max(1, active_count))
+    if pitches:
+        pitch_arr = np.asarray(pitches, dtype=np.float32)
+        pitch_median = float(np.median(pitch_arr))
+        pitch_mean = float(np.mean(pitch_arr))
+        pitch_std = float(np.std(pitch_arr))
+        pitch_p90 = float(np.percentile(pitch_arr, 90))
+        pitch_p10 = float(np.percentile(pitch_arr, 10))
+        pitch_range = max(0.0, pitch_p90 - pitch_p10)
+    else:
+        pitch_median = pitch_mean = pitch_std = pitch_range = 0.0
+
+    return {
+        "peak": peak,
+        "rms": rms,
+        "duration": duration,
+        "energy_std": energy_std,
+        "energy_cv": energy_cv,
+        "energy_range": energy_range,
+        "zero_crossing_rate": zcr,
+        "pitch_median_hz": pitch_median,
+        "pitch_mean_hz": pitch_mean,
+        "pitch_std_hz": pitch_std,
+        "pitch_range_hz": pitch_range,
+        "voiced_ratio": voiced_ratio,
+        "spectral_centroid_hz": float(np.median(centroids)) if centroids else 0.0,
+        "spectral_flatness": float(np.median(flatness_values)) if flatness_values else 0.0,
+    }
+
+def _scaled_confidence(value: float, low: float, high: float, floor: float = 0.15) -> float:
+    """Map a cue into a deliberately small [floor, PROSODY_MAX_CONFIDENCE] range."""
+    if high <= low:
+        return min(PROSODY_MAX_CONFIDENCE, floor)
+    strength = clamp01((value - low) / (high - low))
+    return min(PROSODY_MAX_CONFIDENCE, floor + strength * (PROSODY_MAX_CONFIDENCE - floor))
+
 def analyze_prosody_from_audio(
     audio_16k: np.ndarray,
     sample_rate: int = TARGET_SAMPLE_RATE,
 ) -> ProsodyEmotionResult:
+    """Conservative acoustic-only prosody classification.
+
+    The old implementation mapped almost any loud/variable utterance directly to
+    surprise. This version requires multiple acoustic cues to agree. When the
+    evidence is ambiguous, it abstains (`available=False`) so prosody contributes
+    zero weight to fusion instead of injecting a systematic surprise bias.
+
+    This remains a lightweight heuristic, not a trained speech-emotion model;
+    therefore confidence is intentionally capped at PROSODY_MAX_CONFIDENCE.
+    """
     if audio_16k is None or audio_16k.size == 0:
         return ProsodyEmotionResult(
             available=False,
             emotion="neutral",
             confidence=0.0,
-            reason="No audio available for prosody analysis.",
+            reason="No raw utterance audio was available for prosody analysis.",
             features={},
         )
 
     try:
-        audio = audio_16k.astype(np.float32, copy=False)
-        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
-        rms = float(np.sqrt(np.mean(audio ** 2))) if audio.size else 0.0
-        duration = float(len(audio) / max(1, sample_rate))
+        features = _prosody_frame_features(np.asarray(audio_16k, dtype=np.float32), sample_rate)
+        if not features:
+            raise RuntimeError("no acoustic features could be extracted")
 
-        frame_size = max(1, int(0.05 * sample_rate))
-        frame_rms = []
-        for start in range(0, len(audio), frame_size):
-            frame = audio[start:start + frame_size]
-            if frame.size:
-                frame_rms.append(float(np.sqrt(np.mean(frame ** 2))))
+        rms = float(features.get("rms", 0.0))
+        duration = float(features.get("duration", 0.0))
+        zcr = float(features.get("zero_crossing_rate", 0.0))
+        pitch_median = float(features.get("pitch_median_hz", 0.0))
+        pitch_range = float(features.get("pitch_range_hz", 0.0))
+        pitch_std = float(features.get("pitch_std_hz", 0.0))
+        voiced_ratio = float(features.get("voiced_ratio", 0.0))
+        centroid = float(features.get("spectral_centroid_hz", 0.0))
+        energy_cv = float(features.get("energy_cv", 0.0))
 
-        energy_std = float(np.std(frame_rms)) if frame_rms else 0.0
-        zero_crossing_rate = (
-            float(np.mean(np.abs(np.diff(np.signbit(audio))))) if audio.size > 1 else 0.0
-        )
-
-        features = {
-            "peak": peak,
-            "rms": rms,
-            "duration": duration,
-            "energy_std": energy_std,
-            "zero_crossing_rate": zero_crossing_rate,
-        }
-
-        if rms < 0.006 and duration > 1.0:
+        if duration < PROSODY_MIN_DURATION_SECONDS:
             return ProsodyEmotionResult(
-                available=True,
-                emotion="sadness",
-                confidence=0.35,
-                reason="Low vocal energy suggests a subdued tone.",
+                available=False,
+                emotion="neutral",
+                confidence=0.0,
+                reason="Utterance was too short for a stable acoustic prosody estimate.",
                 features=features,
             )
 
-        if rms > 0.025 or energy_std > 0.018:
+        if voiced_ratio < PROSODY_MIN_VOICED_RATIO or pitch_median <= 0.0:
+            return ProsodyEmotionResult(
+                available=False,
+                emotion="neutral",
+                confidence=0.0,
+                reason="Too little stable voiced speech was available for prosody classification.",
+                features=features,
+            )
+
+        # Surprise: large pitch excursion is mandatory. High energy by itself is
+        # never enough. This is the key fix for the previous surprise bias.
+        surprise_pitch = (
+            pitch_range >= PROSODY_HIGH_PITCH_RANGE_HZ
+            and pitch_median >= (PROSODY_HIGH_PITCH_MEDIAN_HZ - 30.0)
+        )
+        if surprise_pitch and rms >= 0.12:
+            confidence = _scaled_confidence(
+                pitch_range,
+                PROSODY_HIGH_PITCH_RANGE_HZ,
+                PROSODY_VERY_HIGH_PITCH_RANGE_HZ + 80.0,
+                floor=0.18,
+            )
             return ProsodyEmotionResult(
                 available=True,
                 emotion="surprise",
-                confidence=0.30,
-                reason="Higher or more variable vocal energy suggests heightened arousal.",
+                confidence=confidence,
+                reason="Large pitch excursion with dynamic vocal energy supports a weak surprise cue.",
                 features=features,
             )
 
+        # Fear: sustained high pitch plus variability, but not the very high
+        # energy/roughness pattern used for anger.
+        if (
+            pitch_median >= PROSODY_HIGH_PITCH_MEDIAN_HZ
+            and PROSODY_LOW_PITCH_RANGE_HZ <= pitch_range < PROSODY_HIGH_PITCH_RANGE_HZ
+            and rms < PROSODY_VERY_HIGH_RMS
+        ):
+            confidence = _scaled_confidence(
+                pitch_median,
+                PROSODY_HIGH_PITCH_MEDIAN_HZ,
+                PROSODY_HIGH_PITCH_MEDIAN_HZ + 100.0,
+                floor=0.16,
+            )
+            return ProsodyEmotionResult(
+                available=True,
+                emotion="fear",
+                confidence=confidence,
+                reason="High and variable pitch with non-extreme vocal energy supports a weak fear cue.",
+                features=features,
+            )
+
+        # Anger: very high energy plus at least one rough/bright spectral cue.
+        # This catches strongly emphatic speech without treating all loud speech
+        # as surprise.
+        if (
+            rms >= PROSODY_VERY_HIGH_RMS
+            and (zcr >= PROSODY_ANGER_ZCR or centroid >= PROSODY_ANGER_CENTROID_HZ)
+        ):
+            confidence = _scaled_confidence(
+                rms,
+                PROSODY_VERY_HIGH_RMS,
+                PROSODY_VERY_HIGH_RMS + 0.35,
+                floor=0.18,
+            )
+            return ProsodyEmotionResult(
+                available=True,
+                emotion="anger",
+                confidence=confidence,
+                reason="Very high vocal energy with a rough/bright acoustic profile supports a weak anger cue.",
+                features=features,
+            )
+
+        # Sadness: subdued energy with comparatively little pitch movement.
+        if rms <= PROSODY_LOW_RMS and pitch_range <= PROSODY_LOW_PITCH_RANGE_HZ:
+            confidence = _scaled_confidence(
+                PROSODY_LOW_RMS - rms,
+                0.0,
+                PROSODY_LOW_RMS,
+                floor=0.16,
+            )
+            return ProsodyEmotionResult(
+                available=True,
+                emotion="sadness",
+                confidence=confidence,
+                reason="Low vocal energy and limited pitch movement support a weak sadness cue.",
+                features=features,
+            )
+
+        # Joy is deliberately conservative: moderately high energy plus clear,
+        # but not extreme, pitch movement. If the pattern overlaps heavily with
+        # fear/surprise, those branches above win first.
+        if (
+            rms >= PROSODY_HIGH_RMS
+            and PROSODY_LOW_PITCH_RANGE_HZ < pitch_range < PROSODY_VERY_HIGH_PITCH_RANGE_HZ
+            and pitch_std >= 18.0
+        ):
+            confidence = _scaled_confidence(
+                pitch_range,
+                PROSODY_LOW_PITCH_RANGE_HZ,
+                PROSODY_VERY_HIGH_PITCH_RANGE_HZ,
+                floor=0.15,
+            )
+            return ProsodyEmotionResult(
+                available=True,
+                emotion="joy",
+                confidence=confidence,
+                reason="Moderately high energy with expressive pitch movement supports a weak joy cue.",
+                features=features,
+            )
+
+        # Ordinary or ambiguous speech should not cast a categorical vote.
         return ProsodyEmotionResult(
-            available=True,
+            available=False,
             emotion="neutral",
-            confidence=0.25,
-            reason="Prosody suggests calm conversational speech.",
+            confidence=0.0,
+            reason="Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
             features=features,
         )
-
     except Exception as exc:
         return ProsodyEmotionResult(
             available=False,
@@ -1159,6 +1638,13 @@ def deepface_result_to_distribution(result: Optional[dict[str, Any]]) -> dict[st
     return {emo: value / total for emo, value in scores.items()}
 
 
+def text_emotion_distribution(text_emotion: EmotionResult) -> dict[str, float]:
+    scores = _normalize_text_emotion_scores(text_emotion.scores or {})
+    if sum(scores.values()) > 0.0:
+        return scores
+    return one_hot_emotion_distribution(text_emotion.emotion, text_emotion.confidence)
+
+
 def text_reliability_score(text_emotion: EmotionResult) -> float:
     return max(0.0, min(1.0, float(text_emotion.confidence)))
 
@@ -1181,7 +1667,7 @@ def visual_reliability_score(result: Optional[dict[str, Any]]) -> float:
 def prosody_reliability_score(prosody_emotion: Optional[ProsodyEmotionResult]) -> float:
     if not prosody_emotion or not prosody_emotion.available:
         return 0.0
-    return max(0.0, min(0.45, float(prosody_emotion.confidence)))
+    return max(0.0, min(PROSODY_MAX_CONFIDENCE, float(prosody_emotion.confidence)))
 
 
 def adaptive_reliability_aware_fusion(
@@ -1189,27 +1675,37 @@ def adaptive_reliability_aware_fusion(
     facial_result: Optional[dict[str, Any]],
     prosody_emotion: Optional[ProsodyEmotionResult],
 ) -> FusedEmotionResult:
-    text_dist = one_hot_emotion_distribution(text_emotion.emotion, text_emotion.confidence)
+    """Use prosody at fixed 0.10 when available; adapt only text vs visual."""
+    text_dist = text_emotion_distribution(text_emotion)
     visual_dist = deepface_result_to_distribution(facial_result)
 
-    if prosody_emotion and prosody_emotion.available:
+    prosody_available = bool(prosody_emotion and prosody_emotion.available)
+    if prosody_available:
+        # Prosody contributes a fixed 0.10 whenever a usable prosody result exists.
+        # Its confidence shapes only the prosody emotion distribution, never its weight.
         prosody_dist = one_hot_emotion_distribution(prosody_emotion.emotion, prosody_emotion.confidence)
+        prosody_name = prosody_emotion.emotion
+        wp = FUSION_PROSODY_WEIGHT
     else:
+        # No prosody result means no prosody contribution at all.
         prosody_dist = {emo: 0.0 for emo in FUSION_EMOTIONS}
+        prosody_name = None
+        wp = 0.0
 
     text_rel = text_reliability_score(text_emotion)
     visual_rel = visual_reliability_score(facial_result)
-    prosody_rel = prosody_reliability_score(prosody_emotion)
 
-    raw_text = FUSION_TEXT_WEIGHT * text_rel
-    raw_visual = FUSION_VISUAL_WEIGHT * visual_rel
-    raw_prosody = FUSION_PROSODY_WEIGHT * prosody_rel
-    total = raw_text + raw_visual + raw_prosody
-
-    if total <= 0:
-        wt, wv, wp = 1.0, 0.0, 0.0
+    # Adaptive reliability is only between text and visual. They share 0.90
+    # when prosody exists, otherwise they share the complete 1.00.
+    text_visual_pool = 1.0 - wp
+    raw_text = max(0.0, FUSION_TEXT_WEIGHT) * text_rel
+    raw_visual = max(0.0, FUSION_VISUAL_WEIGHT) * visual_rel
+    tv_total = raw_text + raw_visual
+    if tv_total <= 0.0:
+        wt, wv = text_visual_pool, 0.0
     else:
-        wt, wv, wp = raw_text / total, raw_visual / total, raw_prosody / total
+        wt = text_visual_pool * (raw_text / tv_total)
+        wv = text_visual_pool * (raw_visual / tv_total)
 
     fused_scores = {
         emo: (
@@ -1219,17 +1715,15 @@ def adaptive_reliability_aware_fusion(
         )
         for emo in FUSION_EMOTIONS
     }
-
     dominant = max(fused_scores.items(), key=lambda item: item[1])[0]
-    confidence = max(0.0, min(1.0, fused_scores[dominant]))
-
+    confidence = clamp01(fused_scores[dominant])
     facial_label = (facial_result or {}).get("emotion")
 
     reason = (
-        f"Adaptive reliability-aware fusion selected {dominant}: "
-        f"text={text_emotion.emotion} rel={text_rel:.2f}, "
-        f"visual={facial_label} rel={visual_rel:.2f}, "
-        f"prosody={prosody_emotion.emotion if prosody_emotion else None} rel={prosody_rel:.2f}."
+        f"Fixed-prosody/adaptive-text-visual fusion selected {dominant}: "
+        f"text={text_emotion.emotion} rel={text_rel:.2f} weight={wt:.2f}, "
+        f"visual={facial_label} rel={visual_rel:.2f} weight={wv:.2f}, "
+        f"prosody={prosody_name} weight={wp:.2f}."
     )
 
     return FusedEmotionResult(
@@ -1240,10 +1734,11 @@ def adaptive_reliability_aware_fusion(
         weights={
             "base_text": FUSION_TEXT_WEIGHT,
             "base_visual": FUSION_VISUAL_WEIGHT,
-            "base_prosody": FUSION_PROSODY_WEIGHT,
+            "base_prosody": wp,
             "reliability_text": text_rel,
             "reliability_visual": visual_rel,
-            "reliability_prosody": prosody_rel,
+            "reliability_prosody": (1.0 if prosody_available else 0.0),
+            "adaptive_text_visual_pool": text_visual_pool,
             "active_normalized_text": wt,
             "active_normalized_visual": wv,
             "active_normalized_prosody": wp,
@@ -1251,18 +1746,15 @@ def adaptive_reliability_aware_fusion(
         text_emotion={
             "emotion": text_emotion.emotion,
             "confidence": text_emotion.confidence,
+            "scores": text_emotion.scores or {},
             "reason": text_emotion.reason,
         },
         visual_emotion=facial_result or {},
         prosody_emotion=prosody_emotion.as_json if prosody_emotion else {
-            "available": False,
-            "emotion": None,
-            "confidence": 0.0,
-            "reason": "No prosody result provided.",
-            "features": {},
+            "available": False, "emotion": None, "confidence": 0.0,
+            "reason": "No prosody result provided.", "features": {},
         },
     )
-
 
 # =============================================================================
 # One-sentence emotion response / Q&A answer generation
@@ -1433,10 +1925,12 @@ class RobotSpeaker:
         self._quiet_since: Optional[float] = None
 
     def bump_speaking_tail(self, extra: Optional[float] = None) -> None:
-        if TTS_ACTIVITY_MONITOR_RUNNING:
-            tail = self.speaking_cooldown_s
-        else:
-            tail = self.speaking_cooldown_s if extra is None else extra
+        # Keep the estimated utterance duration as a hard floor even when the
+        # live activity monitor is available.  Otherwise a short natural pause
+        # can look like end-of-speech and release the nod mid-sentence.
+        tail = self.speaking_cooldown_s
+        if extra is not None:
+            tail = max(tail, float(extra))
         self._speaking_until = max(self._speaking_until, time.time() + tail)
 
     def is_speaking_or_cooling_down(self) -> bool:
@@ -1458,10 +1952,36 @@ class RobotSpeaker:
 
         return cooling_down or not quiet_long_enough
 
-    def wait_until_finished(self, timeout_seconds: float = 20.0) -> None:
-        deadline = time.time() + timeout_seconds
-        while self.is_speaking_or_cooling_down() and time.time() < deadline:
-            time.sleep(0.05)  # was 0.1 -- tighter poll now that the hold itself is short
+    def wait_until_finished(self, timeout_seconds: Optional[float] = None) -> bool:
+        """Wait for speech completion without allowing a fixed timeout to
+        release the nod while Ameca is still speaking.
+
+        Returns False only if the dynamic safety watchdog expires.
+        """
+        now = time.time()
+        remaining_floor = max(0.0, self._speaking_until - now)
+        requested_watchdog = (
+            NOD_WAIT_TIMEOUT_SECONDS
+            if timeout_seconds is None
+            else max(0.0, float(timeout_seconds))
+        )
+        effective_timeout = max(
+            requested_watchdog,
+            remaining_floor + NOD_WAIT_GRACE_SECONDS,
+        )
+        deadline = now + effective_timeout
+
+        while self.is_speaking_or_cooling_down():
+            if time.time() >= deadline:
+                print_ts(
+                    f"[TTS] Completion wait safety-timeout after "
+                    f"{effective_timeout:.1f}s; suppressing the turn-end nod "
+                    "rather than risking a mid-sentence gesture."
+                )
+                return False
+            time.sleep(0.05)
+
+        return True
 
     def say(self, text: str) -> None:
         spoken = clean_text_for_tts(text)
@@ -1563,8 +2083,8 @@ class Narrator:
         turn-end cue. This runs after EVERY utterance, not just selected
         ones -- the nod is how the participant knows Ameca is done talking."""
         self.speaker.say(text)
-        self.speaker.wait_until_finished()
-        if self.gesture is not None:
+        speech_finished = self.speaker.wait_until_finished()
+        if speech_finished and self.gesture is not None:
             self.gesture.play(self.nod_sequence)
 
     def say_and_nod(self, text: str) -> None:
@@ -2211,7 +2731,9 @@ class Camera:
         if not ok or frame is None or frame.size == 0:
             return None
         if USE_ZED_HALF_FRAME_CROP and frame.shape[1] >= 2000:
-            frame = frame[:, : frame.shape[1] // 2]
+            # ZED side-by-side frame layout: [LEFT | RIGHT].
+            # Keep the RIGHT camera image for all downstream vision processing.
+            frame = frame[:, frame.shape[1] // 2 :]
         return frame
 
     def close(self) -> None:
@@ -2654,6 +3176,14 @@ REQUIRE_EYE_CONFIRMATION = os.environ.get("REQUIRE_EYE_CONFIRMATION", "0") == "1
 REQUIRE_SKIN_TONE_CONFIRMATION = os.environ.get("REQUIRE_SKIN_TONE_CONFIRMATION", "1") == "1"
 SKIN_TONE_MIN_FRACTION = float(os.environ.get("SKIN_TONE_MIN_FRACTION", "0.15"))
 
+# Warm-up calibration is intentionally stricter than ordinary live analysis:
+# a tiny background false-positive (e.g. wall clock / room object) must never
+# become one of the participant's four personalized AU reference crops.
+FACE_CROP_MIN_SIDE_PIXELS = int(os.environ.get("FACE_CROP_MIN_SIDE_PIXELS", "100"))
+FACE_REGION_MIN_HEIGHT_FRACTION = float(
+    os.environ.get("FACE_REGION_MIN_HEIGHT_FRACTION", "0.10")
+)
+
 
 def _resolve_face_cascade_path() -> str:
     """
@@ -2871,6 +3401,52 @@ def detect_face_region_local(frame: np.ndarray) -> Optional[dict[str, Any]]:
     return _detect_face_region_haar(frame)
 
 
+def _face_region_geometry_is_plausible(
+    frame: np.ndarray,
+    region: Optional[dict[str, Any]],
+) -> bool:
+    """Reject tiny/invalid regions before they can become calibration crops.
+
+    The warm-up is a controlled, frontal capture where the participant's face
+    should occupy a meaningful portion of the frame.  Small square detections
+    from background objects can otherwise look face-like to a cascade/FER
+    detector.  This check is deliberately geometry-only so it does not add a
+    skin-tone-dependent acceptance rule on top of the detector itself.
+    """
+    if not region:
+        return False
+    try:
+        frame_h, frame_w = frame.shape[:2]
+        x = int(region.get("x", -1))
+        y = int(region.get("y", -1))
+        w = int(region.get("w", 0))
+        h = int(region.get("h", 0))
+        if x < 0 or y < 0 or w <= 0 or h <= 0:
+            return False
+        if x >= frame_w or y >= frame_h:
+            return False
+        if x + w <= 0 or y + h <= 0:
+            return False
+        aspect = w / float(max(1, h))
+        if not (0.60 <= aspect <= 1.60):
+            return False
+        if h < max(60, int(frame_h * FACE_REGION_MIN_HEIGHT_FRACTION)):
+            return False
+        area_fraction = (w * h) / float(max(1, frame_w * frame_h))
+        if area_fraction > 0.50:
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def _crop_is_large_enough_for_calibration(crop: np.ndarray) -> bool:
+    if crop is None or crop.size == 0 or crop.ndim < 2:
+        return False
+    h, w = crop.shape[:2]
+    return min(h, w) >= FACE_CROP_MIN_SIDE_PIXELS
+
+
 def _detect_face_region_haar(frame: np.ndarray) -> Optional[dict[str, Any]]:
     """
     Fallback face-bounding-box detection via OpenCV's Haar cascade, used
@@ -2919,13 +3495,8 @@ def _detect_face_region_haar(frame: np.ndarray) -> Optional[dict[str, Any]]:
         frame_area = float(frame_w * frame_h)
         plausible: list[tuple[int, int, int, int]] = []
         for (x, y, w, h) in faces:
-            if h == 0:
-                continue
-            aspect = w / float(h)
-            area_fraction = (w * h) / frame_area
-            if area_fraction > 0.5:
-                continue
-            if not (0.6 <= aspect <= 1.6):
+            region = {"x": int(x), "y": int(y), "w": int(w), "h": int(h)}
+            if not _face_region_geometry_is_plausible(frame, region):
                 continue
             if REQUIRE_SKIN_TONE_CONFIRMATION and not _region_has_skin_tone(
                 frame, x, y, w, h, SKIN_TONE_MIN_FRACTION
@@ -2965,9 +3536,13 @@ def find_local_face_crops(
     found: list[tuple[np.ndarray, dict[str, Any]]] = []
 
     if preferred_frame is not None:
-        region = preferred_region or detect_face_region_local(preferred_frame)
-        if region:
-            found.append((preferred_frame, region))
+        # DeepFace may confirm face presence/emotion, but its region is not
+        # authoritative for cropping. Re-localize independently.
+        region = detect_face_region_local(preferred_frame)
+        if region and _face_region_geometry_is_plausible(preferred_frame, region):
+            cropped = crop_face(preferred_frame, region)
+            if _crop_is_large_enough_for_calibration(cropped):
+                found.append((preferred_frame, region))
 
     if len(found) >= max_needed:
         return found[:max_needed]
@@ -2978,8 +3553,10 @@ def find_local_face_crops(
         if preferred_frame is not None and frame is preferred_frame:
             continue
         region = detect_face_region_local(frame)
-        if region:
-            found.append((frame, region))
+        if region and _face_region_geometry_is_plausible(frame, region):
+            cropped = crop_face(frame, region)
+            if _crop_is_large_enough_for_calibration(cropped):
+                found.append((frame, region))
 
     return found[:max_needed]
 
@@ -3032,11 +3609,15 @@ def find_deepface_confirmed_crops(
                 _save_debug_frame(frame, debug_dir, f"{requested_emotion}_frame{idx}_noface")
             continue
 
-        # Current DeepFace worker responses can include a usable face region.
-        # Prefer that exact region from the frame DeepFace already confirmed;
-        # fall back to the local MediaPipe/Haar detector only when it is absent.
-        region = result.region or detect_face_region_local(frame)
-        if not region:
+        # IMPORTANT: DeepFace's detector and emotion classifier are only the
+        # first confirmation.  Do NOT trust result.region directly for warm-up
+        # calibration crops: a background object can occasionally be returned
+        # as a face region (observed with a wall clock).  Require an independent
+        # local face detector to locate the crop on the same DeepFace-positive
+        # frame.  It is safer to miss a frame and recapture than to personalize
+        # the participant's AU profile from a non-face object.
+        region = detect_face_region_local(frame)
+        if not region or not _face_region_geometry_is_plausible(frame, region):
             no_local_region_count += 1
             if debug_dir is not None:
                 _save_debug_frame(
@@ -3194,10 +3775,11 @@ def capture_baseline_emotion_round(
     script_attempts: int,
     face_confirmation_attempts: int = 2,
 ) -> None:
-    """Capture exactly two DeepFace-confirmed face crops when possible.
+    """Capture four DeepFace-confirmed face crops when possible.
 
-    AU calibration later requires two saved crops per emotion, so one saved
-    image is treated as an incomplete baseline rather than a successful round.
+    AU calibration requires four saved crops per emotion. Each saved crop is
+    processed independently by Py-Feat to create four participant-specific AU
+    reference vectors for that emotion.
     """
     debug_dir = PROFILE_DIR / participant_folder / "debug"
     transcript = ""
@@ -3240,7 +3822,7 @@ def capture_baseline_emotion_round(
                 narrator.say("I could not see you clearly. Let's try that emotion again.")
             continue
 
-        remaining = max(0, 2 - len(saved_images))
+        remaining = max(0, AU_BASELINE_CROPS_PER_EMOTION - len(saved_images))
         matches = find_deepface_confirmed_crops(
             frames,
             deepface,
@@ -3250,9 +3832,17 @@ def capture_baseline_emotion_round(
         )
 
         for frame, region in matches:
-            if len(saved_images) >= 2:
+            if len(saved_images) >= AU_BASELINE_CROPS_PER_EMOTION:
                 break
             cropped = crop_face(frame, region)
+            if not _crop_is_large_enough_for_calibration(cropped):
+                h, w = cropped.shape[:2] if cropped is not None and cropped.ndim >= 2 else (0, 0)
+                print_ts(
+                    f"[WARN] Rejected baseline crop for '{requested_emotion}': "
+                    f"crop {w}x{h}px is too small to be a reliable face "
+                    f"(minimum side={FACE_CROP_MIN_SIDE_PIXELS}px)."
+                )
+                continue
             image_id = allocate_image_id(session)
             path = build_profile_image_path(
                 participant_folder, "baseline", image_id, emotion=requested_emotion
@@ -3261,12 +3851,12 @@ def capture_baseline_emotion_round(
                 saved_images.append(str(path))
                 print_ts(f"Saved baseline image: {path}")
 
-        if len(saved_images) >= 2:
+        if len(saved_images) >= AU_BASELINE_CROPS_PER_EMOTION:
             break
 
         print_ts(
             f"Baseline '{requested_emotion}' is incomplete: "
-            f"saved {len(saved_images)}/2 required crops "
+            f"saved {len(saved_images)}/{AU_BASELINE_CROPS_PER_EMOTION} required crops "
             f"after attempt {face_attempt}/{face_confirmation_attempts}."
         )
         if face_attempt < face_confirmation_attempts:
@@ -3275,7 +3865,7 @@ def capture_baseline_emotion_round(
                 "Please show me that emotion again."
             )
 
-    complete = len(saved_images) == 2
+    complete = len(saved_images) == AU_BASELINE_CROPS_PER_EMOTION
     session["baseline_emotion_rounds"][requested_emotion] = {
         "requested_emotion": requested_emotion,
         "script": script_text,
@@ -3296,7 +3886,8 @@ def capture_baseline_emotion_round(
         acknowledgement = "Expression has been saved."
     elif saved_images:
         acknowledgement = (
-            "I saved one usable image, but I could not capture the second clear image. "
+            f"I saved {len(saved_images)} usable images, but I need "
+            f"{AU_BASELINE_CROPS_PER_EMOTION} clear images for this emotion. "
             "Let's continue for now."
         )
     else:
@@ -3797,7 +4388,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
                 )
                 save_session(participant_id, session)
 
-            # Build AU calibration ONCE from the exact two saved baseline crops
+            # Build AU calibration ONCE from the exact four saved baseline crops
             # per emotion. No additional frames are sampled or selected here.
             if args.au_calibration:
                 au_detector: Optional[PyFeatAUDetector] = None
@@ -3809,11 +4400,61 @@ def run_warm_up(args: argparse.Namespace) -> None:
                         startup_timeout=args.pyfeat_startup_timeout,
                         request_timeout=args.pyfeat_timeout,
                     )
-                    session["au_calibration"] = build_au_calibration_from_saved_crops(
+                    profile = build_au_calibration_from_saved_crops(
                         participant_folder=participant_folder,
                         session=session,
                         detector=au_detector,
                     )
+
+                    # Retry each failed/inconsistent calibration emotion at most
+                    # AU_CALIBRATION_MAX_RETRIES times. Neutral is repaired first
+                    # because every emotion delta depends on it.
+                    retry_counts: dict[str, int] = {}
+                    while True:
+                        already_retried = {
+                            emotion for emotion, count in retry_counts.items()
+                            if count >= AU_CALIBRATION_MAX_RETRIES
+                        }
+                        needs_retry = au_calibration_emotions_needing_retry(
+                            profile, list(args.emotions), already_retried
+                        )
+                        if not needs_retry:
+                            break
+
+                        for emotion in needs_retry:
+                            retry_counts[emotion] = retry_counts.get(emotion, 0) + 1
+                            print_ts(
+                                f"AU calibration QC failed for {emotion}; "
+                                f"recapturing baseline (retry {retry_counts[emotion]}/"
+                                f"{AU_CALIBRATION_MAX_RETRIES})."
+                            )
+                            narrator.say_brief(
+                                f"The facial calibration for {emotion} was not stable enough. "
+                                "Please show that expression once more."
+                            )
+                            capture_baseline_emotion_round(
+                                narrator=narrator,
+                                whisper_model=whisper_model,
+                                silero_model=silero_model,
+                                input_device=args.input_device,
+                                camera=camera,
+                                deepface=deepface,
+                                requested_emotion=emotion,
+                                script_text=EMOTION_SCRIPTS[emotion],
+                                participant_folder=participant_folder,
+                                session=session,
+                                script_attempts=args.script_attempts,
+                            )
+                            save_session(participant_id, session)
+
+                        profile = build_au_calibration_from_saved_crops(
+                            participant_folder=participant_folder,
+                            session=session,
+                            detector=au_detector,
+                        )
+
+                    profile["retry_counts"] = retry_counts
+                    session["au_calibration"] = profile
                 except Exception as exc:
                     # A worker SIGSEGV is converted into a normal RuntimeError here,
                     # so the participant session continues to the test round/Q&A.
@@ -4068,7 +4709,7 @@ def parse_arguments() -> argparse.Namespace:
         default=AU_CALIBRATION_ENABLED_DEFAULT,
         help=(
             "Build a participant-specific Py-Feat AU calibration profile from "
-            "only the two saved baseline face crops per emotion. Use "
+            "only the four saved baseline face crops per emotion. Use "
             "--no-au_calibration to skip it."
         ),
     )

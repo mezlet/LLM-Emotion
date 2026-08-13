@@ -1,28 +1,39 @@
 {
   "participant_id": "A1234",
   "participant_folder": "A1234",
+  "session_type": "experiment",
+  "counts_as_experiment_session": true,
   "session_number": 1,
-  "display_name": "Davit",
-  "started_at": "2026-08-11T15:52:25",
-  "ended_at": "2026-08-11T16:14:59",
+  "display_name": "Dam",
+  "started_at": "2026-08-13T15:42:12",
+  "ended_at": "2026-08-13T16:02:23",
   "goals_stated": true,
   "previous_session_summary": null,
-  "summary": "Last time, we discussed AI, machine learning, and deep learning.",
-  "au_calibration_status": "ready",
+  "summary": "Last time, we discussed artificial intelligence and robotics basics.",
+  "au_calibration_status": "profile_missing",
   "qa_session": [
     {
-      "question": "What is the essence of this experiment?",
-      "answer": "In this experiment, we're exploring how humans interact with humanoid robots like me. You'll be engaging in a conversation about Artificial Intelligence and Robotics topics, and I'll respond as a teaching assistant would. We'll learn together, and I'll adapt my explanations to your questions and interests.",
-      "full_answer": "In this experiment, we're exploring how humans interact with humanoid robots like me. You'll be engaging in a conversation about Artificial Intelligence and Robotics topics, and I'll respond as a teaching assistant would. We'll learn together, and I'll adapt my explanations to your questions and interests.",
+      "question": "What is the whole essence of this experiment?",
+      "answer": "Hello! In this experiment, we're exploring how humans and robots like me can work together to learn and understand each other better. You'll be playing the role of a learner, asking questions and responding as you would with a human tutor. I'm excited to help you discover new things about Artificial Intelligence and Robotics!",
+      "full_answer": "Hello! In this experiment, we're exploring how humans and robots like me can work together to learn and understand each other better. You'll be playing the role of a learner, asking questions and responding as you would with a human tutor. I'm excited to help you discover new things about Artificial Intelligence and Robotics!",
       "images": [
-        "warm_up_profile/A1234/questions_1_20260811_155312_471637.jpg",
-        "warm_up_profile/A1234/questions_2_20260811_155312_471902.jpg"
+        "warm_up_profile/A1234/questions_1_20260813_154254_424179.jpg",
+        "warm_up_profile/A1234/questions_2_20260813_154254_424431.jpg"
       ],
       "text_emotion": {
         "emotion": "neutral",
         "ekman_emotion": "neutral",
-        "confidence": 1.0,
-        "reason": "The text lacks emotional tone and asks a factual question.",
+        "confidence": 0.4,
+        "scores": {
+          "joy": 0.2,
+          "sadness": 0.1,
+          "anger": 0.05,
+          "fear": 0.05,
+          "surprise": 0.15,
+          "disgust": 0.05,
+          "neutral": 0.4
+        },
+        "reason": "The experiment aims to understand human-robot interaction and the role of emotions in this process.",
         "facial_expression_sequence": "bneutral",
         "facial_expression_emoji": "🙂"
       },
@@ -30,109 +41,103 @@
         "available": true,
         "reliable": true,
         "dominant_emotion": "joy",
-        "confidence": 0.6056,
+        "confidence": 0.9425,
         "averaged_scores": {
-          "joy": 60.5607,
-          "sadness": 0.2961,
-          "anger": 0.0526,
-          "fear": 0.0097,
-          "surprise": 0.0007,
+          "joy": 94.2486,
+          "sadness": 0.3912,
+          "anger": 0.0854,
+          "fear": 0.0536,
+          "surprise": 0.144,
           "disgust": 0.0,
-          "neutral": 39.0802
+          "neutral": 5.0773
         },
-        "sampled_frame_count": 3,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 3 usable frame(s): joy 60.6% with margin 21.5%.",
-        "analysis_seconds": 0.4535,
+        "sampled_frame_count": 2,
+        "analyzed_frame_count": 2,
+        "reason": "DeepFace average over 2 usable frame(s): joy 94.2% with margin 89.2%.",
+        "analysis_seconds": 0.3358,
         "au_verification": {
-          "available": true,
-          "status": "confirmed",
-          "confidence": 0.618499,
-          "au_emotion": "joy",
+          "available": false,
+          "status": "no_calibration_profile",
+          "confidence": 0.0,
+          "au_emotion": null,
           "deepface_emotion": "joy",
-          "agreement": true,
-          "similarity": 0.937304,
-          "second_best_emotion": "surprise",
-          "second_best_selection_score": 0.645211,
-          "margin": 0.292094,
-          "activation_strength": 0.318612,
-          "strength_term": 1.0,
-          "reference_consistency": 0.698074,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.937304,
-              "selection_score": 0.937304
-            },
-            "sadness": {
-              "similarity": 0.562822,
-              "selection_score": 0.562822
-            },
-            "anger": {
-              "similarity": 0.600189,
-              "selection_score": 0.600189
-            },
-            "fear": {
-              "similarity": 0.479384,
-              "selection_score": 0.479384
-            },
-            "surprise": {
-              "similarity": 0.645211,
-              "selection_score": 0.645211
-            }
+          "analysis_seconds": 0.0,
+          "deepface_confidence": 0.942486,
+          "deepface_averaged_scores": {
+            "joy": 94.24856567382812,
+            "sadness": 0.39116210490465164,
+            "anger": 0.08541113883256912,
+            "fear": 0.05363202909938991,
+            "surprise": 0.14396307663992047,
+            "disgust": 4.346063519733434e-06,
+            "neutral": 5.077261209487915
           },
-          "live_crop_count": 2,
-          "analysis_seconds": 0.3894,
-          "deepface_base_reliability": 0.597825,
-          "reliability_adjustment_factor": 1.18555,
-          "adjusted_visual_reliability": 0.708752
+          "selected_source": "deepface",
+          "selected_emotion": "joy",
+          "selected_confidence": 0.942486
         }
       },
       "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+        "available": false,
+        "emotion": "neutral",
+        "confidence": 0.0,
+        "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
         "features": {
-          "peak": 1.02247,
-          "rms": 0.276626,
-          "duration": 3.52,
-          "energy_std": 0.185944,
-          "zero_crossing_rate": 0.162201
+          "peak": 0.529416,
+          "rms": 0.078229,
+          "duration": 3.776,
+          "energy_std": 0.053637,
+          "energy_cv": 0.933944,
+          "energy_range": 0.126488,
+          "zero_crossing_rate": 0.135099,
+          "pitch_median_hz": 192.771088,
+          "pitch_mean_hz": 192.693741,
+          "pitch_std_hz": 25.740726,
+          "pitch_range_hz": 48.599274,
+          "voiced_ratio": 0.725352,
+          "spectral_centroid_hz": 1312.373278,
+          "spectral_flatness": 0.271444
         }
       },
       "fused_emotion": {
-        "emotion": "neutral",
-        "confidence": 0.8674,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=joy rel=0.25, prosody=surprise rel=0.25.",
+        "emotion": "joy",
+        "confidence": 0.7589,
+        "reason": "Fixed-prosody/adaptive-text-visual fusion selected joy: text=neutral rel=0.40 weight=0.25, visual=joy rel=0.97 weight=0.75, prosody=None weight=0.00.",
         "scores": {
-          "joy": 0.100557,
-          "sadness": 0.004762,
-          "anger": 0.004375,
-          "fear": 0.004306,
-          "surprise": 0.014305,
-          "disgust": 0.004291,
-          "neutral": 0.867405
+          "joy": 0.758889,
+          "sadness": 0.027672,
+          "anger": 0.013007,
+          "fear": 0.012767,
+          "surprise": 0.038175,
+          "disgust": 0.012364,
+          "neutral": 0.137127
         },
         "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.248063,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.800993,
-          "active_normalized_visual": 0.158957,
-          "active_normalized_prosody": 0.04005
+          "base_text": 0.4,
+          "base_visual": 0.5,
+          "base_prosody": 0.0,
+          "reliability_text": 0.4,
+          "reliability_visual": 0.974119,
+          "reliability_prosody": 0.0,
+          "adaptive_text_visual_pool": 1.0,
+          "active_normalized_text": 0.247273,
+          "active_normalized_visual": 0.752727,
+          "active_normalized_prosody": 0.0
         },
         "text_emotion": {
           "emotion": "neutral",
           "ekman_emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "The text lacks emotional tone and asks a factual question.",
+          "confidence": 0.4,
+          "scores": {
+            "joy": 0.2,
+            "sadness": 0.1,
+            "anger": 0.05,
+            "fear": 0.05,
+            "surprise": 0.15,
+            "disgust": 0.05,
+            "neutral": 0.4
+          },
+          "reason": "The experiment aims to understand human-robot interaction and the role of emotions in this process.",
           "facial_expression_sequence": "bneutral",
           "facial_expression_emoji": "🙂"
         },
@@ -140,124 +145,119 @@
           "available": true,
           "reliable": true,
           "dominant_emotion": "joy",
-          "confidence": 0.6056,
+          "confidence": 0.9425,
           "averaged_scores": {
-            "joy": 60.5607,
-            "sadness": 0.2961,
-            "anger": 0.0526,
-            "fear": 0.0097,
-            "surprise": 0.0007,
+            "joy": 94.2486,
+            "sadness": 0.3912,
+            "anger": 0.0854,
+            "fear": 0.0536,
+            "surprise": 0.144,
             "disgust": 0.0,
-            "neutral": 39.0802
+            "neutral": 5.0773
           },
-          "sampled_frame_count": 3,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 3 usable frame(s): joy 60.6% with margin 21.5%.",
-          "analysis_seconds": 0.4535,
+          "sampled_frame_count": 2,
+          "analyzed_frame_count": 2,
+          "reason": "DeepFace average over 2 usable frame(s): joy 94.2% with margin 89.2%.",
+          "analysis_seconds": 0.3358,
           "au_verification": {
-            "available": true,
-            "status": "confirmed",
-            "confidence": 0.618499,
-            "au_emotion": "joy",
+            "available": false,
+            "status": "no_calibration_profile",
+            "confidence": 0.0,
+            "au_emotion": null,
             "deepface_emotion": "joy",
-            "agreement": true,
-            "similarity": 0.937304,
-            "second_best_emotion": "surprise",
-            "second_best_selection_score": 0.645211,
-            "margin": 0.292094,
-            "activation_strength": 0.318612,
-            "strength_term": 1.0,
-            "reference_consistency": 0.698074,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.937304,
-                "selection_score": 0.937304
-              },
-              "sadness": {
-                "similarity": 0.562822,
-                "selection_score": 0.562822
-              },
-              "anger": {
-                "similarity": 0.600189,
-                "selection_score": 0.600189
-              },
-              "fear": {
-                "similarity": 0.479384,
-                "selection_score": 0.479384
-              },
-              "surprise": {
-                "similarity": 0.645211,
-                "selection_score": 0.645211
-              }
+            "analysis_seconds": 0.0,
+            "deepface_confidence": 0.942486,
+            "deepface_averaged_scores": {
+              "joy": 94.24856567382812,
+              "sadness": 0.39116210490465164,
+              "anger": 0.08541113883256912,
+              "fear": 0.05363202909938991,
+              "surprise": 0.14396307663992047,
+              "disgust": 4.346063519733434e-06,
+              "neutral": 5.077261209487915
             },
-            "live_crop_count": 2,
-            "analysis_seconds": 0.3894,
-            "deepface_base_reliability": 0.597825,
-            "reliability_adjustment_factor": 1.18555,
-            "adjusted_visual_reliability": 0.708752
+            "selected_source": "deepface",
+            "selected_emotion": "joy",
+            "selected_confidence": 0.942486
           }
         },
         "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+          "available": false,
+          "emotion": "neutral",
+          "confidence": 0.0,
+          "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
           "features": {
-            "peak": 1.02247,
-            "rms": 0.276626,
-            "duration": 3.52,
-            "energy_std": 0.185944,
-            "zero_crossing_rate": 0.162201
+            "peak": 0.529416,
+            "rms": 0.078229,
+            "duration": 3.776,
+            "energy_std": 0.053637,
+            "energy_cv": 0.933944,
+            "energy_range": 0.126488,
+            "zero_crossing_rate": 0.135099,
+            "pitch_median_hz": 192.771088,
+            "pitch_mean_hz": 192.693741,
+            "pitch_std_hz": 25.740726,
+            "pitch_range_hz": 48.599274,
+            "voiced_ratio": 0.725352,
+            "spectral_centroid_hz": 1312.373278,
+            "spectral_flatness": 0.271444
           }
         },
         "response_times": {
-          "text_seconds": 1.6493,
-          "visual_seconds": 0.4535,
-          "au_verification_seconds": 0.3894,
-          "prosody_seconds": 0.0005
+          "text_seconds": 2.8692,
+          "visual_seconds": 0.3358,
+          "au_verification_seconds": 0.0,
+          "prosody_seconds": 0.0066
         },
         "temporal_smoothing": {
           "enabled": true,
           "alpha": 0.6,
           "smoothed_scores": {
-            "joy": 0.10055672335511856,
-            "sadness": 0.004761756576350866,
-            "anger": 0.004374600644224444,
-            "fear": 0.0043064348494960825,
-            "surprise": 0.014304550510983918,
-            "disgust": 0.004291033440536551,
-            "neutral": 0.8674049006232895
+            "joy": 0.7588893338897871,
+            "sadness": 0.027671640087879316,
+            "anger": 0.013006540865156872,
+            "fear": 0.012767330783601058,
+            "surprise": 0.038174532931878155,
+            "disgust": 0.012363660493892899,
+            "neutral": 0.13712696094780458
           },
-          "smoothed_emotion": "neutral",
-          "smoothed_confidence": 0.8674049006232895
+          "smoothed_emotion": "joy",
+          "smoothed_confidence": 0.7588893338897871
         }
       },
       "response_emotion": {
-        "emotion": "neutral",
-        "ekman_emotion": "neutral",
-        "confidence": 0.0,
-        "reason": "This answer is neutral because it provides factual information about the experiment without expressing any emotional tone.",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "🙂"
+        "emotion": "joy",
+        "ekman_emotion": "joy",
+        "confidence": 0.76,
+        "scores": {},
+        "reason": "Your enthusiasm is contagious!",
+        "facial_expression_sequence": "Smile",
+        "facial_expression_emoji": "😊"
       },
-      "captured_at": "2026-08-11T15:53:15"
+      "captured_at": "2026-08-13T15:42:57"
     },
     {
-      "question": "What is the expectation of me in these experiments?",
-      "answer": "As a study participant, your role is to engage as a learner in a lesson on A.I. and Robotics topics, asking questions and responding as you would with a human tutor.",
-      "full_answer": "As a study participant, your role is to engage as a learner in a lesson on A.I. and Robotics topics, asking questions and responding as you would with a human tutor.",
+      "question": "What is expected of me in this experiment?",
+      "answer": "As a learner, your role is to engage as you would with a human tutor, asking questions and responding in conversation. You'll be talking through my microphone, and I'll respond accordingly.",
+      "full_answer": "As a learner, your role is to engage as you would with a human tutor, asking questions and responding in conversation. You'll be talking through my microphone, and I'll respond accordingly.",
       "images": [
-        "warm_up_profile/A1234/questions_3_20260811_155349_431916.jpg"
+        "warm_up_profile/A1234/questions_3_20260813_154339_137885.jpg",
+        "warm_up_profile/A1234/questions_4_20260813_154339_138179.jpg"
       ],
       "text_emotion": {
         "emotion": "neutral",
         "ekman_emotion": "neutral",
-        "confidence": 1.0,
-        "reason": "The text expresses a neutral curiosity and inquiry about expectations, without any emotional tone.",
+        "confidence": 0.4286,
+        "scores": {
+          "joy": 0.190476,
+          "sadness": 0.095238,
+          "anger": 0.047619,
+          "fear": 0.047619,
+          "surprise": 0.142857,
+          "disgust": 0.047619,
+          "neutral": 0.428571
+        },
+        "reason": "The participant is likely to feel a mix of emotions due to the uncertainty and novelty of the experiment, with a slight dominance of neutral emotions as they try to understand what is expected.",
         "facial_expression_sequence": "bneutral",
         "facial_expression_emoji": "🙂"
       },
@@ -265,109 +265,103 @@
         "available": true,
         "reliable": true,
         "dominant_emotion": "neutral",
-        "confidence": 0.9189,
+        "confidence": 0.4217,
         "averaged_scores": {
-          "joy": 0.0174,
-          "sadness": 6.6604,
-          "anger": 0.9952,
-          "fear": 0.4356,
-          "surprise": 0.0019,
-          "disgust": 0.0,
-          "neutral": 91.8894
+          "joy": 31.9994,
+          "sadness": 18.8319,
+          "anger": 6.3297,
+          "fear": 0.5666,
+          "surprise": 0.1066,
+          "disgust": 0.0003,
+          "neutral": 42.1654
         },
-        "sampled_frame_count": 1,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 1 usable frame(s): neutral 91.9% with margin 85.2%.",
-        "analysis_seconds": 0.2904,
+        "sampled_frame_count": 2,
+        "analyzed_frame_count": 2,
+        "reason": "DeepFace average over 2 usable frame(s): neutral 42.2% with margin 10.2%.",
+        "analysis_seconds": 0.2296,
         "au_verification": {
-          "available": true,
-          "status": "weak_conflict",
-          "confidence": 0.282732,
-          "au_emotion": "joy",
+          "available": false,
+          "status": "no_calibration_profile",
+          "confidence": 0.0,
+          "au_emotion": null,
           "deepface_emotion": "neutral",
-          "agreement": false,
-          "similarity": 0.862577,
-          "second_best_emotion": "anger",
-          "second_best_selection_score": 0.727596,
-          "margin": 0.134981,
-          "activation_strength": 0.24,
-          "strength_term": 1.0,
-          "reference_consistency": 0.698074,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.862577,
-              "selection_score": 0.862577
-            },
-            "sadness": {
-              "similarity": 0.603328,
-              "selection_score": 0.603328
-            },
-            "anger": {
-              "similarity": 0.727596,
-              "selection_score": 0.727596
-            },
-            "fear": {
-              "similarity": 0.555096,
-              "selection_score": 0.555096
-            },
-            "surprise": {
-              "similarity": 0.707875,
-              "selection_score": 0.707875
-            }
+          "analysis_seconds": 0.0,
+          "deepface_confidence": 0.421654,
+          "deepface_averaged_scores": {
+            "joy": 31.999431610107422,
+            "sadness": 18.831902265548706,
+            "anger": 6.329708933830261,
+            "fear": 0.5666029453277588,
+            "surprise": 0.10662265308201313,
+            "disgust": 0.00031751609640195966,
+            "neutral": 42.16542053222656
           },
-          "live_crop_count": 1,
-          "analysis_seconds": 0.2016,
-          "deepface_base_reliability": 0.830169,
-          "reliability_adjustment_factor": 0.802088,
-          "adjusted_visual_reliability": 0.665868
+          "selected_source": "deepface",
+          "selected_emotion": "neutral",
+          "selected_confidence": 0.421654
         }
       },
       "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+        "available": false,
+        "emotion": "neutral",
+        "confidence": 0.0,
+        "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
         "features": {
-          "peak": 1.089469,
-          "rms": 0.345466,
-          "duration": 4.608,
-          "energy_std": 0.230488,
-          "zero_crossing_rate": 0.161189
+          "peak": 1.006456,
+          "rms": 0.101665,
+          "duration": 4.032,
+          "energy_std": 0.07539,
+          "energy_cv": 1.095694,
+          "energy_range": 0.16451,
+          "zero_crossing_rate": 0.109764,
+          "pitch_median_hz": 186.046509,
+          "pitch_mean_hz": 188.619034,
+          "pitch_std_hz": 38.407722,
+          "pitch_range_hz": 73.677948,
+          "voiced_ratio": 0.75,
+          "spectral_centroid_hz": 1383.814549,
+          "spectral_flatness": 0.281777
         }
       },
       "fused_emotion": {
         "emotion": "neutral",
-        "confidence": 0.9517,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.23, prosody=surprise rel=0.25.",
+        "confidence": 0.4246,
+        "reason": "Fixed-prosody/adaptive-text-visual fusion selected neutral: text=neutral rel=0.43 weight=0.43, visual=neutral rel=0.45 weight=0.57, prosody=None weight=0.00.",
         "scores": {
-          "joy": 0.004359,
-          "sadness": 0.014376,
-          "anger": 0.005833,
-          "fear": 0.00499,
-          "surprise": 0.014445,
-          "disgust": 0.004333,
-          "neutral": 0.951664
+          "joy": 0.263919,
+          "sadness": 0.148019,
+          "anger": 0.056509,
+          "fear": 0.02383,
+          "surprise": 0.062455,
+          "disgust": 0.020619,
+          "neutral": 0.424649
         },
         "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.233054,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.808772,
-          "active_normalized_visual": 0.15079,
-          "active_normalized_prosody": 0.040439
+          "base_text": 0.4,
+          "base_visual": 0.5,
+          "base_prosody": 0.0,
+          "reliability_text": 0.428571,
+          "reliability_visual": 0.449046,
+          "reliability_prosody": 0.0,
+          "adaptive_text_visual_pool": 1.0,
+          "active_normalized_text": 0.432953,
+          "active_normalized_visual": 0.567047,
+          "active_normalized_prosody": 0.0
         },
         "text_emotion": {
           "emotion": "neutral",
           "ekman_emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "The text expresses a neutral curiosity and inquiry about expectations, without any emotional tone.",
+          "confidence": 0.4286,
+          "scores": {
+            "joy": 0.190476,
+            "sadness": 0.095238,
+            "anger": 0.047619,
+            "fear": 0.047619,
+            "surprise": 0.142857,
+            "disgust": 0.047619,
+            "neutral": 0.428571
+          },
+          "reason": "The participant is likely to feel a mix of emotions due to the uncertainty and novelty of the experiment, with a slight dominance of neutral emotions as they try to understand what is expected.",
           "facial_expression_sequence": "bneutral",
           "facial_expression_emoji": "🙂"
         },
@@ -375,848 +369,358 @@
           "available": true,
           "reliable": true,
           "dominant_emotion": "neutral",
-          "confidence": 0.9189,
+          "confidence": 0.4217,
           "averaged_scores": {
-            "joy": 0.0174,
-            "sadness": 6.6604,
-            "anger": 0.9952,
-            "fear": 0.4356,
-            "surprise": 0.0019,
-            "disgust": 0.0,
-            "neutral": 91.8894
+            "joy": 31.9994,
+            "sadness": 18.8319,
+            "anger": 6.3297,
+            "fear": 0.5666,
+            "surprise": 0.1066,
+            "disgust": 0.0003,
+            "neutral": 42.1654
           },
-          "sampled_frame_count": 1,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 1 usable frame(s): neutral 91.9% with margin 85.2%.",
-          "analysis_seconds": 0.2904,
+          "sampled_frame_count": 2,
+          "analyzed_frame_count": 2,
+          "reason": "DeepFace average over 2 usable frame(s): neutral 42.2% with margin 10.2%.",
+          "analysis_seconds": 0.2296,
           "au_verification": {
-            "available": true,
-            "status": "weak_conflict",
-            "confidence": 0.282732,
-            "au_emotion": "joy",
+            "available": false,
+            "status": "no_calibration_profile",
+            "confidence": 0.0,
+            "au_emotion": null,
             "deepface_emotion": "neutral",
-            "agreement": false,
-            "similarity": 0.862577,
-            "second_best_emotion": "anger",
-            "second_best_selection_score": 0.727596,
-            "margin": 0.134981,
-            "activation_strength": 0.24,
-            "strength_term": 1.0,
-            "reference_consistency": 0.698074,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.862577,
-                "selection_score": 0.862577
-              },
-              "sadness": {
-                "similarity": 0.603328,
-                "selection_score": 0.603328
-              },
-              "anger": {
-                "similarity": 0.727596,
-                "selection_score": 0.727596
-              },
-              "fear": {
-                "similarity": 0.555096,
-                "selection_score": 0.555096
-              },
-              "surprise": {
-                "similarity": 0.707875,
-                "selection_score": 0.707875
-              }
+            "analysis_seconds": 0.0,
+            "deepface_confidence": 0.421654,
+            "deepface_averaged_scores": {
+              "joy": 31.999431610107422,
+              "sadness": 18.831902265548706,
+              "anger": 6.329708933830261,
+              "fear": 0.5666029453277588,
+              "surprise": 0.10662265308201313,
+              "disgust": 0.00031751609640195966,
+              "neutral": 42.16542053222656
             },
-            "live_crop_count": 1,
-            "analysis_seconds": 0.2016,
-            "deepface_base_reliability": 0.830169,
-            "reliability_adjustment_factor": 0.802088,
-            "adjusted_visual_reliability": 0.665868
+            "selected_source": "deepface",
+            "selected_emotion": "neutral",
+            "selected_confidence": 0.421654
           }
         },
         "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
-          "features": {
-            "peak": 1.089469,
-            "rms": 0.345466,
-            "duration": 4.608,
-            "energy_std": 0.230488,
-            "zero_crossing_rate": 0.161189
-          }
-        },
-        "response_times": {
-          "text_seconds": 2.0171,
-          "visual_seconds": 0.2904,
-          "au_verification_seconds": 0.2016,
-          "prosody_seconds": 0.0005
-        },
-        "temporal_smoothing": {
-          "enabled": true,
-          "alpha": 0.6,
-          "smoothed_scores": {
-            "joy": 0.042838099707473334,
-            "sadness": 0.010530276452509946,
-            "anger": 0.005249841863042158,
-            "fear": 0.004716301593740637,
-            "surprise": 0.014388990836211313,
-            "disgust": 0.004316036268347426,
-            "neutral": 0.917960453278675
-          },
-          "smoothed_emotion": "neutral",
-          "smoothed_confidence": 0.917960453278675
-        }
-      },
-      "response_emotion": {
-        "emotion": "neutral",
-        "ekman_emotion": "neutral",
-        "confidence": 0.0,
-        "reason": "This answer aims to provide a clear explanation without expressing any emotion.",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "🙂"
-      },
-      "captured_at": "2026-08-11T15:53:52"
-    },
-    {
-      "question": "Do you understand German?",
-      "answer": "I don't have context on languages beyond AI and Robotics topics, so I won't be able to understand or respond in German. However, I can still help you with your questions about A.I. and Robotics!",
-      "full_answer": "I don't have context on languages beyond AI and Robotics topics, so I won't be able to understand or respond in German. However, I can still help you with your questions about A.I. and Robotics!",
-      "images": [
-        "warm_up_profile/A1234/questions_4_20260811_155415_761936.jpg",
-        "warm_up_profile/A1234/questions_5_20260811_155415_762405.jpg"
-      ],
-      "text_emotion": {
-        "emotion": "neutral",
-        "ekman_emotion": "neutral",
-        "confidence": 1.0,
-        "reason": "The text is a straightforward question and does not convey any emotional tone.",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "🙂"
-      },
-      "visual_emotion": {
-        "available": true,
-        "reliable": true,
-        "dominant_emotion": "neutral",
-        "confidence": 0.8263,
-        "averaged_scores": {
-          "joy": 7.6262,
-          "sadness": 8.0144,
-          "anger": 1.5073,
-          "fear": 0.216,
-          "surprise": 0.0046,
-          "disgust": 0.0,
-          "neutral": 82.6314
-        },
-        "sampled_frame_count": 3,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 3 usable frame(s): neutral 82.6% with margin 74.6%.",
-        "analysis_seconds": 0.3255,
-        "au_verification": {
-          "available": true,
-          "status": "weak_conflict",
-          "confidence": 0.576889,
-          "au_emotion": "joy",
-          "deepface_emotion": "neutral",
-          "agreement": false,
-          "similarity": 0.92026,
-          "second_best_emotion": "surprise",
-          "second_best_selection_score": 0.678628,
-          "margin": 0.241632,
-          "activation_strength": 0.281591,
-          "strength_term": 1.0,
-          "reference_consistency": 0.698074,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.92026,
-              "selection_score": 0.92026
-            },
-            "sadness": {
-              "similarity": 0.571088,
-              "selection_score": 0.571088
-            },
-            "anger": {
-              "similarity": 0.673183,
-              "selection_score": 0.673183
-            },
-            "fear": {
-              "similarity": 0.507194,
-              "selection_score": 0.507194
-            },
-            "surprise": {
-              "similarity": 0.678628,
-              "selection_score": 0.678628
-            }
-          },
-          "live_crop_count": 2,
-          "analysis_seconds": 0.3498,
-          "deepface_base_reliability": 0.921841,
-          "reliability_adjustment_factor": 0.596178,
-          "adjusted_visual_reliability": 0.549581
-        }
-      },
-      "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
-        "features": {
-          "peak": 1.029753,
-          "rms": 0.387405,
-          "duration": 2.624,
-          "energy_std": 0.252785,
-          "zero_crossing_rate": 0.103613
-        }
-      },
-      "fused_emotion": {
-        "emotion": "neutral",
-        "confidence": 0.9407,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.19, prosody=surprise rel=0.25.",
-        "scores": {
-          "joy": 0.014198,
-          "sadness": 0.014694,
-          "anger": 0.006377,
-          "fear": 0.004726,
-          "surprise": 0.014839,
-          "disgust": 0.00445,
-          "neutral": 0.940717
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.192353,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.830646,
-          "active_normalized_visual": 0.127822,
-          "active_normalized_prosody": 0.041532
-        },
-        "text_emotion": {
+          "available": false,
           "emotion": "neutral",
-          "ekman_emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "The text is a straightforward question and does not convey any emotional tone.",
-          "facial_expression_sequence": "bneutral",
-          "facial_expression_emoji": "🙂"
-        },
-        "visual_emotion": {
-          "available": true,
-          "reliable": true,
-          "dominant_emotion": "neutral",
-          "confidence": 0.8263,
-          "averaged_scores": {
-            "joy": 7.6262,
-            "sadness": 8.0144,
-            "anger": 1.5073,
-            "fear": 0.216,
-            "surprise": 0.0046,
-            "disgust": 0.0,
-            "neutral": 82.6314
-          },
-          "sampled_frame_count": 3,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 3 usable frame(s): neutral 82.6% with margin 74.6%.",
-          "analysis_seconds": 0.3255,
-          "au_verification": {
-            "available": true,
-            "status": "weak_conflict",
-            "confidence": 0.576889,
-            "au_emotion": "joy",
-            "deepface_emotion": "neutral",
-            "agreement": false,
-            "similarity": 0.92026,
-            "second_best_emotion": "surprise",
-            "second_best_selection_score": 0.678628,
-            "margin": 0.241632,
-            "activation_strength": 0.281591,
-            "strength_term": 1.0,
-            "reference_consistency": 0.698074,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.92026,
-                "selection_score": 0.92026
-              },
-              "sadness": {
-                "similarity": 0.571088,
-                "selection_score": 0.571088
-              },
-              "anger": {
-                "similarity": 0.673183,
-                "selection_score": 0.673183
-              },
-              "fear": {
-                "similarity": 0.507194,
-                "selection_score": 0.507194
-              },
-              "surprise": {
-                "similarity": 0.678628,
-                "selection_score": 0.678628
-              }
-            },
-            "live_crop_count": 2,
-            "analysis_seconds": 0.3498,
-            "deepface_base_reliability": 0.921841,
-            "reliability_adjustment_factor": 0.596178,
-            "adjusted_visual_reliability": 0.549581
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+          "confidence": 0.0,
+          "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
           "features": {
-            "peak": 1.029753,
-            "rms": 0.387405,
-            "duration": 2.624,
-            "energy_std": 0.252785,
-            "zero_crossing_rate": 0.103613
+            "peak": 1.006456,
+            "rms": 0.101665,
+            "duration": 4.032,
+            "energy_std": 0.07539,
+            "energy_cv": 1.095694,
+            "energy_range": 0.16451,
+            "zero_crossing_rate": 0.109764,
+            "pitch_median_hz": 186.046509,
+            "pitch_mean_hz": 188.619034,
+            "pitch_std_hz": 38.407722,
+            "pitch_range_hz": 73.677948,
+            "voiced_ratio": 0.75,
+            "spectral_centroid_hz": 1383.814549,
+            "spectral_flatness": 0.281777
           }
         },
         "response_times": {
-          "text_seconds": 1.9777,
-          "visual_seconds": 0.3255,
-          "au_verification_seconds": 0.3498,
-          "prosody_seconds": 0.0007
+          "text_seconds": 3.1669,
+          "visual_seconds": 0.2296,
+          "au_verification_seconds": 0.0,
+          "prosody_seconds": 0.0067
         },
         "temporal_smoothing": {
           "enabled": true,
           "alpha": 0.6,
           "smoothed_scores": {
-            "joy": 0.025653941107212273,
-            "sadness": 0.013028580521759103,
-            "anger": 0.005925854713384355,
-            "fear": 0.004722142623393252,
-            "surprise": 0.01465890013141321,
-            "disgust": 0.0043963476231113335,
-            "neutral": 0.9316142332797264
+            "joy": 0.46190712974360704,
+            "sadness": 0.09988024400177999,
+            "anger": 0.03910815183136797,
+            "fear": 0.019404770563770556,
+            "surprise": 0.05274286326881507,
+            "disgust": 0.017316641153248928,
+            "neutral": 0.30964019943741056
           },
-          "smoothed_emotion": "neutral",
-          "smoothed_confidence": 0.9316142332797264
+          "smoothed_emotion": "joy",
+          "smoothed_confidence": 0.46190712974360704
         }
       },
       "response_emotion": {
         "emotion": "neutral",
         "ekman_emotion": "neutral",
         "confidence": 0.0,
-        "reason": "no relevant language knowledge",
+        "scores": {},
+        "reason": "This answer aims to provide clear instructions without expressing any particular emotion.",
         "facial_expression_sequence": "bneutral",
         "facial_expression_emoji": "🙂"
       },
-      "captured_at": "2026-08-11T15:54:18"
+      "captured_at": "2026-08-13T15:43:41"
     },
     {
-      "question": "So Karyo explained the difference between artificial intelligence, machine learning and deep learning.",
-      "answer": "That's a great start! Artificial Intelligence is the broader field that encompasses machine learning and deep learning. Think of it like a tree: AI is the trunk, machine learning is a branch, and deep learning is a leaf. They're all connected, but each has its own unique characteristics.",
-      "full_answer": "That's a great start! Artificial Intelligence is the broader field that encompasses machine learning and deep learning. Think of it like a tree: AI is the trunk, machine learning is a branch, and deep learning is a leaf. They're all connected, but each has its own unique characteristics.",
+      "question": "I don't understand artificial intelligence.",
+      "answer": "Don't worry, AI is actually quite simple! Think of it like a super smart computer that can learn from data and make decisions on its own. For example, when you ask me a question, I use patterns learned from my training to generate an answer. It's like having a personal assistant that gets smarter over time!",
+      "full_answer": "Don't worry, AI is actually quite simple! Think of it like a super smart computer that can learn from data and make decisions on its own. For example, when you ask me a question, I use patterns learned from my training to generate an answer. It's like having a personal assistant that gets smarter over time!",
       "images": [
-        "warm_up_profile/A1234/questions_6_20260811_155445_924493.jpg",
-        "warm_up_profile/A1234/questions_7_20260811_155445_924826.jpg"
+        "warm_up_profile/A1234/questions_5_20260813_154419_671091.jpg",
+        "warm_up_profile/A1234/questions_6_20260813_154419_671505.jpg"
       ],
       "text_emotion": {
-        "emotion": "neutral",
-        "ekman_emotion": "neutral",
-        "confidence": 1.0,
-        "reason": "The text describes a neutral topic of explaining technical concepts.",
+        "emotion": "sadness",
+        "ekman_emotion": "sadness",
+        "confidence": 0.2857,
+        "scores": {
+          "joy": 0.190476,
+          "sadness": 0.285714,
+          "anger": 0.095238,
+          "fear": 0.047619,
+          "surprise": 0.142857,
+          "disgust": 0.047619,
+          "neutral": 0.190476
+        },
+        "reason": "The user expressed confusion and frustration with AI, but also a hint of curiosity.",
         "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "🙂"
+        "facial_expression_emoji": "😢"
       },
       "visual_emotion": {
         "available": true,
         "reliable": true,
         "dominant_emotion": "sadness",
-        "confidence": 0.7785,
+        "confidence": 0.5833,
         "averaged_scores": {
-          "joy": 0.0035,
-          "sadness": 77.8505,
-          "anger": 1.0978,
-          "fear": 0.4068,
-          "surprise": 0.0,
-          "disgust": 0.0,
-          "neutral": 20.6415
+          "joy": 0.0058,
+          "sadness": 58.3339,
+          "anger": 3.4447,
+          "fear": 36.7395,
+          "surprise": 0.6903,
+          "disgust": 0.0003,
+          "neutral": 0.7855
         },
         "sampled_frame_count": 2,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 2 usable frame(s): sadness 77.9% with margin 57.2%.",
-        "analysis_seconds": 0.2976,
+        "analyzed_frame_count": 2,
+        "reason": "DeepFace average over 2 usable frame(s): sadness 58.3% with margin 21.6%.",
+        "analysis_seconds": 0.248,
         "au_verification": {
-          "available": true,
-          "status": "weak_conflict",
-          "confidence": 0.549946,
-          "au_emotion": "joy",
+          "available": false,
+          "status": "no_calibration_profile",
+          "confidence": 0.0,
+          "au_emotion": null,
           "deepface_emotion": "sadness",
-          "agreement": false,
-          "similarity": 0.909355,
-          "second_best_emotion": "surprise",
-          "second_best_selection_score": 0.673539,
-          "margin": 0.235816,
-          "activation_strength": 0.313666,
-          "strength_term": 1.0,
-          "reference_consistency": 0.698074,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.909355,
-              "selection_score": 0.909355
-            },
-            "sadness": {
-              "similarity": 0.508937,
-              "selection_score": 0.508937
-            },
-            "anger": {
-              "similarity": 0.608835,
-              "selection_score": 0.608835
-            },
-            "fear": {
-              "similarity": 0.511556,
-              "selection_score": 0.511556
-            },
-            "surprise": {
-              "similarity": 0.673539,
-              "selection_score": 0.673539
-            }
+          "analysis_seconds": 0.0,
+          "deepface_confidence": 0.583339,
+          "deepface_averaged_scores": {
+            "joy": 0.00583785492926836,
+            "sadness": 58.33390808105469,
+            "anger": 3.4447128772735596,
+            "fear": 36.73947525024414,
+            "surprise": 0.6902642101049423,
+            "disgust": 0.00025678989914013073,
+            "neutral": 0.7855495810508728
           },
-          "live_crop_count": 2,
-          "analysis_seconds": 0.3442,
-          "deepface_base_reliability": 0.81738,
-          "reliability_adjustment_factor": 0.615038,
-          "adjusted_visual_reliability": 0.502719
+          "selected_source": "deepface",
+          "selected_emotion": "sadness",
+          "selected_confidence": 0.583339
         }
       },
       "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+        "available": false,
+        "emotion": "neutral",
+        "confidence": 0.0,
+        "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
         "features": {
-          "peak": 1.037493,
-          "rms": 0.414278,
-          "duration": 6.72,
-          "energy_std": 0.236627,
-          "zero_crossing_rate": 0.148216
+          "peak": 0.39647,
+          "rms": 0.072344,
+          "duration": 3.872,
+          "energy_std": 0.044996,
+          "energy_cv": 0.78916,
+          "energy_range": 0.109398,
+          "zero_crossing_rate": 0.111039,
+          "pitch_median_hz": 188.235291,
+          "pitch_mean_hz": 194.781738,
+          "pitch_std_hz": 45.777725,
+          "pitch_range_hz": 67.899185,
+          "voiced_ratio": 0.735714,
+          "spectral_centroid_hz": 1213.125138,
+          "spectral_flatness": 0.258032
         }
       },
       "fused_emotion": {
-        "emotion": "neutral",
-        "confidence": 0.7495,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=sadness rel=0.50, prosody=surprise rel=0.25.",
+        "emotion": "sadness",
+        "confidence": 0.5001,
+        "reason": "Fixed-prosody/adaptive-text-visual fusion selected sadness: text=sadness rel=0.29 weight=0.28, visual=sadness rel=0.59 weight=0.72, prosody=None weight=0.00.",
         "scores": {
-          "joy": 0.003699,
-          "sadness": 0.219294,
-          "anger": 0.006729,
-          "fear": 0.004816,
-          "surprise": 0.012297,
-          "disgust": 0.003689,
-          "neutral": 0.749477
+          "joy": 0.053329,
+          "sadness": 0.500077,
+          "anger": 0.051454,
+          "fear": 0.277936,
+          "surprise": 0.044937,
+          "disgust": 0.013324,
+          "neutral": 0.058945
         },
         "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.502719,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.688622,
-          "active_normalized_visual": 0.276947,
-          "active_normalized_prosody": 0.034431
+          "base_text": 0.4,
+          "base_visual": 0.5,
+          "base_prosody": 0.0,
+          "reliability_text": 0.285714,
+          "reliability_visual": 0.58847,
+          "reliability_prosody": 0.0,
+          "adaptive_text_visual_pool": 1.0,
+          "active_normalized_text": 0.279755,
+          "active_normalized_visual": 0.720245,
+          "active_normalized_prosody": 0.0
         },
         "text_emotion": {
-          "emotion": "neutral",
-          "ekman_emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "The text describes a neutral topic of explaining technical concepts.",
+          "emotion": "sadness",
+          "ekman_emotion": "sadness",
+          "confidence": 0.2857,
+          "scores": {
+            "joy": 0.190476,
+            "sadness": 0.285714,
+            "anger": 0.095238,
+            "fear": 0.047619,
+            "surprise": 0.142857,
+            "disgust": 0.047619,
+            "neutral": 0.190476
+          },
+          "reason": "The user expressed confusion and frustration with AI, but also a hint of curiosity.",
           "facial_expression_sequence": "bneutral",
-          "facial_expression_emoji": "🙂"
+          "facial_expression_emoji": "😢"
         },
         "visual_emotion": {
           "available": true,
           "reliable": true,
           "dominant_emotion": "sadness",
-          "confidence": 0.7785,
+          "confidence": 0.5833,
           "averaged_scores": {
-            "joy": 0.0035,
-            "sadness": 77.8505,
-            "anger": 1.0978,
-            "fear": 0.4068,
-            "surprise": 0.0,
-            "disgust": 0.0,
-            "neutral": 20.6415
+            "joy": 0.0058,
+            "sadness": 58.3339,
+            "anger": 3.4447,
+            "fear": 36.7395,
+            "surprise": 0.6903,
+            "disgust": 0.0003,
+            "neutral": 0.7855
           },
           "sampled_frame_count": 2,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 2 usable frame(s): sadness 77.9% with margin 57.2%.",
-          "analysis_seconds": 0.2976,
+          "analyzed_frame_count": 2,
+          "reason": "DeepFace average over 2 usable frame(s): sadness 58.3% with margin 21.6%.",
+          "analysis_seconds": 0.248,
           "au_verification": {
-            "available": true,
-            "status": "weak_conflict",
-            "confidence": 0.549946,
-            "au_emotion": "joy",
+            "available": false,
+            "status": "no_calibration_profile",
+            "confidence": 0.0,
+            "au_emotion": null,
             "deepface_emotion": "sadness",
-            "agreement": false,
-            "similarity": 0.909355,
-            "second_best_emotion": "surprise",
-            "second_best_selection_score": 0.673539,
-            "margin": 0.235816,
-            "activation_strength": 0.313666,
-            "strength_term": 1.0,
-            "reference_consistency": 0.698074,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.909355,
-                "selection_score": 0.909355
-              },
-              "sadness": {
-                "similarity": 0.508937,
-                "selection_score": 0.508937
-              },
-              "anger": {
-                "similarity": 0.608835,
-                "selection_score": 0.608835
-              },
-              "fear": {
-                "similarity": 0.511556,
-                "selection_score": 0.511556
-              },
-              "surprise": {
-                "similarity": 0.673539,
-                "selection_score": 0.673539
-              }
+            "analysis_seconds": 0.0,
+            "deepface_confidence": 0.583339,
+            "deepface_averaged_scores": {
+              "joy": 0.00583785492926836,
+              "sadness": 58.33390808105469,
+              "anger": 3.4447128772735596,
+              "fear": 36.73947525024414,
+              "surprise": 0.6902642101049423,
+              "disgust": 0.00025678989914013073,
+              "neutral": 0.7855495810508728
             },
-            "live_crop_count": 2,
-            "analysis_seconds": 0.3442,
-            "deepface_base_reliability": 0.81738,
-            "reliability_adjustment_factor": 0.615038,
-            "adjusted_visual_reliability": 0.502719
+            "selected_source": "deepface",
+            "selected_emotion": "sadness",
+            "selected_confidence": 0.583339
           }
         },
         "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+          "available": false,
+          "emotion": "neutral",
+          "confidence": 0.0,
+          "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
           "features": {
-            "peak": 1.037493,
-            "rms": 0.414278,
-            "duration": 6.72,
-            "energy_std": 0.236627,
-            "zero_crossing_rate": 0.148216
+            "peak": 0.39647,
+            "rms": 0.072344,
+            "duration": 3.872,
+            "energy_std": 0.044996,
+            "energy_cv": 0.78916,
+            "energy_range": 0.109398,
+            "zero_crossing_rate": 0.111039,
+            "pitch_median_hz": 188.235291,
+            "pitch_mean_hz": 194.781738,
+            "pitch_std_hz": 45.777725,
+            "pitch_range_hz": 67.899185,
+            "voiced_ratio": 0.735714,
+            "spectral_centroid_hz": 1213.125138,
+            "spectral_flatness": 0.258032
           }
         },
         "response_times": {
-          "text_seconds": 1.9499,
-          "visual_seconds": 0.2976,
-          "au_verification_seconds": 0.3442,
-          "prosody_seconds": 0.0006
+          "text_seconds": 2.8447,
+          "visual_seconds": 0.248,
+          "au_verification_seconds": 0.0,
+          "prosody_seconds": 0.0065
         },
         "temporal_smoothing": {
           "enabled": true,
           "alpha": 0.6,
           "smoothed_scores": {
-            "joy": 0.012480750082741594,
-            "sadness": 0.13678754958431477,
-            "anger": 0.006407910129993697,
-            "fear": 0.0047783233602032675,
-            "surprise": 0.013241654046533267,
-            "disgust": 0.003971967810515094,
-            "neutral": 0.8223318449856982
+            "joy": 0.21676007618108012,
+            "sadness": 0.3399983256338985,
+            "anger": 0.046515482176128185,
+            "fear": 0.17452344739316922,
+            "surprise": 0.048059098510385576,
+            "disgust": 0.01492076521331852,
+            "neutral": 0.1592228048920199
           },
-          "smoothed_emotion": "neutral",
-          "smoothed_confidence": 0.8223318449856982
+          "smoothed_emotion": "sadness",
+          "smoothed_confidence": 0.3399983256338985
         }
       },
       "response_emotion": {
         "emotion": "neutral",
         "ekman_emotion": "neutral",
         "confidence": 0.0,
-        "reason": "The participant's question shows understanding of the basics.",
+        "scores": {},
+        "reason": "I'm here to help and explain in a calm manner",
         "facial_expression_sequence": "bneutral",
         "facial_expression_emoji": "🙂"
       },
-      "captured_at": "2026-08-11T15:54:49"
-    },
-    {
-      "question": "I am very mad at you. This is so annoying.",
-      "answer": "I'm sorry to hear that you're feeling frustrated. Can we take a step back and start again? I'm here to help and want to make sure our conversation is productive.",
-      "full_answer": "I'm sorry to hear that you're feeling frustrated. Can we take a step back and start again? I'm here to help and want to make sure our conversation is productive.",
-      "images": [
-        "warm_up_profile/A1234/questions_8_20260811_160506_775066.jpg",
-        "warm_up_profile/A1234/questions_9_20260811_160506_775369.jpg"
-      ],
-      "text_emotion": {
-        "emotion": "anger",
-        "ekman_emotion": "anger",
-        "confidence": 1.0,
-        "reason": "strong language and tone",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "😠"
-      },
-      "visual_emotion": {
-        "available": true,
-        "reliable": false,
-        "dominant_emotion": "anger",
-        "confidence": 0.3949,
-        "averaged_scores": {
-          "joy": 4.1364,
-          "sadness": 11.6298,
-          "anger": 39.4947,
-          "fear": 10.2836,
-          "surprise": 0.0577,
-          "disgust": 0.0948,
-          "neutral": 34.3031
-        },
-        "sampled_frame_count": 3,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 3 usable frame(s): anger 39.5% with margin 5.2%.",
-        "analysis_seconds": 0.3409,
-        "au_verification": {
-          "available": true,
-          "status": "confirmed",
-          "confidence": 0.840302,
-          "au_emotion": "anger",
-          "deepface_emotion": "anger",
-          "agreement": true,
-          "similarity": 0.949446,
-          "second_best_emotion": "joy",
-          "second_best_selection_score": 0.702926,
-          "margin": 0.246521,
-          "activation_strength": 0.329207,
-          "strength_term": 1.0,
-          "reference_consistency": 0.938418,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.702926,
-              "selection_score": 0.702926
-            },
-            "sadness": {
-              "similarity": 0.560632,
-              "selection_score": 0.560632
-            },
-            "anger": {
-              "similarity": 0.949446,
-              "selection_score": 0.949446
-            },
-            "fear": {
-              "similarity": 0.495146,
-              "selection_score": 0.495146
-            },
-            "surprise": {
-              "similarity": 0.691028,
-              "selection_score": 0.691028
-            }
-          },
-          "live_crop_count": 2,
-          "analysis_seconds": 0.3617,
-          "deepface_base_reliability": 0.265207,
-          "reliability_adjustment_factor": 1.252091,
-          "adjusted_visual_reliability": 0.332063
-        }
-      },
-      "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
-        "features": {
-          "peak": 1.202294,
-          "rms": 0.503565,
-          "duration": 4.288,
-          "energy_std": 0.30265,
-          "zero_crossing_rate": 0.14618
-        }
-      },
-      "fused_emotion": {
-        "emotion": "anger",
-        "confidence": 0.8439,
-        "reason": "Adaptive reliability-aware fusion selected anger: text=anger rel=1.00, visual=anger rel=0.33, prosody=surprise rel=0.25.",
-        "scores": {
-          "joy": 0.012424,
-          "sadness": 0.027554,
-          "anger": 0.843898,
-          "fear": 0.024836,
-          "surprise": 0.013689,
-          "disgust": 0.004263,
-          "neutral": 0.073335
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.332063,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.76008,
-          "active_normalized_visual": 0.201916,
-          "active_normalized_prosody": 0.038004
-        },
-        "text_emotion": {
-          "emotion": "anger",
-          "ekman_emotion": "anger",
-          "confidence": 1.0,
-          "reason": "strong language and tone",
-          "facial_expression_sequence": "bneutral",
-          "facial_expression_emoji": "😠"
-        },
-        "visual_emotion": {
-          "available": true,
-          "reliable": false,
-          "dominant_emotion": "anger",
-          "confidence": 0.3949,
-          "averaged_scores": {
-            "joy": 4.1364,
-            "sadness": 11.6298,
-            "anger": 39.4947,
-            "fear": 10.2836,
-            "surprise": 0.0577,
-            "disgust": 0.0948,
-            "neutral": 34.3031
-          },
-          "sampled_frame_count": 3,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 3 usable frame(s): anger 39.5% with margin 5.2%.",
-          "analysis_seconds": 0.3409,
-          "au_verification": {
-            "available": true,
-            "status": "confirmed",
-            "confidence": 0.840302,
-            "au_emotion": "anger",
-            "deepface_emotion": "anger",
-            "agreement": true,
-            "similarity": 0.949446,
-            "second_best_emotion": "joy",
-            "second_best_selection_score": 0.702926,
-            "margin": 0.246521,
-            "activation_strength": 0.329207,
-            "strength_term": 1.0,
-            "reference_consistency": 0.938418,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.702926,
-                "selection_score": 0.702926
-              },
-              "sadness": {
-                "similarity": 0.560632,
-                "selection_score": 0.560632
-              },
-              "anger": {
-                "similarity": 0.949446,
-                "selection_score": 0.949446
-              },
-              "fear": {
-                "similarity": 0.495146,
-                "selection_score": 0.495146
-              },
-              "surprise": {
-                "similarity": 0.691028,
-                "selection_score": 0.691028
-              }
-            },
-            "live_crop_count": 2,
-            "analysis_seconds": 0.3617,
-            "deepface_base_reliability": 0.265207,
-            "reliability_adjustment_factor": 1.252091,
-            "adjusted_visual_reliability": 0.332063
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
-          "features": {
-            "peak": 1.202294,
-            "rms": 0.503565,
-            "duration": 4.288,
-            "energy_std": 0.30265,
-            "zero_crossing_rate": 0.14618
-          }
-        },
-        "response_times": {
-          "text_seconds": 1.5609,
-          "visual_seconds": 0.3409,
-          "au_verification_seconds": 0.3617,
-          "prosody_seconds": 0.0004
-        },
-        "temporal_smoothing": {
-          "enabled": true,
-          "alpha": 0.6,
-          "smoothed_scores": {
-            "joy": 0.012446595610272766,
-            "sadness": 0.07124756719340333,
-            "anger": 0.5089020571413757,
-            "fear": 0.016812910670026604,
-            "surprise": 0.013510274179719116,
-            "disgust": 0.004146773641805828,
-            "neutral": 0.37293382156339655
-          },
-          "smoothed_emotion": "anger",
-          "smoothed_confidence": 0.5089020571413757
-        }
-      },
-      "response_emotion": {
-        "emotion": "anger",
-        "ekman_emotion": "anger",
-        "confidence": 0.51,
-        "reason": "The participant's tone and language suggest strong negative emotions.",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "😠"
-      },
-      "captured_at": "2026-08-11T16:05:09"
+      "captured_at": "2026-08-13T15:44:22"
     }
   ],
   "conversation": [
     {
       "role": "assistant",
-      "content": "(Name capture skipped -- reusing known name 'Davit' from an earlier session.)",
-      "timestamp": "2026-08-11T15:52:32",
+      "content": "(Name capture skipped -- reusing known name 'Dam' from an earlier session.)",
+      "timestamp": "2026-08-13T15:42:16",
       "intent": "name_reused"
     },
     {
       "role": "assistant",
-      "content": "Hello, Davit. I am glad you are here. In this session and the sessions that follow, we will explore Artificial Intelligence and Robotics together.",
-      "timestamp": "2026-08-11T15:52:47",
+      "content": "Hello, Dam. I am glad you are here. In this session and the sessions that follow, we will explore Artificial Intelligence and Robotics together.",
+      "timestamp": "2026-08-13T15:42:31",
       "intent": "goals_statement"
     },
     {
       "role": "user",
-      "content": "What is the essence of this experiment?",
-      "timestamp": "2026-08-11T15:53:15",
+      "content": "What is the whole essence of this experiment?",
+      "timestamp": "2026-08-13T15:42:57",
       "intent": "question",
       "images": [
-        "warm_up_profile/A1234/questions_1_20260811_155312_471637.jpg",
-        "warm_up_profile/A1234/questions_2_20260811_155312_471902.jpg"
+        "warm_up_profile/A1234/questions_1_20260813_154254_424179.jpg",
+        "warm_up_profile/A1234/questions_2_20260813_154254_424431.jpg"
       ],
       "text_emotion": {
         "emotion": "neutral",
         "ekman_emotion": "neutral",
-        "confidence": 1.0,
-        "reason": "The text lacks emotional tone and asks a factual question.",
+        "confidence": 0.4,
+        "scores": {
+          "joy": 0.2,
+          "sadness": 0.1,
+          "anger": 0.05,
+          "fear": 0.05,
+          "surprise": 0.15,
+          "disgust": 0.05,
+          "neutral": 0.4
+        },
+        "reason": "The experiment aims to understand human-robot interaction and the role of emotions in this process.",
         "facial_expression_sequence": "bneutral",
         "facial_expression_emoji": "🙂"
       },
@@ -1224,109 +728,103 @@
         "available": true,
         "reliable": true,
         "dominant_emotion": "joy",
-        "confidence": 0.6056,
+        "confidence": 0.9425,
         "averaged_scores": {
-          "joy": 60.5607,
-          "sadness": 0.2961,
-          "anger": 0.0526,
-          "fear": 0.0097,
-          "surprise": 0.0007,
+          "joy": 94.2486,
+          "sadness": 0.3912,
+          "anger": 0.0854,
+          "fear": 0.0536,
+          "surprise": 0.144,
           "disgust": 0.0,
-          "neutral": 39.0802
+          "neutral": 5.0773
         },
-        "sampled_frame_count": 3,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 3 usable frame(s): joy 60.6% with margin 21.5%.",
-        "analysis_seconds": 0.4535,
+        "sampled_frame_count": 2,
+        "analyzed_frame_count": 2,
+        "reason": "DeepFace average over 2 usable frame(s): joy 94.2% with margin 89.2%.",
+        "analysis_seconds": 0.3358,
         "au_verification": {
-          "available": true,
-          "status": "confirmed",
-          "confidence": 0.618499,
-          "au_emotion": "joy",
+          "available": false,
+          "status": "no_calibration_profile",
+          "confidence": 0.0,
+          "au_emotion": null,
           "deepface_emotion": "joy",
-          "agreement": true,
-          "similarity": 0.937304,
-          "second_best_emotion": "surprise",
-          "second_best_selection_score": 0.645211,
-          "margin": 0.292094,
-          "activation_strength": 0.318612,
-          "strength_term": 1.0,
-          "reference_consistency": 0.698074,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.937304,
-              "selection_score": 0.937304
-            },
-            "sadness": {
-              "similarity": 0.562822,
-              "selection_score": 0.562822
-            },
-            "anger": {
-              "similarity": 0.600189,
-              "selection_score": 0.600189
-            },
-            "fear": {
-              "similarity": 0.479384,
-              "selection_score": 0.479384
-            },
-            "surprise": {
-              "similarity": 0.645211,
-              "selection_score": 0.645211
-            }
+          "analysis_seconds": 0.0,
+          "deepface_confidence": 0.942486,
+          "deepface_averaged_scores": {
+            "joy": 94.24856567382812,
+            "sadness": 0.39116210490465164,
+            "anger": 0.08541113883256912,
+            "fear": 0.05363202909938991,
+            "surprise": 0.14396307663992047,
+            "disgust": 4.346063519733434e-06,
+            "neutral": 5.077261209487915
           },
-          "live_crop_count": 2,
-          "analysis_seconds": 0.3894,
-          "deepface_base_reliability": 0.597825,
-          "reliability_adjustment_factor": 1.18555,
-          "adjusted_visual_reliability": 0.708752
+          "selected_source": "deepface",
+          "selected_emotion": "joy",
+          "selected_confidence": 0.942486
         }
       },
       "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+        "available": false,
+        "emotion": "neutral",
+        "confidence": 0.0,
+        "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
         "features": {
-          "peak": 1.02247,
-          "rms": 0.276626,
-          "duration": 3.52,
-          "energy_std": 0.185944,
-          "zero_crossing_rate": 0.162201
+          "peak": 0.529416,
+          "rms": 0.078229,
+          "duration": 3.776,
+          "energy_std": 0.053637,
+          "energy_cv": 0.933944,
+          "energy_range": 0.126488,
+          "zero_crossing_rate": 0.135099,
+          "pitch_median_hz": 192.771088,
+          "pitch_mean_hz": 192.693741,
+          "pitch_std_hz": 25.740726,
+          "pitch_range_hz": 48.599274,
+          "voiced_ratio": 0.725352,
+          "spectral_centroid_hz": 1312.373278,
+          "spectral_flatness": 0.271444
         }
       },
       "fused_emotion": {
-        "emotion": "neutral",
-        "confidence": 0.8674,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=joy rel=0.25, prosody=surprise rel=0.25.",
+        "emotion": "joy",
+        "confidence": 0.7589,
+        "reason": "Fixed-prosody/adaptive-text-visual fusion selected joy: text=neutral rel=0.40 weight=0.25, visual=joy rel=0.97 weight=0.75, prosody=None weight=0.00.",
         "scores": {
-          "joy": 0.100557,
-          "sadness": 0.004762,
-          "anger": 0.004375,
-          "fear": 0.004306,
-          "surprise": 0.014305,
-          "disgust": 0.004291,
-          "neutral": 0.867405
+          "joy": 0.758889,
+          "sadness": 0.027672,
+          "anger": 0.013007,
+          "fear": 0.012767,
+          "surprise": 0.038175,
+          "disgust": 0.012364,
+          "neutral": 0.137127
         },
         "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.248063,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.800993,
-          "active_normalized_visual": 0.158957,
-          "active_normalized_prosody": 0.04005
+          "base_text": 0.4,
+          "base_visual": 0.5,
+          "base_prosody": 0.0,
+          "reliability_text": 0.4,
+          "reliability_visual": 0.974119,
+          "reliability_prosody": 0.0,
+          "adaptive_text_visual_pool": 1.0,
+          "active_normalized_text": 0.247273,
+          "active_normalized_visual": 0.752727,
+          "active_normalized_prosody": 0.0
         },
         "text_emotion": {
           "emotion": "neutral",
           "ekman_emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "The text lacks emotional tone and asks a factual question.",
+          "confidence": 0.4,
+          "scores": {
+            "joy": 0.2,
+            "sadness": 0.1,
+            "anger": 0.05,
+            "fear": 0.05,
+            "surprise": 0.15,
+            "disgust": 0.05,
+            "neutral": 0.4
+          },
+          "reason": "The experiment aims to understand human-robot interaction and the role of emotions in this process.",
           "facial_expression_sequence": "bneutral",
           "facial_expression_emoji": "🙂"
         },
@@ -1334,131 +832,126 @@
           "available": true,
           "reliable": true,
           "dominant_emotion": "joy",
-          "confidence": 0.6056,
+          "confidence": 0.9425,
           "averaged_scores": {
-            "joy": 60.5607,
-            "sadness": 0.2961,
-            "anger": 0.0526,
-            "fear": 0.0097,
-            "surprise": 0.0007,
+            "joy": 94.2486,
+            "sadness": 0.3912,
+            "anger": 0.0854,
+            "fear": 0.0536,
+            "surprise": 0.144,
             "disgust": 0.0,
-            "neutral": 39.0802
+            "neutral": 5.0773
           },
-          "sampled_frame_count": 3,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 3 usable frame(s): joy 60.6% with margin 21.5%.",
-          "analysis_seconds": 0.4535,
+          "sampled_frame_count": 2,
+          "analyzed_frame_count": 2,
+          "reason": "DeepFace average over 2 usable frame(s): joy 94.2% with margin 89.2%.",
+          "analysis_seconds": 0.3358,
           "au_verification": {
-            "available": true,
-            "status": "confirmed",
-            "confidence": 0.618499,
-            "au_emotion": "joy",
+            "available": false,
+            "status": "no_calibration_profile",
+            "confidence": 0.0,
+            "au_emotion": null,
             "deepface_emotion": "joy",
-            "agreement": true,
-            "similarity": 0.937304,
-            "second_best_emotion": "surprise",
-            "second_best_selection_score": 0.645211,
-            "margin": 0.292094,
-            "activation_strength": 0.318612,
-            "strength_term": 1.0,
-            "reference_consistency": 0.698074,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.937304,
-                "selection_score": 0.937304
-              },
-              "sadness": {
-                "similarity": 0.562822,
-                "selection_score": 0.562822
-              },
-              "anger": {
-                "similarity": 0.600189,
-                "selection_score": 0.600189
-              },
-              "fear": {
-                "similarity": 0.479384,
-                "selection_score": 0.479384
-              },
-              "surprise": {
-                "similarity": 0.645211,
-                "selection_score": 0.645211
-              }
+            "analysis_seconds": 0.0,
+            "deepface_confidence": 0.942486,
+            "deepface_averaged_scores": {
+              "joy": 94.24856567382812,
+              "sadness": 0.39116210490465164,
+              "anger": 0.08541113883256912,
+              "fear": 0.05363202909938991,
+              "surprise": 0.14396307663992047,
+              "disgust": 4.346063519733434e-06,
+              "neutral": 5.077261209487915
             },
-            "live_crop_count": 2,
-            "analysis_seconds": 0.3894,
-            "deepface_base_reliability": 0.597825,
-            "reliability_adjustment_factor": 1.18555,
-            "adjusted_visual_reliability": 0.708752
+            "selected_source": "deepface",
+            "selected_emotion": "joy",
+            "selected_confidence": 0.942486
           }
         },
         "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+          "available": false,
+          "emotion": "neutral",
+          "confidence": 0.0,
+          "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
           "features": {
-            "peak": 1.02247,
-            "rms": 0.276626,
-            "duration": 3.52,
-            "energy_std": 0.185944,
-            "zero_crossing_rate": 0.162201
+            "peak": 0.529416,
+            "rms": 0.078229,
+            "duration": 3.776,
+            "energy_std": 0.053637,
+            "energy_cv": 0.933944,
+            "energy_range": 0.126488,
+            "zero_crossing_rate": 0.135099,
+            "pitch_median_hz": 192.771088,
+            "pitch_mean_hz": 192.693741,
+            "pitch_std_hz": 25.740726,
+            "pitch_range_hz": 48.599274,
+            "voiced_ratio": 0.725352,
+            "spectral_centroid_hz": 1312.373278,
+            "spectral_flatness": 0.271444
           }
         },
         "response_times": {
-          "text_seconds": 1.6493,
-          "visual_seconds": 0.4535,
-          "au_verification_seconds": 0.3894,
-          "prosody_seconds": 0.0005
+          "text_seconds": 2.8692,
+          "visual_seconds": 0.3358,
+          "au_verification_seconds": 0.0,
+          "prosody_seconds": 0.0066
         },
         "temporal_smoothing": {
           "enabled": true,
           "alpha": 0.6,
           "smoothed_scores": {
-            "joy": 0.10055672335511856,
-            "sadness": 0.004761756576350866,
-            "anger": 0.004374600644224444,
-            "fear": 0.0043064348494960825,
-            "surprise": 0.014304550510983918,
-            "disgust": 0.004291033440536551,
-            "neutral": 0.8674049006232895
+            "joy": 0.7588893338897871,
+            "sadness": 0.027671640087879316,
+            "anger": 0.013006540865156872,
+            "fear": 0.012767330783601058,
+            "surprise": 0.038174532931878155,
+            "disgust": 0.012363660493892899,
+            "neutral": 0.13712696094780458
           },
-          "smoothed_emotion": "neutral",
-          "smoothed_confidence": 0.8674049006232895
+          "smoothed_emotion": "joy",
+          "smoothed_confidence": 0.7588893338897871
         }
       }
     },
     {
       "role": "assistant",
-      "content": "In this experiment, we're exploring how humans interact with humanoid robots like me. You'll be engaging in a conversation about Artificial Intelligence and Robotics topics, and I'll respond as a teaching assistant would. We'll learn together, and I'll adapt my explanations to your questions and interests.",
-      "timestamp": "2026-08-11T15:53:33",
+      "content": "Hello! In this experiment, we're exploring how humans and robots like me can work together to learn and understand each other better. You'll be playing the role of a learner, asking questions and responding as you would with a human tutor. I'm excited to help you discover new things about Artificial Intelligence and Robotics!",
+      "timestamp": "2026-08-13T15:43:19",
       "intent": "answer",
-      "full_answer": "In this experiment, we're exploring how humans interact with humanoid robots like me. You'll be engaging in a conversation about Artificial Intelligence and Robotics topics, and I'll respond as a teaching assistant would. We'll learn together, and I'll adapt my explanations to your questions and interests.",
+      "full_answer": "Hello! In this experiment, we're exploring how humans and robots like me can work together to learn and understand each other better. You'll be playing the role of a learner, asking questions and responding as you would with a human tutor. I'm excited to help you discover new things about Artificial Intelligence and Robotics!",
       "response_emotion": {
-        "emotion": "neutral",
-        "ekman_emotion": "neutral",
-        "confidence": 0.0,
-        "reason": "This answer is neutral because it provides factual information about the experiment without expressing any emotional tone.",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "🙂"
+        "emotion": "joy",
+        "ekman_emotion": "joy",
+        "confidence": 0.76,
+        "scores": {},
+        "reason": "Your enthusiasm is contagious!",
+        "facial_expression_sequence": "Smile",
+        "facial_expression_emoji": "😊"
       }
     },
     {
       "role": "user",
-      "content": "What is the expectation of me in these experiments?",
-      "timestamp": "2026-08-11T15:53:52",
+      "content": "What is expected of me in this experiment?",
+      "timestamp": "2026-08-13T15:43:41",
       "intent": "question",
       "images": [
-        "warm_up_profile/A1234/questions_3_20260811_155349_431916.jpg"
+        "warm_up_profile/A1234/questions_3_20260813_154339_137885.jpg",
+        "warm_up_profile/A1234/questions_4_20260813_154339_138179.jpg"
       ],
       "text_emotion": {
         "emotion": "neutral",
         "ekman_emotion": "neutral",
-        "confidence": 1.0,
-        "reason": "The text expresses a neutral curiosity and inquiry about expectations, without any emotional tone.",
+        "confidence": 0.4286,
+        "scores": {
+          "joy": 0.190476,
+          "sadness": 0.095238,
+          "anger": 0.047619,
+          "fear": 0.047619,
+          "surprise": 0.142857,
+          "disgust": 0.047619,
+          "neutral": 0.428571
+        },
+        "reason": "The participant is likely to feel a mix of emotions due to the uncertainty and novelty of the experiment, with a slight dominance of neutral emotions as they try to understand what is expected.",
         "facial_expression_sequence": "bneutral",
         "facial_expression_emoji": "🙂"
       },
@@ -1466,109 +959,103 @@
         "available": true,
         "reliable": true,
         "dominant_emotion": "neutral",
-        "confidence": 0.9189,
+        "confidence": 0.4217,
         "averaged_scores": {
-          "joy": 0.0174,
-          "sadness": 6.6604,
-          "anger": 0.9952,
-          "fear": 0.4356,
-          "surprise": 0.0019,
-          "disgust": 0.0,
-          "neutral": 91.8894
+          "joy": 31.9994,
+          "sadness": 18.8319,
+          "anger": 6.3297,
+          "fear": 0.5666,
+          "surprise": 0.1066,
+          "disgust": 0.0003,
+          "neutral": 42.1654
         },
-        "sampled_frame_count": 1,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 1 usable frame(s): neutral 91.9% with margin 85.2%.",
-        "analysis_seconds": 0.2904,
+        "sampled_frame_count": 2,
+        "analyzed_frame_count": 2,
+        "reason": "DeepFace average over 2 usable frame(s): neutral 42.2% with margin 10.2%.",
+        "analysis_seconds": 0.2296,
         "au_verification": {
-          "available": true,
-          "status": "weak_conflict",
-          "confidence": 0.282732,
-          "au_emotion": "joy",
+          "available": false,
+          "status": "no_calibration_profile",
+          "confidence": 0.0,
+          "au_emotion": null,
           "deepface_emotion": "neutral",
-          "agreement": false,
-          "similarity": 0.862577,
-          "second_best_emotion": "anger",
-          "second_best_selection_score": 0.727596,
-          "margin": 0.134981,
-          "activation_strength": 0.24,
-          "strength_term": 1.0,
-          "reference_consistency": 0.698074,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.862577,
-              "selection_score": 0.862577
-            },
-            "sadness": {
-              "similarity": 0.603328,
-              "selection_score": 0.603328
-            },
-            "anger": {
-              "similarity": 0.727596,
-              "selection_score": 0.727596
-            },
-            "fear": {
-              "similarity": 0.555096,
-              "selection_score": 0.555096
-            },
-            "surprise": {
-              "similarity": 0.707875,
-              "selection_score": 0.707875
-            }
+          "analysis_seconds": 0.0,
+          "deepface_confidence": 0.421654,
+          "deepface_averaged_scores": {
+            "joy": 31.999431610107422,
+            "sadness": 18.831902265548706,
+            "anger": 6.329708933830261,
+            "fear": 0.5666029453277588,
+            "surprise": 0.10662265308201313,
+            "disgust": 0.00031751609640195966,
+            "neutral": 42.16542053222656
           },
-          "live_crop_count": 1,
-          "analysis_seconds": 0.2016,
-          "deepface_base_reliability": 0.830169,
-          "reliability_adjustment_factor": 0.802088,
-          "adjusted_visual_reliability": 0.665868
+          "selected_source": "deepface",
+          "selected_emotion": "neutral",
+          "selected_confidence": 0.421654
         }
       },
       "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+        "available": false,
+        "emotion": "neutral",
+        "confidence": 0.0,
+        "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
         "features": {
-          "peak": 1.089469,
-          "rms": 0.345466,
-          "duration": 4.608,
-          "energy_std": 0.230488,
-          "zero_crossing_rate": 0.161189
+          "peak": 1.006456,
+          "rms": 0.101665,
+          "duration": 4.032,
+          "energy_std": 0.07539,
+          "energy_cv": 1.095694,
+          "energy_range": 0.16451,
+          "zero_crossing_rate": 0.109764,
+          "pitch_median_hz": 186.046509,
+          "pitch_mean_hz": 188.619034,
+          "pitch_std_hz": 38.407722,
+          "pitch_range_hz": 73.677948,
+          "voiced_ratio": 0.75,
+          "spectral_centroid_hz": 1383.814549,
+          "spectral_flatness": 0.281777
         }
       },
       "fused_emotion": {
         "emotion": "neutral",
-        "confidence": 0.9517,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.23, prosody=surprise rel=0.25.",
+        "confidence": 0.4246,
+        "reason": "Fixed-prosody/adaptive-text-visual fusion selected neutral: text=neutral rel=0.43 weight=0.43, visual=neutral rel=0.45 weight=0.57, prosody=None weight=0.00.",
         "scores": {
-          "joy": 0.004359,
-          "sadness": 0.014376,
-          "anger": 0.005833,
-          "fear": 0.00499,
-          "surprise": 0.014445,
-          "disgust": 0.004333,
-          "neutral": 0.951664
+          "joy": 0.263919,
+          "sadness": 0.148019,
+          "anger": 0.056509,
+          "fear": 0.02383,
+          "surprise": 0.062455,
+          "disgust": 0.020619,
+          "neutral": 0.424649
         },
         "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.233054,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.808772,
-          "active_normalized_visual": 0.15079,
-          "active_normalized_prosody": 0.040439
+          "base_text": 0.4,
+          "base_visual": 0.5,
+          "base_prosody": 0.0,
+          "reliability_text": 0.428571,
+          "reliability_visual": 0.449046,
+          "reliability_prosody": 0.0,
+          "adaptive_text_visual_pool": 1.0,
+          "active_normalized_text": 0.432953,
+          "active_normalized_visual": 0.567047,
+          "active_normalized_prosody": 0.0
         },
         "text_emotion": {
           "emotion": "neutral",
           "ekman_emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "The text expresses a neutral curiosity and inquiry about expectations, without any emotional tone.",
+          "confidence": 0.4286,
+          "scores": {
+            "joy": 0.190476,
+            "sadness": 0.095238,
+            "anger": 0.047619,
+            "fear": 0.047619,
+            "surprise": 0.142857,
+            "disgust": 0.047619,
+            "neutral": 0.428571
+          },
+          "reason": "The participant is likely to feel a mix of emotions due to the uncertainty and novelty of the experiment, with a slight dominance of neutral emotions as they try to understand what is expected.",
           "facial_expression_sequence": "bneutral",
           "facial_expression_emoji": "🙂"
         },
@@ -1576,859 +1063,346 @@
           "available": true,
           "reliable": true,
           "dominant_emotion": "neutral",
-          "confidence": 0.9189,
+          "confidence": 0.4217,
           "averaged_scores": {
-            "joy": 0.0174,
-            "sadness": 6.6604,
-            "anger": 0.9952,
-            "fear": 0.4356,
-            "surprise": 0.0019,
-            "disgust": 0.0,
-            "neutral": 91.8894
+            "joy": 31.9994,
+            "sadness": 18.8319,
+            "anger": 6.3297,
+            "fear": 0.5666,
+            "surprise": 0.1066,
+            "disgust": 0.0003,
+            "neutral": 42.1654
           },
-          "sampled_frame_count": 1,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 1 usable frame(s): neutral 91.9% with margin 85.2%.",
-          "analysis_seconds": 0.2904,
+          "sampled_frame_count": 2,
+          "analyzed_frame_count": 2,
+          "reason": "DeepFace average over 2 usable frame(s): neutral 42.2% with margin 10.2%.",
+          "analysis_seconds": 0.2296,
           "au_verification": {
-            "available": true,
-            "status": "weak_conflict",
-            "confidence": 0.282732,
-            "au_emotion": "joy",
+            "available": false,
+            "status": "no_calibration_profile",
+            "confidence": 0.0,
+            "au_emotion": null,
             "deepface_emotion": "neutral",
-            "agreement": false,
-            "similarity": 0.862577,
-            "second_best_emotion": "anger",
-            "second_best_selection_score": 0.727596,
-            "margin": 0.134981,
-            "activation_strength": 0.24,
-            "strength_term": 1.0,
-            "reference_consistency": 0.698074,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.862577,
-                "selection_score": 0.862577
-              },
-              "sadness": {
-                "similarity": 0.603328,
-                "selection_score": 0.603328
-              },
-              "anger": {
-                "similarity": 0.727596,
-                "selection_score": 0.727596
-              },
-              "fear": {
-                "similarity": 0.555096,
-                "selection_score": 0.555096
-              },
-              "surprise": {
-                "similarity": 0.707875,
-                "selection_score": 0.707875
-              }
+            "analysis_seconds": 0.0,
+            "deepface_confidence": 0.421654,
+            "deepface_averaged_scores": {
+              "joy": 31.999431610107422,
+              "sadness": 18.831902265548706,
+              "anger": 6.329708933830261,
+              "fear": 0.5666029453277588,
+              "surprise": 0.10662265308201313,
+              "disgust": 0.00031751609640195966,
+              "neutral": 42.16542053222656
             },
-            "live_crop_count": 1,
-            "analysis_seconds": 0.2016,
-            "deepface_base_reliability": 0.830169,
-            "reliability_adjustment_factor": 0.802088,
-            "adjusted_visual_reliability": 0.665868
+            "selected_source": "deepface",
+            "selected_emotion": "neutral",
+            "selected_confidence": 0.421654
           }
         },
         "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
-          "features": {
-            "peak": 1.089469,
-            "rms": 0.345466,
-            "duration": 4.608,
-            "energy_std": 0.230488,
-            "zero_crossing_rate": 0.161189
-          }
-        },
-        "response_times": {
-          "text_seconds": 2.0171,
-          "visual_seconds": 0.2904,
-          "au_verification_seconds": 0.2016,
-          "prosody_seconds": 0.0005
-        },
-        "temporal_smoothing": {
-          "enabled": true,
-          "alpha": 0.6,
-          "smoothed_scores": {
-            "joy": 0.042838099707473334,
-            "sadness": 0.010530276452509946,
-            "anger": 0.005249841863042158,
-            "fear": 0.004716301593740637,
-            "surprise": 0.014388990836211313,
-            "disgust": 0.004316036268347426,
-            "neutral": 0.917960453278675
-          },
-          "smoothed_emotion": "neutral",
-          "smoothed_confidence": 0.917960453278675
-        }
-      }
-    },
-    {
-      "role": "assistant",
-      "content": "As a study participant, your role is to engage as a learner in a lesson on A.I. and Robotics topics, asking questions and responding as you would with a human tutor.",
-      "timestamp": "2026-08-11T15:54:05",
-      "intent": "answer",
-      "full_answer": "As a study participant, your role is to engage as a learner in a lesson on A.I. and Robotics topics, asking questions and responding as you would with a human tutor.",
-      "response_emotion": {
-        "emotion": "neutral",
-        "ekman_emotion": "neutral",
-        "confidence": 0.0,
-        "reason": "This answer aims to provide a clear explanation without expressing any emotion.",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "🙂"
-      }
-    },
-    {
-      "role": "user",
-      "content": "Do you understand German?",
-      "timestamp": "2026-08-11T15:54:18",
-      "intent": "question",
-      "images": [
-        "warm_up_profile/A1234/questions_4_20260811_155415_761936.jpg",
-        "warm_up_profile/A1234/questions_5_20260811_155415_762405.jpg"
-      ],
-      "text_emotion": {
-        "emotion": "neutral",
-        "ekman_emotion": "neutral",
-        "confidence": 1.0,
-        "reason": "The text is a straightforward question and does not convey any emotional tone.",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "🙂"
-      },
-      "visual_emotion": {
-        "available": true,
-        "reliable": true,
-        "dominant_emotion": "neutral",
-        "confidence": 0.8263,
-        "averaged_scores": {
-          "joy": 7.6262,
-          "sadness": 8.0144,
-          "anger": 1.5073,
-          "fear": 0.216,
-          "surprise": 0.0046,
-          "disgust": 0.0,
-          "neutral": 82.6314
-        },
-        "sampled_frame_count": 3,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 3 usable frame(s): neutral 82.6% with margin 74.6%.",
-        "analysis_seconds": 0.3255,
-        "au_verification": {
-          "available": true,
-          "status": "weak_conflict",
-          "confidence": 0.576889,
-          "au_emotion": "joy",
-          "deepface_emotion": "neutral",
-          "agreement": false,
-          "similarity": 0.92026,
-          "second_best_emotion": "surprise",
-          "second_best_selection_score": 0.678628,
-          "margin": 0.241632,
-          "activation_strength": 0.281591,
-          "strength_term": 1.0,
-          "reference_consistency": 0.698074,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.92026,
-              "selection_score": 0.92026
-            },
-            "sadness": {
-              "similarity": 0.571088,
-              "selection_score": 0.571088
-            },
-            "anger": {
-              "similarity": 0.673183,
-              "selection_score": 0.673183
-            },
-            "fear": {
-              "similarity": 0.507194,
-              "selection_score": 0.507194
-            },
-            "surprise": {
-              "similarity": 0.678628,
-              "selection_score": 0.678628
-            }
-          },
-          "live_crop_count": 2,
-          "analysis_seconds": 0.3498,
-          "deepface_base_reliability": 0.921841,
-          "reliability_adjustment_factor": 0.596178,
-          "adjusted_visual_reliability": 0.549581
-        }
-      },
-      "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
-        "features": {
-          "peak": 1.029753,
-          "rms": 0.387405,
-          "duration": 2.624,
-          "energy_std": 0.252785,
-          "zero_crossing_rate": 0.103613
-        }
-      },
-      "fused_emotion": {
-        "emotion": "neutral",
-        "confidence": 0.9407,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=0.19, prosody=surprise rel=0.25.",
-        "scores": {
-          "joy": 0.014198,
-          "sadness": 0.014694,
-          "anger": 0.006377,
-          "fear": 0.004726,
-          "surprise": 0.014839,
-          "disgust": 0.00445,
-          "neutral": 0.940717
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.192353,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.830646,
-          "active_normalized_visual": 0.127822,
-          "active_normalized_prosody": 0.041532
-        },
-        "text_emotion": {
+          "available": false,
           "emotion": "neutral",
-          "ekman_emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "The text is a straightforward question and does not convey any emotional tone.",
-          "facial_expression_sequence": "bneutral",
-          "facial_expression_emoji": "🙂"
-        },
-        "visual_emotion": {
-          "available": true,
-          "reliable": true,
-          "dominant_emotion": "neutral",
-          "confidence": 0.8263,
-          "averaged_scores": {
-            "joy": 7.6262,
-            "sadness": 8.0144,
-            "anger": 1.5073,
-            "fear": 0.216,
-            "surprise": 0.0046,
-            "disgust": 0.0,
-            "neutral": 82.6314
-          },
-          "sampled_frame_count": 3,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 3 usable frame(s): neutral 82.6% with margin 74.6%.",
-          "analysis_seconds": 0.3255,
-          "au_verification": {
-            "available": true,
-            "status": "weak_conflict",
-            "confidence": 0.576889,
-            "au_emotion": "joy",
-            "deepface_emotion": "neutral",
-            "agreement": false,
-            "similarity": 0.92026,
-            "second_best_emotion": "surprise",
-            "second_best_selection_score": 0.678628,
-            "margin": 0.241632,
-            "activation_strength": 0.281591,
-            "strength_term": 1.0,
-            "reference_consistency": 0.698074,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.92026,
-                "selection_score": 0.92026
-              },
-              "sadness": {
-                "similarity": 0.571088,
-                "selection_score": 0.571088
-              },
-              "anger": {
-                "similarity": 0.673183,
-                "selection_score": 0.673183
-              },
-              "fear": {
-                "similarity": 0.507194,
-                "selection_score": 0.507194
-              },
-              "surprise": {
-                "similarity": 0.678628,
-                "selection_score": 0.678628
-              }
-            },
-            "live_crop_count": 2,
-            "analysis_seconds": 0.3498,
-            "deepface_base_reliability": 0.921841,
-            "reliability_adjustment_factor": 0.596178,
-            "adjusted_visual_reliability": 0.549581
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+          "confidence": 0.0,
+          "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
           "features": {
-            "peak": 1.029753,
-            "rms": 0.387405,
-            "duration": 2.624,
-            "energy_std": 0.252785,
-            "zero_crossing_rate": 0.103613
+            "peak": 1.006456,
+            "rms": 0.101665,
+            "duration": 4.032,
+            "energy_std": 0.07539,
+            "energy_cv": 1.095694,
+            "energy_range": 0.16451,
+            "zero_crossing_rate": 0.109764,
+            "pitch_median_hz": 186.046509,
+            "pitch_mean_hz": 188.619034,
+            "pitch_std_hz": 38.407722,
+            "pitch_range_hz": 73.677948,
+            "voiced_ratio": 0.75,
+            "spectral_centroid_hz": 1383.814549,
+            "spectral_flatness": 0.281777
           }
         },
         "response_times": {
-          "text_seconds": 1.9777,
-          "visual_seconds": 0.3255,
-          "au_verification_seconds": 0.3498,
-          "prosody_seconds": 0.0007
+          "text_seconds": 3.1669,
+          "visual_seconds": 0.2296,
+          "au_verification_seconds": 0.0,
+          "prosody_seconds": 0.0067
         },
         "temporal_smoothing": {
           "enabled": true,
           "alpha": 0.6,
           "smoothed_scores": {
-            "joy": 0.025653941107212273,
-            "sadness": 0.013028580521759103,
-            "anger": 0.005925854713384355,
-            "fear": 0.004722142623393252,
-            "surprise": 0.01465890013141321,
-            "disgust": 0.0043963476231113335,
-            "neutral": 0.9316142332797264
+            "joy": 0.46190712974360704,
+            "sadness": 0.09988024400177999,
+            "anger": 0.03910815183136797,
+            "fear": 0.019404770563770556,
+            "surprise": 0.05274286326881507,
+            "disgust": 0.017316641153248928,
+            "neutral": 0.30964019943741056
           },
-          "smoothed_emotion": "neutral",
-          "smoothed_confidence": 0.9316142332797264
+          "smoothed_emotion": "joy",
+          "smoothed_confidence": 0.46190712974360704
         }
       }
     },
     {
       "role": "assistant",
-      "content": "I don't have context on languages beyond AI and Robotics topics, so I won't be able to understand or respond in German. However, I can still help you with your questions about A.I. and Robotics!",
-      "timestamp": "2026-08-11T15:54:33",
+      "content": "As a learner, your role is to engage as you would with a human tutor, asking questions and responding in conversation. You'll be talking through my microphone, and I'll respond accordingly.",
+      "timestamp": "2026-08-13T15:43:57",
       "intent": "answer",
-      "full_answer": "I don't have context on languages beyond AI and Robotics topics, so I won't be able to understand or respond in German. However, I can still help you with your questions about A.I. and Robotics!",
+      "full_answer": "As a learner, your role is to engage as you would with a human tutor, asking questions and responding in conversation. You'll be talking through my microphone, and I'll respond accordingly.",
       "response_emotion": {
         "emotion": "neutral",
         "ekman_emotion": "neutral",
         "confidence": 0.0,
-        "reason": "no relevant language knowledge",
+        "scores": {},
+        "reason": "This answer aims to provide clear instructions without expressing any particular emotion.",
         "facial_expression_sequence": "bneutral",
         "facial_expression_emoji": "🙂"
       }
     },
     {
       "role": "user",
-      "content": "So Karyo explained the difference between artificial intelligence, machine learning and deep learning.",
-      "timestamp": "2026-08-11T15:54:49",
+      "content": "I don't understand artificial intelligence.",
+      "timestamp": "2026-08-13T15:44:22",
       "intent": "question",
       "images": [
-        "warm_up_profile/A1234/questions_6_20260811_155445_924493.jpg",
-        "warm_up_profile/A1234/questions_7_20260811_155445_924826.jpg"
+        "warm_up_profile/A1234/questions_5_20260813_154419_671091.jpg",
+        "warm_up_profile/A1234/questions_6_20260813_154419_671505.jpg"
       ],
       "text_emotion": {
-        "emotion": "neutral",
-        "ekman_emotion": "neutral",
-        "confidence": 1.0,
-        "reason": "The text describes a neutral topic of explaining technical concepts.",
+        "emotion": "sadness",
+        "ekman_emotion": "sadness",
+        "confidence": 0.2857,
+        "scores": {
+          "joy": 0.190476,
+          "sadness": 0.285714,
+          "anger": 0.095238,
+          "fear": 0.047619,
+          "surprise": 0.142857,
+          "disgust": 0.047619,
+          "neutral": 0.190476
+        },
+        "reason": "The user expressed confusion and frustration with AI, but also a hint of curiosity.",
         "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "🙂"
+        "facial_expression_emoji": "😢"
       },
       "visual_emotion": {
         "available": true,
         "reliable": true,
         "dominant_emotion": "sadness",
-        "confidence": 0.7785,
+        "confidence": 0.5833,
         "averaged_scores": {
-          "joy": 0.0035,
-          "sadness": 77.8505,
-          "anger": 1.0978,
-          "fear": 0.4068,
-          "surprise": 0.0,
-          "disgust": 0.0,
-          "neutral": 20.6415
+          "joy": 0.0058,
+          "sadness": 58.3339,
+          "anger": 3.4447,
+          "fear": 36.7395,
+          "surprise": 0.6903,
+          "disgust": 0.0003,
+          "neutral": 0.7855
         },
         "sampled_frame_count": 2,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 2 usable frame(s): sadness 77.9% with margin 57.2%.",
-        "analysis_seconds": 0.2976,
+        "analyzed_frame_count": 2,
+        "reason": "DeepFace average over 2 usable frame(s): sadness 58.3% with margin 21.6%.",
+        "analysis_seconds": 0.248,
         "au_verification": {
-          "available": true,
-          "status": "weak_conflict",
-          "confidence": 0.549946,
-          "au_emotion": "joy",
+          "available": false,
+          "status": "no_calibration_profile",
+          "confidence": 0.0,
+          "au_emotion": null,
           "deepface_emotion": "sadness",
-          "agreement": false,
-          "similarity": 0.909355,
-          "second_best_emotion": "surprise",
-          "second_best_selection_score": 0.673539,
-          "margin": 0.235816,
-          "activation_strength": 0.313666,
-          "strength_term": 1.0,
-          "reference_consistency": 0.698074,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.909355,
-              "selection_score": 0.909355
-            },
-            "sadness": {
-              "similarity": 0.508937,
-              "selection_score": 0.508937
-            },
-            "anger": {
-              "similarity": 0.608835,
-              "selection_score": 0.608835
-            },
-            "fear": {
-              "similarity": 0.511556,
-              "selection_score": 0.511556
-            },
-            "surprise": {
-              "similarity": 0.673539,
-              "selection_score": 0.673539
-            }
+          "analysis_seconds": 0.0,
+          "deepface_confidence": 0.583339,
+          "deepface_averaged_scores": {
+            "joy": 0.00583785492926836,
+            "sadness": 58.33390808105469,
+            "anger": 3.4447128772735596,
+            "fear": 36.73947525024414,
+            "surprise": 0.6902642101049423,
+            "disgust": 0.00025678989914013073,
+            "neutral": 0.7855495810508728
           },
-          "live_crop_count": 2,
-          "analysis_seconds": 0.3442,
-          "deepface_base_reliability": 0.81738,
-          "reliability_adjustment_factor": 0.615038,
-          "adjusted_visual_reliability": 0.502719
+          "selected_source": "deepface",
+          "selected_emotion": "sadness",
+          "selected_confidence": 0.583339
         }
       },
       "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+        "available": false,
+        "emotion": "neutral",
+        "confidence": 0.0,
+        "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
         "features": {
-          "peak": 1.037493,
-          "rms": 0.414278,
-          "duration": 6.72,
-          "energy_std": 0.236627,
-          "zero_crossing_rate": 0.148216
+          "peak": 0.39647,
+          "rms": 0.072344,
+          "duration": 3.872,
+          "energy_std": 0.044996,
+          "energy_cv": 0.78916,
+          "energy_range": 0.109398,
+          "zero_crossing_rate": 0.111039,
+          "pitch_median_hz": 188.235291,
+          "pitch_mean_hz": 194.781738,
+          "pitch_std_hz": 45.777725,
+          "pitch_range_hz": 67.899185,
+          "voiced_ratio": 0.735714,
+          "spectral_centroid_hz": 1213.125138,
+          "spectral_flatness": 0.258032
         }
       },
       "fused_emotion": {
-        "emotion": "neutral",
-        "confidence": 0.7495,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=sadness rel=0.50, prosody=surprise rel=0.25.",
+        "emotion": "sadness",
+        "confidence": 0.5001,
+        "reason": "Fixed-prosody/adaptive-text-visual fusion selected sadness: text=sadness rel=0.29 weight=0.28, visual=sadness rel=0.59 weight=0.72, prosody=None weight=0.00.",
         "scores": {
-          "joy": 0.003699,
-          "sadness": 0.219294,
-          "anger": 0.006729,
-          "fear": 0.004816,
-          "surprise": 0.012297,
-          "disgust": 0.003689,
-          "neutral": 0.749477
+          "joy": 0.053329,
+          "sadness": 0.500077,
+          "anger": 0.051454,
+          "fear": 0.277936,
+          "surprise": 0.044937,
+          "disgust": 0.013324,
+          "neutral": 0.058945
         },
         "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.502719,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.688622,
-          "active_normalized_visual": 0.276947,
-          "active_normalized_prosody": 0.034431
+          "base_text": 0.4,
+          "base_visual": 0.5,
+          "base_prosody": 0.0,
+          "reliability_text": 0.285714,
+          "reliability_visual": 0.58847,
+          "reliability_prosody": 0.0,
+          "adaptive_text_visual_pool": 1.0,
+          "active_normalized_text": 0.279755,
+          "active_normalized_visual": 0.720245,
+          "active_normalized_prosody": 0.0
         },
         "text_emotion": {
-          "emotion": "neutral",
-          "ekman_emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "The text describes a neutral topic of explaining technical concepts.",
+          "emotion": "sadness",
+          "ekman_emotion": "sadness",
+          "confidence": 0.2857,
+          "scores": {
+            "joy": 0.190476,
+            "sadness": 0.285714,
+            "anger": 0.095238,
+            "fear": 0.047619,
+            "surprise": 0.142857,
+            "disgust": 0.047619,
+            "neutral": 0.190476
+          },
+          "reason": "The user expressed confusion and frustration with AI, but also a hint of curiosity.",
           "facial_expression_sequence": "bneutral",
-          "facial_expression_emoji": "🙂"
+          "facial_expression_emoji": "😢"
         },
         "visual_emotion": {
           "available": true,
           "reliable": true,
           "dominant_emotion": "sadness",
-          "confidence": 0.7785,
+          "confidence": 0.5833,
           "averaged_scores": {
-            "joy": 0.0035,
-            "sadness": 77.8505,
-            "anger": 1.0978,
-            "fear": 0.4068,
-            "surprise": 0.0,
-            "disgust": 0.0,
-            "neutral": 20.6415
+            "joy": 0.0058,
+            "sadness": 58.3339,
+            "anger": 3.4447,
+            "fear": 36.7395,
+            "surprise": 0.6903,
+            "disgust": 0.0003,
+            "neutral": 0.7855
           },
           "sampled_frame_count": 2,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 2 usable frame(s): sadness 77.9% with margin 57.2%.",
-          "analysis_seconds": 0.2976,
+          "analyzed_frame_count": 2,
+          "reason": "DeepFace average over 2 usable frame(s): sadness 58.3% with margin 21.6%.",
+          "analysis_seconds": 0.248,
           "au_verification": {
-            "available": true,
-            "status": "weak_conflict",
-            "confidence": 0.549946,
-            "au_emotion": "joy",
+            "available": false,
+            "status": "no_calibration_profile",
+            "confidence": 0.0,
+            "au_emotion": null,
             "deepface_emotion": "sadness",
-            "agreement": false,
-            "similarity": 0.909355,
-            "second_best_emotion": "surprise",
-            "second_best_selection_score": 0.673539,
-            "margin": 0.235816,
-            "activation_strength": 0.313666,
-            "strength_term": 1.0,
-            "reference_consistency": 0.698074,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.909355,
-                "selection_score": 0.909355
-              },
-              "sadness": {
-                "similarity": 0.508937,
-                "selection_score": 0.508937
-              },
-              "anger": {
-                "similarity": 0.608835,
-                "selection_score": 0.608835
-              },
-              "fear": {
-                "similarity": 0.511556,
-                "selection_score": 0.511556
-              },
-              "surprise": {
-                "similarity": 0.673539,
-                "selection_score": 0.673539
-              }
+            "analysis_seconds": 0.0,
+            "deepface_confidence": 0.583339,
+            "deepface_averaged_scores": {
+              "joy": 0.00583785492926836,
+              "sadness": 58.33390808105469,
+              "anger": 3.4447128772735596,
+              "fear": 36.73947525024414,
+              "surprise": 0.6902642101049423,
+              "disgust": 0.00025678989914013073,
+              "neutral": 0.7855495810508728
             },
-            "live_crop_count": 2,
-            "analysis_seconds": 0.3442,
-            "deepface_base_reliability": 0.81738,
-            "reliability_adjustment_factor": 0.615038,
-            "adjusted_visual_reliability": 0.502719
+            "selected_source": "deepface",
+            "selected_emotion": "sadness",
+            "selected_confidence": 0.583339
           }
         },
         "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
+          "available": false,
+          "emotion": "neutral",
+          "confidence": 0.0,
+          "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
           "features": {
-            "peak": 1.037493,
-            "rms": 0.414278,
-            "duration": 6.72,
-            "energy_std": 0.236627,
-            "zero_crossing_rate": 0.148216
+            "peak": 0.39647,
+            "rms": 0.072344,
+            "duration": 3.872,
+            "energy_std": 0.044996,
+            "energy_cv": 0.78916,
+            "energy_range": 0.109398,
+            "zero_crossing_rate": 0.111039,
+            "pitch_median_hz": 188.235291,
+            "pitch_mean_hz": 194.781738,
+            "pitch_std_hz": 45.777725,
+            "pitch_range_hz": 67.899185,
+            "voiced_ratio": 0.735714,
+            "spectral_centroid_hz": 1213.125138,
+            "spectral_flatness": 0.258032
           }
         },
         "response_times": {
-          "text_seconds": 1.9499,
-          "visual_seconds": 0.2976,
-          "au_verification_seconds": 0.3442,
-          "prosody_seconds": 0.0006
+          "text_seconds": 2.8447,
+          "visual_seconds": 0.248,
+          "au_verification_seconds": 0.0,
+          "prosody_seconds": 0.0065
         },
         "temporal_smoothing": {
           "enabled": true,
           "alpha": 0.6,
           "smoothed_scores": {
-            "joy": 0.012480750082741594,
-            "sadness": 0.13678754958431477,
-            "anger": 0.006407910129993697,
-            "fear": 0.0047783233602032675,
-            "surprise": 0.013241654046533267,
-            "disgust": 0.003971967810515094,
-            "neutral": 0.8223318449856982
+            "joy": 0.21676007618108012,
+            "sadness": 0.3399983256338985,
+            "anger": 0.046515482176128185,
+            "fear": 0.17452344739316922,
+            "surprise": 0.048059098510385576,
+            "disgust": 0.01492076521331852,
+            "neutral": 0.1592228048920199
           },
-          "smoothed_emotion": "neutral",
-          "smoothed_confidence": 0.8223318449856982
+          "smoothed_emotion": "sadness",
+          "smoothed_confidence": 0.3399983256338985
         }
       }
     },
     {
       "role": "assistant",
-      "content": "That's a great start! Artificial Intelligence is the broader field that encompasses machine learning and deep learning. Think of it like a tree: AI is the trunk, machine learning is a branch, and deep learning is a leaf. They're all connected, but each has its own unique characteristics.",
-      "timestamp": "2026-08-11T15:55:04",
+      "content": "Don't worry, AI is actually quite simple! Think of it like a super smart computer that can learn from data and make decisions on its own. For example, when you ask me a question, I use patterns learned from my training to generate an answer. It's like having a personal assistant that gets smarter over time!",
+      "timestamp": "2026-08-13T15:44:45",
       "intent": "answer",
-      "full_answer": "That's a great start! Artificial Intelligence is the broader field that encompasses machine learning and deep learning. Think of it like a tree: AI is the trunk, machine learning is a branch, and deep learning is a leaf. They're all connected, but each has its own unique characteristics.",
+      "full_answer": "Don't worry, AI is actually quite simple! Think of it like a super smart computer that can learn from data and make decisions on its own. For example, when you ask me a question, I use patterns learned from my training to generate an answer. It's like having a personal assistant that gets smarter over time!",
       "response_emotion": {
         "emotion": "neutral",
         "ekman_emotion": "neutral",
         "confidence": 0.0,
-        "reason": "The participant's question shows understanding of the basics.",
+        "scores": {},
+        "reason": "I'm here to help and explain in a calm manner",
         "facial_expression_sequence": "bneutral",
         "facial_expression_emoji": "🙂"
-      }
-    },
-    {
-      "role": "user",
-      "content": "I am very mad at you. This is so annoying.",
-      "timestamp": "2026-08-11T16:05:09",
-      "intent": "question",
-      "images": [
-        "warm_up_profile/A1234/questions_8_20260811_160506_775066.jpg",
-        "warm_up_profile/A1234/questions_9_20260811_160506_775369.jpg"
-      ],
-      "text_emotion": {
-        "emotion": "anger",
-        "ekman_emotion": "anger",
-        "confidence": 1.0,
-        "reason": "strong language and tone",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "😠"
-      },
-      "visual_emotion": {
-        "available": true,
-        "reliable": false,
-        "dominant_emotion": "anger",
-        "confidence": 0.3949,
-        "averaged_scores": {
-          "joy": 4.1364,
-          "sadness": 11.6298,
-          "anger": 39.4947,
-          "fear": 10.2836,
-          "surprise": 0.0577,
-          "disgust": 0.0948,
-          "neutral": 34.3031
-        },
-        "sampled_frame_count": 3,
-        "analyzed_frame_count": 3,
-        "reason": "DeepFace average over 3 usable frame(s): anger 39.5% with margin 5.2%.",
-        "analysis_seconds": 0.3409,
-        "au_verification": {
-          "available": true,
-          "status": "confirmed",
-          "confidence": 0.840302,
-          "au_emotion": "anger",
-          "deepface_emotion": "anger",
-          "agreement": true,
-          "similarity": 0.949446,
-          "second_best_emotion": "joy",
-          "second_best_selection_score": 0.702926,
-          "margin": 0.246521,
-          "activation_strength": 0.329207,
-          "strength_term": 1.0,
-          "reference_consistency": 0.938418,
-          "candidate_scores": {
-            "neutral": {
-              "similarity": 0.0,
-              "selection_score": 0.0
-            },
-            "joy": {
-              "similarity": 0.702926,
-              "selection_score": 0.702926
-            },
-            "sadness": {
-              "similarity": 0.560632,
-              "selection_score": 0.560632
-            },
-            "anger": {
-              "similarity": 0.949446,
-              "selection_score": 0.949446
-            },
-            "fear": {
-              "similarity": 0.495146,
-              "selection_score": 0.495146
-            },
-            "surprise": {
-              "similarity": 0.691028,
-              "selection_score": 0.691028
-            }
-          },
-          "live_crop_count": 2,
-          "analysis_seconds": 0.3617,
-          "deepface_base_reliability": 0.265207,
-          "reliability_adjustment_factor": 1.252091,
-          "adjusted_visual_reliability": 0.332063
-        }
-      },
-      "prosody_emotion": {
-        "available": true,
-        "emotion": "surprise",
-        "confidence": 0.25,
-        "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
-        "features": {
-          "peak": 1.202294,
-          "rms": 0.503565,
-          "duration": 4.288,
-          "energy_std": 0.30265,
-          "zero_crossing_rate": 0.14618
-        }
-      },
-      "fused_emotion": {
-        "emotion": "anger",
-        "confidence": 0.8439,
-        "reason": "Adaptive reliability-aware fusion selected anger: text=anger rel=1.00, visual=anger rel=0.33, prosody=surprise rel=0.25.",
-        "scores": {
-          "joy": 0.012424,
-          "sadness": 0.027554,
-          "anger": 0.843898,
-          "fear": 0.024836,
-          "surprise": 0.013689,
-          "disgust": 0.004263,
-          "neutral": 0.073335
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.332063,
-          "reliability_prosody": 0.25,
-          "active_normalized_text": 0.76008,
-          "active_normalized_visual": 0.201916,
-          "active_normalized_prosody": 0.038004
-        },
-        "text_emotion": {
-          "emotion": "anger",
-          "ekman_emotion": "anger",
-          "confidence": 1.0,
-          "reason": "strong language and tone",
-          "facial_expression_sequence": "bneutral",
-          "facial_expression_emoji": "😠"
-        },
-        "visual_emotion": {
-          "available": true,
-          "reliable": false,
-          "dominant_emotion": "anger",
-          "confidence": 0.3949,
-          "averaged_scores": {
-            "joy": 4.1364,
-            "sadness": 11.6298,
-            "anger": 39.4947,
-            "fear": 10.2836,
-            "surprise": 0.0577,
-            "disgust": 0.0948,
-            "neutral": 34.3031
-          },
-          "sampled_frame_count": 3,
-          "analyzed_frame_count": 3,
-          "reason": "DeepFace average over 3 usable frame(s): anger 39.5% with margin 5.2%.",
-          "analysis_seconds": 0.3409,
-          "au_verification": {
-            "available": true,
-            "status": "confirmed",
-            "confidence": 0.840302,
-            "au_emotion": "anger",
-            "deepface_emotion": "anger",
-            "agreement": true,
-            "similarity": 0.949446,
-            "second_best_emotion": "joy",
-            "second_best_selection_score": 0.702926,
-            "margin": 0.246521,
-            "activation_strength": 0.329207,
-            "strength_term": 1.0,
-            "reference_consistency": 0.938418,
-            "candidate_scores": {
-              "neutral": {
-                "similarity": 0.0,
-                "selection_score": 0.0
-              },
-              "joy": {
-                "similarity": 0.702926,
-                "selection_score": 0.702926
-              },
-              "sadness": {
-                "similarity": 0.560632,
-                "selection_score": 0.560632
-              },
-              "anger": {
-                "similarity": 0.949446,
-                "selection_score": 0.949446
-              },
-              "fear": {
-                "similarity": 0.495146,
-                "selection_score": 0.495146
-              },
-              "surprise": {
-                "similarity": 0.691028,
-                "selection_score": 0.691028
-              }
-            },
-            "live_crop_count": 2,
-            "analysis_seconds": 0.3617,
-            "deepface_base_reliability": 0.265207,
-            "reliability_adjustment_factor": 1.252091,
-            "adjusted_visual_reliability": 0.332063
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.25,
-          "reason": "High or strongly varying vocal energy provides a weak high-arousal cue.",
-          "features": {
-            "peak": 1.202294,
-            "rms": 0.503565,
-            "duration": 4.288,
-            "energy_std": 0.30265,
-            "zero_crossing_rate": 0.14618
-          }
-        },
-        "response_times": {
-          "text_seconds": 1.5609,
-          "visual_seconds": 0.3409,
-          "au_verification_seconds": 0.3617,
-          "prosody_seconds": 0.0004
-        },
-        "temporal_smoothing": {
-          "enabled": true,
-          "alpha": 0.6,
-          "smoothed_scores": {
-            "joy": 0.012446595610272766,
-            "sadness": 0.07124756719340333,
-            "anger": 0.5089020571413757,
-            "fear": 0.016812910670026604,
-            "surprise": 0.013510274179719116,
-            "disgust": 0.004146773641805828,
-            "neutral": 0.37293382156339655
-          },
-          "smoothed_emotion": "anger",
-          "smoothed_confidence": 0.5089020571413757
-        }
-      }
-    },
-    {
-      "role": "assistant",
-      "content": "I'm sorry to hear that you're feeling frustrated. Can we take a step back and start again? I'm here to help and want to make sure our conversation is productive.",
-      "timestamp": "2026-08-11T16:05:24",
-      "intent": "answer",
-      "full_answer": "I'm sorry to hear that you're feeling frustrated. Can we take a step back and start again? I'm here to help and want to make sure our conversation is productive.",
-      "response_emotion": {
-        "emotion": "anger",
-        "ekman_emotion": "anger",
-        "confidence": 0.51,
-        "reason": "The participant's tone and language suggest strong negative emotions.",
-        "facial_expression_sequence": "bneutral",
-        "facial_expression_emoji": "😠"
       }
     }
   ],
   "video_path": "warm_up_videos/A1234/session_muxed.mp4",
   "audio_path": "warm_up_videos/A1234/session.wav",
   "muxed_video_path": "warm_up_videos/A1234/session_muxed.mp4",
-  "_next_image_id": 10,
+  "_next_image_id": 7,
   "check_facial_expression": true,
   "emotion_fusion": {
-    "type": "adaptive_reliability_aware_late_fusion",
+    "type": "fixed_0.10_prosody_adaptive_text_visual_fusion",
     "taxonomy": "Ekman six basic emotions plus neutral",
     "base_weights": {
-      "text": 0.5,
-      "visual": 0.4,
+      "text": 0.4,
+      "visual": 0.5,
       "prosody": 0.1
     },
     "temporal_smoothing": {

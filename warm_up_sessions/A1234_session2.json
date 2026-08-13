@@ -1,0 +1,988 @@
+{
+  "participant_id": "A1234",
+  "participant_folder": "A1234",
+  "session_type": "experiment",
+  "counts_as_experiment_session": true,
+  "session_number": 2,
+  "display_name": "Dam",
+  "started_at": "2026-08-13T16:02:34",
+  "ended_at": "2026-08-13T16:16:04",
+  "goals_stated": true,
+  "previous_session_summary": "Last time, we discussed artificial intelligence and robotics basics.",
+  "summary": "Last time, we discussed supervised and unsupervised learning in robotics, including examples of object recognition and clustering sensor readings.",
+  "au_calibration_status": "ready",
+  "qa_session": [
+    {
+      "question": "Can you explain the difference between supervised and supervised learning and can you give me examples which respect the robotics?",
+      "answer": "In supervised learning, a model is trained on labeled data to learn the relationship between inputs and outputs. For example, in robotics, imagine you have a dataset of images of different objects with their corresponding labels (e.g., 'chair', 'table', etc.). You train a computer vision model to recognize these objects based on their visual features. Once trained, this model can be used for tasks like object detection or classification. On the other hand, unsupervised learning involves training a model on unlabeled data to discover patterns or relationships within that data. In robotics, you might use unsupervised learning to cluster similar sensor readings from a robot's environment, without knowing what specific objects are present. This can help the robot learn to recognize and adapt to its surroundings.",
+      "full_answer": "In supervised learning, a model is trained on labeled data to learn the relationship between inputs and outputs. For example, in robotics, imagine you have a dataset of images of different objects with their corresponding labels (e.g., 'chair', 'table', etc.). You train a computer vision model to recognize these objects based on their visual features. Once trained, this model can be used for tasks like object detection or classification. On the other hand, unsupervised learning involves training a model on unlabeled data to discover patterns or relationships within that data. In robotics, you might use unsupervised learning to cluster similar sensor readings from a robot's environment, without knowing what specific objects are present. This can help the robot learn to recognize and adapt to its surroundings.",
+      "images": [
+        "warm_up_profile/A1234/questions_1_20260813_160329_154556.jpg",
+        "warm_up_profile/A1234/questions_2_20260813_160329_154830.jpg"
+      ],
+      "text_emotion": {
+        "emotion": "neutral",
+        "ekman_emotion": "neutral",
+        "confidence": 0.4082,
+        "scores": {
+          "joy": 0.204082,
+          "sadness": 0.102041,
+          "anger": 0.05102,
+          "fear": 0.05102,
+          "surprise": 0.153061,
+          "disgust": 0.030612,
+          "neutral": 0.408163
+        },
+        "reason": "The text is a neutral inquiry about machine learning concepts, with some curiosity and interest (joy) in understanding the difference between supervised and unsupervised learning.",
+        "facial_expression_sequence": "bneutral",
+        "facial_expression_emoji": "🙂"
+      },
+      "visual_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "confidence": 0.5136,
+        "averaged_scores": {
+          "joy": 0.1714,
+          "sadness": 51.3631,
+          "anger": 7.4478,
+          "fear": 6.9459,
+          "surprise": 0.0631,
+          "disgust": 0.0052,
+          "neutral": 34.0035
+        },
+        "sampled_frame_count": 2,
+        "analyzed_frame_count": 2,
+        "reason": "DeepFace average over 2 usable frame(s): sadness 51.4% with margin 17.4%.",
+        "analysis_seconds": 0.3499,
+        "au_verification": {
+          "available": true,
+          "status": "nearest_reference_match",
+          "confidence": 0.491933,
+          "au_emotion": "anger",
+          "deepface_emotion": "sadness",
+          "analysis_seconds": 0.3777,
+          "agreement": false,
+          "best_mean_distance": 0.155205,
+          "second_best_mean_distance": 0.19636,
+          "distance_margin": 0.041155,
+          "best_similarity": 0.844795,
+          "margin_component": 0.164622,
+          "frame_agreement_ratio": 1.0,
+          "per_frame": [
+            {
+              "frame_index": 0,
+              "winner": "anger",
+              "matches": {
+                "neutral": {
+                  "closest_reference_index": 2,
+                  "distance": 0.274453,
+                  "similarity": 0.725547
+                },
+                "joy": {
+                  "closest_reference_index": 1,
+                  "distance": 0.360425,
+                  "similarity": 0.639575
+                },
+                "sadness": {
+                  "closest_reference_index": 1,
+                  "distance": 0.297709,
+                  "similarity": 0.702291
+                },
+                "anger": {
+                  "closest_reference_index": 0,
+                  "distance": 0.16512,
+                  "similarity": 0.83488
+                },
+                "fear": {
+                  "closest_reference_index": 0,
+                  "distance": 0.334571,
+                  "similarity": 0.665429
+                },
+                "surprise": {
+                  "closest_reference_index": 1,
+                  "distance": 0.264627,
+                  "similarity": 0.735373
+                },
+                "disgust": {
+                  "closest_reference_index": 0,
+                  "distance": 0.19203,
+                  "similarity": 0.80797
+                }
+              }
+            },
+            {
+              "frame_index": 1,
+              "winner": "anger",
+              "matches": {
+                "neutral": {
+                  "closest_reference_index": 2,
+                  "distance": 0.211623,
+                  "similarity": 0.788377
+                },
+                "joy": {
+                  "closest_reference_index": 3,
+                  "distance": 0.329701,
+                  "similarity": 0.670299
+                },
+                "sadness": {
+                  "closest_reference_index": 1,
+                  "distance": 0.235026,
+                  "similarity": 0.764974
+                },
+                "anger": {
+                  "closest_reference_index": 1,
+                  "distance": 0.14529,
+                  "similarity": 0.85471
+                },
+                "fear": {
+                  "closest_reference_index": 0,
+                  "distance": 0.266388,
+                  "similarity": 0.733612
+                },
+                "surprise": {
+                  "closest_reference_index": 2,
+                  "distance": 0.21256,
+                  "similarity": 0.78744
+                },
+                "disgust": {
+                  "closest_reference_index": 0,
+                  "distance": 0.200691,
+                  "similarity": 0.799309
+                }
+              }
+            }
+          ],
+          "mean_distances": {
+            "neutral": 0.243038,
+            "joy": 0.345063,
+            "sadness": 0.266367,
+            "anger": 0.155205,
+            "fear": 0.30048,
+            "surprise": 0.238593,
+            "disgust": 0.19636
+          },
+          "au_distribution": {
+            "neutral": 0.144049,
+            "joy": 0.124634,
+            "sadness": 0.139609,
+            "anger": 0.160763,
+            "fear": 0.133118,
+            "surprise": 0.144895,
+            "disgust": 0.152932
+          },
+          "reference_counts": {
+            "neutral": 4,
+            "joy": 4,
+            "sadness": 4,
+            "anger": 4,
+            "fear": 4,
+            "surprise": 4,
+            "disgust": 4
+          },
+          "live_crop_count": 2,
+          "invalid_live_au_count": 0,
+          "calibration_status": "ready",
+          "deepface_confidence": 0.513631,
+          "deepface_averaged_scores": {
+            "joy": 0.1713879443705082,
+            "sadness": 51.36307907104492,
+            "anger": 7.447784423828125,
+            "fear": 6.945918083190918,
+            "surprise": 0.0631417315453291,
+            "disgust": 0.005220233302679844,
+            "neutral": 34.003469467163086
+          },
+          "selected_source": "deepface",
+          "selected_emotion": "sadness",
+          "selected_confidence": 0.513631
+        }
+      },
+      "prosody_emotion": {
+        "available": false,
+        "emotion": "neutral",
+        "confidence": 0.0,
+        "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
+        "features": {
+          "peak": 0.936358,
+          "rms": 0.123335,
+          "duration": 9.312,
+          "energy_std": 0.075287,
+          "energy_cv": 0.768592,
+          "energy_range": 0.186916,
+          "zero_crossing_rate": 0.145908,
+          "pitch_median_hz": 183.908051,
+          "pitch_mean_hz": 189.791656,
+          "pitch_std_hz": 25.579626,
+          "pitch_range_hz": 63.622971,
+          "voiced_ratio": 0.822823,
+          "spectral_centroid_hz": 1182.306256,
+          "spectral_flatness": 0.240648
+        }
+      },
+      "fused_emotion": {
+        "emotion": "neutral",
+        "confidence": 0.3659,
+        "reason": "Fixed-prosody/adaptive-text-visual fusion selected neutral: text=neutral rel=0.41 weight=0.38, visual=sadness rel=0.53 weight=0.62, prosody=None weight=0.00.",
+        "scores": {
+          "joy": 0.078646,
+          "sadness": 0.357161,
+          "anger": 0.06556,
+          "fear": 0.062449,
+          "surprise": 0.058579,
+          "disgust": 0.01167,
+          "neutral": 0.365934
+        },
+        "weights": {
+          "base_text": 0.4,
+          "base_visual": 0.5,
+          "base_prosody": 0.0,
+          "reliability_text": 0.408163,
+          "reliability_visual": 0.532398,
+          "reliability_prosody": 0.0,
+          "adaptive_text_visual_pool": 1.0,
+          "active_normalized_text": 0.38016,
+          "active_normalized_visual": 0.61984,
+          "active_normalized_prosody": 0.0
+        },
+        "text_emotion": {
+          "emotion": "neutral",
+          "ekman_emotion": "neutral",
+          "confidence": 0.4082,
+          "scores": {
+            "joy": 0.204082,
+            "sadness": 0.102041,
+            "anger": 0.05102,
+            "fear": 0.05102,
+            "surprise": 0.153061,
+            "disgust": 0.030612,
+            "neutral": 0.408163
+          },
+          "reason": "The text is a neutral inquiry about machine learning concepts, with some curiosity and interest (joy) in understanding the difference between supervised and unsupervised learning.",
+          "facial_expression_sequence": "bneutral",
+          "facial_expression_emoji": "🙂"
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "confidence": 0.5136,
+          "averaged_scores": {
+            "joy": 0.1714,
+            "sadness": 51.3631,
+            "anger": 7.4478,
+            "fear": 6.9459,
+            "surprise": 0.0631,
+            "disgust": 0.0052,
+            "neutral": 34.0035
+          },
+          "sampled_frame_count": 2,
+          "analyzed_frame_count": 2,
+          "reason": "DeepFace average over 2 usable frame(s): sadness 51.4% with margin 17.4%.",
+          "analysis_seconds": 0.3499,
+          "au_verification": {
+            "available": true,
+            "status": "nearest_reference_match",
+            "confidence": 0.491933,
+            "au_emotion": "anger",
+            "deepface_emotion": "sadness",
+            "analysis_seconds": 0.3777,
+            "agreement": false,
+            "best_mean_distance": 0.155205,
+            "second_best_mean_distance": 0.19636,
+            "distance_margin": 0.041155,
+            "best_similarity": 0.844795,
+            "margin_component": 0.164622,
+            "frame_agreement_ratio": 1.0,
+            "per_frame": [
+              {
+                "frame_index": 0,
+                "winner": "anger",
+                "matches": {
+                  "neutral": {
+                    "closest_reference_index": 2,
+                    "distance": 0.274453,
+                    "similarity": 0.725547
+                  },
+                  "joy": {
+                    "closest_reference_index": 1,
+                    "distance": 0.360425,
+                    "similarity": 0.639575
+                  },
+                  "sadness": {
+                    "closest_reference_index": 1,
+                    "distance": 0.297709,
+                    "similarity": 0.702291
+                  },
+                  "anger": {
+                    "closest_reference_index": 0,
+                    "distance": 0.16512,
+                    "similarity": 0.83488
+                  },
+                  "fear": {
+                    "closest_reference_index": 0,
+                    "distance": 0.334571,
+                    "similarity": 0.665429
+                  },
+                  "surprise": {
+                    "closest_reference_index": 1,
+                    "distance": 0.264627,
+                    "similarity": 0.735373
+                  },
+                  "disgust": {
+                    "closest_reference_index": 0,
+                    "distance": 0.19203,
+                    "similarity": 0.80797
+                  }
+                }
+              },
+              {
+                "frame_index": 1,
+                "winner": "anger",
+                "matches": {
+                  "neutral": {
+                    "closest_reference_index": 2,
+                    "distance": 0.211623,
+                    "similarity": 0.788377
+                  },
+                  "joy": {
+                    "closest_reference_index": 3,
+                    "distance": 0.329701,
+                    "similarity": 0.670299
+                  },
+                  "sadness": {
+                    "closest_reference_index": 1,
+                    "distance": 0.235026,
+                    "similarity": 0.764974
+                  },
+                  "anger": {
+                    "closest_reference_index": 1,
+                    "distance": 0.14529,
+                    "similarity": 0.85471
+                  },
+                  "fear": {
+                    "closest_reference_index": 0,
+                    "distance": 0.266388,
+                    "similarity": 0.733612
+                  },
+                  "surprise": {
+                    "closest_reference_index": 2,
+                    "distance": 0.21256,
+                    "similarity": 0.78744
+                  },
+                  "disgust": {
+                    "closest_reference_index": 0,
+                    "distance": 0.200691,
+                    "similarity": 0.799309
+                  }
+                }
+              }
+            ],
+            "mean_distances": {
+              "neutral": 0.243038,
+              "joy": 0.345063,
+              "sadness": 0.266367,
+              "anger": 0.155205,
+              "fear": 0.30048,
+              "surprise": 0.238593,
+              "disgust": 0.19636
+            },
+            "au_distribution": {
+              "neutral": 0.144049,
+              "joy": 0.124634,
+              "sadness": 0.139609,
+              "anger": 0.160763,
+              "fear": 0.133118,
+              "surprise": 0.144895,
+              "disgust": 0.152932
+            },
+            "reference_counts": {
+              "neutral": 4,
+              "joy": 4,
+              "sadness": 4,
+              "anger": 4,
+              "fear": 4,
+              "surprise": 4,
+              "disgust": 4
+            },
+            "live_crop_count": 2,
+            "invalid_live_au_count": 0,
+            "calibration_status": "ready",
+            "deepface_confidence": 0.513631,
+            "deepface_averaged_scores": {
+              "joy": 0.1713879443705082,
+              "sadness": 51.36307907104492,
+              "anger": 7.447784423828125,
+              "fear": 6.945918083190918,
+              "surprise": 0.0631417315453291,
+              "disgust": 0.005220233302679844,
+              "neutral": 34.003469467163086
+            },
+            "selected_source": "deepface",
+            "selected_emotion": "sadness",
+            "selected_confidence": 0.513631
+          }
+        },
+        "prosody_emotion": {
+          "available": false,
+          "emotion": "neutral",
+          "confidence": 0.0,
+          "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
+          "features": {
+            "peak": 0.936358,
+            "rms": 0.123335,
+            "duration": 9.312,
+            "energy_std": 0.075287,
+            "energy_cv": 0.768592,
+            "energy_range": 0.186916,
+            "zero_crossing_rate": 0.145908,
+            "pitch_median_hz": 183.908051,
+            "pitch_mean_hz": 189.791656,
+            "pitch_std_hz": 25.579626,
+            "pitch_range_hz": 63.622971,
+            "voiced_ratio": 0.822823,
+            "spectral_centroid_hz": 1182.306256,
+            "spectral_flatness": 0.240648
+          }
+        },
+        "response_times": {
+          "text_seconds": 3.1302,
+          "visual_seconds": 0.3499,
+          "au_verification_seconds": 0.3777,
+          "prosody_seconds": 0.0154
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "joy": 0.07864605581021705,
+            "sadness": 0.3571606386386754,
+            "anger": 0.06556025895103373,
+            "fear": 0.06244949192755547,
+            "surprise": 0.058579171460392675,
+            "disgust": 0.011669915863643571,
+            "neutral": 0.3659344673484821
+          },
+          "smoothed_emotion": "neutral",
+          "smoothed_confidence": 0.3659344673484821
+        }
+      },
+      "response_emotion": {
+        "emotion": "neutral",
+        "ekman_emotion": "neutral",
+        "confidence": 0.0,
+        "scores": {},
+        "reason": "This answer is neutral because it provides a factual explanation of supervised and unsupervised learning, without expressing any emotional tone.",
+        "facial_expression_sequence": "bneutral",
+        "facial_expression_emoji": "🙂"
+      },
+      "captured_at": "2026-08-13T16:03:34"
+    }
+  ],
+  "conversation": [
+    {
+      "role": "assistant",
+      "content": "(Name capture skipped -- reusing known name 'Dam' from an earlier session.)",
+      "timestamp": "2026-08-13T16:02:41",
+      "intent": "name_reused"
+    },
+    {
+      "role": "assistant",
+      "content": "Good to see you again, Dam. This is experiment session 2 of 4.",
+      "timestamp": "2026-08-13T16:02:51",
+      "intent": "goals_statement"
+    },
+    {
+      "role": "user",
+      "content": "Can you explain the difference between supervised and supervised learning and can you give me examples which respect the robotics?",
+      "timestamp": "2026-08-13T16:03:34",
+      "intent": "question",
+      "images": [
+        "warm_up_profile/A1234/questions_1_20260813_160329_154556.jpg",
+        "warm_up_profile/A1234/questions_2_20260813_160329_154830.jpg"
+      ],
+      "text_emotion": {
+        "emotion": "neutral",
+        "ekman_emotion": "neutral",
+        "confidence": 0.4082,
+        "scores": {
+          "joy": 0.204082,
+          "sadness": 0.102041,
+          "anger": 0.05102,
+          "fear": 0.05102,
+          "surprise": 0.153061,
+          "disgust": 0.030612,
+          "neutral": 0.408163
+        },
+        "reason": "The text is a neutral inquiry about machine learning concepts, with some curiosity and interest (joy) in understanding the difference between supervised and unsupervised learning.",
+        "facial_expression_sequence": "bneutral",
+        "facial_expression_emoji": "🙂"
+      },
+      "visual_emotion": {
+        "available": true,
+        "reliable": true,
+        "dominant_emotion": "sadness",
+        "confidence": 0.5136,
+        "averaged_scores": {
+          "joy": 0.1714,
+          "sadness": 51.3631,
+          "anger": 7.4478,
+          "fear": 6.9459,
+          "surprise": 0.0631,
+          "disgust": 0.0052,
+          "neutral": 34.0035
+        },
+        "sampled_frame_count": 2,
+        "analyzed_frame_count": 2,
+        "reason": "DeepFace average over 2 usable frame(s): sadness 51.4% with margin 17.4%.",
+        "analysis_seconds": 0.3499,
+        "au_verification": {
+          "available": true,
+          "status": "nearest_reference_match",
+          "confidence": 0.491933,
+          "au_emotion": "anger",
+          "deepface_emotion": "sadness",
+          "analysis_seconds": 0.3777,
+          "agreement": false,
+          "best_mean_distance": 0.155205,
+          "second_best_mean_distance": 0.19636,
+          "distance_margin": 0.041155,
+          "best_similarity": 0.844795,
+          "margin_component": 0.164622,
+          "frame_agreement_ratio": 1.0,
+          "per_frame": [
+            {
+              "frame_index": 0,
+              "winner": "anger",
+              "matches": {
+                "neutral": {
+                  "closest_reference_index": 2,
+                  "distance": 0.274453,
+                  "similarity": 0.725547
+                },
+                "joy": {
+                  "closest_reference_index": 1,
+                  "distance": 0.360425,
+                  "similarity": 0.639575
+                },
+                "sadness": {
+                  "closest_reference_index": 1,
+                  "distance": 0.297709,
+                  "similarity": 0.702291
+                },
+                "anger": {
+                  "closest_reference_index": 0,
+                  "distance": 0.16512,
+                  "similarity": 0.83488
+                },
+                "fear": {
+                  "closest_reference_index": 0,
+                  "distance": 0.334571,
+                  "similarity": 0.665429
+                },
+                "surprise": {
+                  "closest_reference_index": 1,
+                  "distance": 0.264627,
+                  "similarity": 0.735373
+                },
+                "disgust": {
+                  "closest_reference_index": 0,
+                  "distance": 0.19203,
+                  "similarity": 0.80797
+                }
+              }
+            },
+            {
+              "frame_index": 1,
+              "winner": "anger",
+              "matches": {
+                "neutral": {
+                  "closest_reference_index": 2,
+                  "distance": 0.211623,
+                  "similarity": 0.788377
+                },
+                "joy": {
+                  "closest_reference_index": 3,
+                  "distance": 0.329701,
+                  "similarity": 0.670299
+                },
+                "sadness": {
+                  "closest_reference_index": 1,
+                  "distance": 0.235026,
+                  "similarity": 0.764974
+                },
+                "anger": {
+                  "closest_reference_index": 1,
+                  "distance": 0.14529,
+                  "similarity": 0.85471
+                },
+                "fear": {
+                  "closest_reference_index": 0,
+                  "distance": 0.266388,
+                  "similarity": 0.733612
+                },
+                "surprise": {
+                  "closest_reference_index": 2,
+                  "distance": 0.21256,
+                  "similarity": 0.78744
+                },
+                "disgust": {
+                  "closest_reference_index": 0,
+                  "distance": 0.200691,
+                  "similarity": 0.799309
+                }
+              }
+            }
+          ],
+          "mean_distances": {
+            "neutral": 0.243038,
+            "joy": 0.345063,
+            "sadness": 0.266367,
+            "anger": 0.155205,
+            "fear": 0.30048,
+            "surprise": 0.238593,
+            "disgust": 0.19636
+          },
+          "au_distribution": {
+            "neutral": 0.144049,
+            "joy": 0.124634,
+            "sadness": 0.139609,
+            "anger": 0.160763,
+            "fear": 0.133118,
+            "surprise": 0.144895,
+            "disgust": 0.152932
+          },
+          "reference_counts": {
+            "neutral": 4,
+            "joy": 4,
+            "sadness": 4,
+            "anger": 4,
+            "fear": 4,
+            "surprise": 4,
+            "disgust": 4
+          },
+          "live_crop_count": 2,
+          "invalid_live_au_count": 0,
+          "calibration_status": "ready",
+          "deepface_confidence": 0.513631,
+          "deepface_averaged_scores": {
+            "joy": 0.1713879443705082,
+            "sadness": 51.36307907104492,
+            "anger": 7.447784423828125,
+            "fear": 6.945918083190918,
+            "surprise": 0.0631417315453291,
+            "disgust": 0.005220233302679844,
+            "neutral": 34.003469467163086
+          },
+          "selected_source": "deepface",
+          "selected_emotion": "sadness",
+          "selected_confidence": 0.513631
+        }
+      },
+      "prosody_emotion": {
+        "available": false,
+        "emotion": "neutral",
+        "confidence": 0.0,
+        "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
+        "features": {
+          "peak": 0.936358,
+          "rms": 0.123335,
+          "duration": 9.312,
+          "energy_std": 0.075287,
+          "energy_cv": 0.768592,
+          "energy_range": 0.186916,
+          "zero_crossing_rate": 0.145908,
+          "pitch_median_hz": 183.908051,
+          "pitch_mean_hz": 189.791656,
+          "pitch_std_hz": 25.579626,
+          "pitch_range_hz": 63.622971,
+          "voiced_ratio": 0.822823,
+          "spectral_centroid_hz": 1182.306256,
+          "spectral_flatness": 0.240648
+        }
+      },
+      "fused_emotion": {
+        "emotion": "neutral",
+        "confidence": 0.3659,
+        "reason": "Fixed-prosody/adaptive-text-visual fusion selected neutral: text=neutral rel=0.41 weight=0.38, visual=sadness rel=0.53 weight=0.62, prosody=None weight=0.00.",
+        "scores": {
+          "joy": 0.078646,
+          "sadness": 0.357161,
+          "anger": 0.06556,
+          "fear": 0.062449,
+          "surprise": 0.058579,
+          "disgust": 0.01167,
+          "neutral": 0.365934
+        },
+        "weights": {
+          "base_text": 0.4,
+          "base_visual": 0.5,
+          "base_prosody": 0.0,
+          "reliability_text": 0.408163,
+          "reliability_visual": 0.532398,
+          "reliability_prosody": 0.0,
+          "adaptive_text_visual_pool": 1.0,
+          "active_normalized_text": 0.38016,
+          "active_normalized_visual": 0.61984,
+          "active_normalized_prosody": 0.0
+        },
+        "text_emotion": {
+          "emotion": "neutral",
+          "ekman_emotion": "neutral",
+          "confidence": 0.4082,
+          "scores": {
+            "joy": 0.204082,
+            "sadness": 0.102041,
+            "anger": 0.05102,
+            "fear": 0.05102,
+            "surprise": 0.153061,
+            "disgust": 0.030612,
+            "neutral": 0.408163
+          },
+          "reason": "The text is a neutral inquiry about machine learning concepts, with some curiosity and interest (joy) in understanding the difference between supervised and unsupervised learning.",
+          "facial_expression_sequence": "bneutral",
+          "facial_expression_emoji": "🙂"
+        },
+        "visual_emotion": {
+          "available": true,
+          "reliable": true,
+          "dominant_emotion": "sadness",
+          "confidence": 0.5136,
+          "averaged_scores": {
+            "joy": 0.1714,
+            "sadness": 51.3631,
+            "anger": 7.4478,
+            "fear": 6.9459,
+            "surprise": 0.0631,
+            "disgust": 0.0052,
+            "neutral": 34.0035
+          },
+          "sampled_frame_count": 2,
+          "analyzed_frame_count": 2,
+          "reason": "DeepFace average over 2 usable frame(s): sadness 51.4% with margin 17.4%.",
+          "analysis_seconds": 0.3499,
+          "au_verification": {
+            "available": true,
+            "status": "nearest_reference_match",
+            "confidence": 0.491933,
+            "au_emotion": "anger",
+            "deepface_emotion": "sadness",
+            "analysis_seconds": 0.3777,
+            "agreement": false,
+            "best_mean_distance": 0.155205,
+            "second_best_mean_distance": 0.19636,
+            "distance_margin": 0.041155,
+            "best_similarity": 0.844795,
+            "margin_component": 0.164622,
+            "frame_agreement_ratio": 1.0,
+            "per_frame": [
+              {
+                "frame_index": 0,
+                "winner": "anger",
+                "matches": {
+                  "neutral": {
+                    "closest_reference_index": 2,
+                    "distance": 0.274453,
+                    "similarity": 0.725547
+                  },
+                  "joy": {
+                    "closest_reference_index": 1,
+                    "distance": 0.360425,
+                    "similarity": 0.639575
+                  },
+                  "sadness": {
+                    "closest_reference_index": 1,
+                    "distance": 0.297709,
+                    "similarity": 0.702291
+                  },
+                  "anger": {
+                    "closest_reference_index": 0,
+                    "distance": 0.16512,
+                    "similarity": 0.83488
+                  },
+                  "fear": {
+                    "closest_reference_index": 0,
+                    "distance": 0.334571,
+                    "similarity": 0.665429
+                  },
+                  "surprise": {
+                    "closest_reference_index": 1,
+                    "distance": 0.264627,
+                    "similarity": 0.735373
+                  },
+                  "disgust": {
+                    "closest_reference_index": 0,
+                    "distance": 0.19203,
+                    "similarity": 0.80797
+                  }
+                }
+              },
+              {
+                "frame_index": 1,
+                "winner": "anger",
+                "matches": {
+                  "neutral": {
+                    "closest_reference_index": 2,
+                    "distance": 0.211623,
+                    "similarity": 0.788377
+                  },
+                  "joy": {
+                    "closest_reference_index": 3,
+                    "distance": 0.329701,
+                    "similarity": 0.670299
+                  },
+                  "sadness": {
+                    "closest_reference_index": 1,
+                    "distance": 0.235026,
+                    "similarity": 0.764974
+                  },
+                  "anger": {
+                    "closest_reference_index": 1,
+                    "distance": 0.14529,
+                    "similarity": 0.85471
+                  },
+                  "fear": {
+                    "closest_reference_index": 0,
+                    "distance": 0.266388,
+                    "similarity": 0.733612
+                  },
+                  "surprise": {
+                    "closest_reference_index": 2,
+                    "distance": 0.21256,
+                    "similarity": 0.78744
+                  },
+                  "disgust": {
+                    "closest_reference_index": 0,
+                    "distance": 0.200691,
+                    "similarity": 0.799309
+                  }
+                }
+              }
+            ],
+            "mean_distances": {
+              "neutral": 0.243038,
+              "joy": 0.345063,
+              "sadness": 0.266367,
+              "anger": 0.155205,
+              "fear": 0.30048,
+              "surprise": 0.238593,
+              "disgust": 0.19636
+            },
+            "au_distribution": {
+              "neutral": 0.144049,
+              "joy": 0.124634,
+              "sadness": 0.139609,
+              "anger": 0.160763,
+              "fear": 0.133118,
+              "surprise": 0.144895,
+              "disgust": 0.152932
+            },
+            "reference_counts": {
+              "neutral": 4,
+              "joy": 4,
+              "sadness": 4,
+              "anger": 4,
+              "fear": 4,
+              "surprise": 4,
+              "disgust": 4
+            },
+            "live_crop_count": 2,
+            "invalid_live_au_count": 0,
+            "calibration_status": "ready",
+            "deepface_confidence": 0.513631,
+            "deepface_averaged_scores": {
+              "joy": 0.1713879443705082,
+              "sadness": 51.36307907104492,
+              "anger": 7.447784423828125,
+              "fear": 6.945918083190918,
+              "surprise": 0.0631417315453291,
+              "disgust": 0.005220233302679844,
+              "neutral": 34.003469467163086
+            },
+            "selected_source": "deepface",
+            "selected_emotion": "sadness",
+            "selected_confidence": 0.513631
+          }
+        },
+        "prosody_emotion": {
+          "available": false,
+          "emotion": "neutral",
+          "confidence": 0.0,
+          "reason": "Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
+          "features": {
+            "peak": 0.936358,
+            "rms": 0.123335,
+            "duration": 9.312,
+            "energy_std": 0.075287,
+            "energy_cv": 0.768592,
+            "energy_range": 0.186916,
+            "zero_crossing_rate": 0.145908,
+            "pitch_median_hz": 183.908051,
+            "pitch_mean_hz": 189.791656,
+            "pitch_std_hz": 25.579626,
+            "pitch_range_hz": 63.622971,
+            "voiced_ratio": 0.822823,
+            "spectral_centroid_hz": 1182.306256,
+            "spectral_flatness": 0.240648
+          }
+        },
+        "response_times": {
+          "text_seconds": 3.1302,
+          "visual_seconds": 0.3499,
+          "au_verification_seconds": 0.3777,
+          "prosody_seconds": 0.0154
+        },
+        "temporal_smoothing": {
+          "enabled": true,
+          "alpha": 0.6,
+          "smoothed_scores": {
+            "joy": 0.07864605581021705,
+            "sadness": 0.3571606386386754,
+            "anger": 0.06556025895103373,
+            "fear": 0.06244949192755547,
+            "surprise": 0.058579171460392675,
+            "disgust": 0.011669915863643571,
+            "neutral": 0.3659344673484821
+          },
+          "smoothed_emotion": "neutral",
+          "smoothed_confidence": 0.3659344673484821
+        }
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "In supervised learning, a model is trained on labeled data to learn the relationship between inputs and outputs. For example, in robotics, imagine you have a dataset of images of different objects with their corresponding labels (e.g., 'chair', 'table', etc.). You train a computer vision model to recognize these objects based on their visual features. Once trained, this model can be used for tasks like object detection or classification. On the other hand, unsupervised learning involves training a model on unlabeled data to discover patterns or relationships within that data. In robotics, you might use unsupervised learning to cluster similar sensor readings from a robot's environment, without knowing what specific objects are present. This can help the robot learn to recognize and adapt to its surroundings.",
+      "timestamp": "2026-08-13T16:04:33",
+      "intent": "answer",
+      "full_answer": "In supervised learning, a model is trained on labeled data to learn the relationship between inputs and outputs. For example, in robotics, imagine you have a dataset of images of different objects with their corresponding labels (e.g., 'chair', 'table', etc.). You train a computer vision model to recognize these objects based on their visual features. Once trained, this model can be used for tasks like object detection or classification. On the other hand, unsupervised learning involves training a model on unlabeled data to discover patterns or relationships within that data. In robotics, you might use unsupervised learning to cluster similar sensor readings from a robot's environment, without knowing what specific objects are present. This can help the robot learn to recognize and adapt to its surroundings.",
+      "response_emotion": {
+        "emotion": "neutral",
+        "ekman_emotion": "neutral",
+        "confidence": 0.0,
+        "scores": {},
+        "reason": "This answer is neutral because it provides a factual explanation of supervised and unsupervised learning, without expressing any emotional tone.",
+        "facial_expression_sequence": "bneutral",
+        "facial_expression_emoji": "🙂"
+      }
+    }
+  ],
+  "video_path": "warm_up_videos/A1234/session_muxed.mp4",
+  "audio_path": "warm_up_videos/A1234/session.wav",
+  "muxed_video_path": "warm_up_videos/A1234/session_muxed.mp4",
+  "_next_image_id": 3,
+  "check_facial_expression": true,
+  "emotion_fusion": {
+    "type": "fixed_0.10_prosody_adaptive_text_visual_fusion",
+    "taxonomy": "Ekman six basic emotions plus neutral",
+    "base_weights": {
+      "text": 0.4,
+      "visual": 0.5,
+      "prosody": 0.1
+    },
+    "temporal_smoothing": {
+      "enabled": true,
+      "alpha": 0.6
+    }
+  },
+  "explanation_level": "intermediate"
+}

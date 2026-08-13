@@ -1,1454 +1,372 @@
 {
   "participant_id": "A1234",
   "participant_folder": "A1234",
-  "display_name": "Davit",
-  "started_at": "2026-08-11T15:36:01",
-  "ended_at": "2026-08-11T15:39:32",
+  "session_type": "warm_up",
+  "counts_as_experiment_session": false,
+  "display_name": "Dam",
+  "started_at": "2026-08-13T15:35:23",
+  "ended_at": "2026-08-13T15:39:05",
   "goals_stated": true,
   "baseline_emotion_rounds": {
     "joy": {
       "requested_emotion": "joy",
       "script": "I received wonderful news today, and I feel very happy and excited.",
-      "transcript": "This is the emotion for joy.",
+      "transcript": "This is my emotional for joy.",
       "images": [
-        "warm_up_profile/A1234/A1234_1_joy_20260811_153644_454843.jpg",
-        "warm_up_profile/A1234/A1234_2_joy_20260811_153644_455130.jpg"
+        "warm_up_profile/A1234/A1234_1_joy_20260813_153606_010264.jpg",
+        "warm_up_profile/A1234/A1234_2_joy_20260813_153606_010559.jpg",
+        "warm_up_profile/A1234/A1234_3_joy_20260813_153606_010711.jpg",
+        "warm_up_profile/A1234/A1234_4_joy_20260813_153606_010867.jpg"
       ],
       "complete": true,
-      "captured_at": "2026-08-11T15:36:44"
+      "captured_at": "2026-08-13T15:36:06"
     },
     "sadness": {
       "requested_emotion": "sadness",
       "script": "Something important to me did not go as planned, and I feel sad and disappointed.",
-      "transcript": "the emotion for sadness.",
+      "transcript": "motion close that nice.",
       "images": [
-        "warm_up_profile/A1234/A1234_3_sadness_20260811_153710_688451.jpg",
-        "warm_up_profile/A1234/A1234_4_sadness_20260811_153710_688722.jpg"
+        "warm_up_profile/A1234/A1234_5_sadness_20260813_153616_391100.jpg",
+        "warm_up_profile/A1234/A1234_6_sadness_20260813_153616_391363.jpg",
+        "warm_up_profile/A1234/A1234_7_sadness_20260813_153632_646559.jpg",
+        "warm_up_profile/A1234/A1234_8_sadness_20260813_153632_646837.jpg"
       ],
       "complete": true,
-      "captured_at": "2026-08-11T15:37:10"
+      "captured_at": "2026-08-13T15:36:32"
     },
     "anger": {
       "requested_emotion": "anger",
       "script": "Someone treated me unfairly, and I feel angry about what happened.",
-      "transcript": "with the emotion for anger.",
+      "transcript": "for under.",
       "images": [
-        "warm_up_profile/A1234/A1234_5_anger_20260811_153720_940527.jpg",
-        "warm_up_profile/A1234/A1234_6_anger_20260811_153720_940797.jpg"
+        "warm_up_profile/A1234/A1234_9_anger_20260813_153643_100484.jpg",
+        "warm_up_profile/A1234/A1234_10_anger_20260813_153643_100761.jpg",
+        "warm_up_profile/A1234/A1234_11_anger_20260813_153643_100927.jpg",
+        "warm_up_profile/A1234/A1234_12_anger_20260813_153643_101081.jpg"
       ],
       "complete": true,
-      "captured_at": "2026-08-11T15:37:20"
+      "captured_at": "2026-08-13T15:36:43"
     },
     "fear": {
       "requested_emotion": "fear",
       "script": "I heard a sudden sound behind me, and I feel frightened because I do not know what caused it.",
-      "transcript": "the emotion for fear.",
+      "transcript": "for here.",
       "images": [
-        "warm_up_profile/A1234/A1234_7_fear_20260811_153731_054833.jpg",
-        "warm_up_profile/A1234/A1234_8_fear_20260811_153731_055140.jpg"
+        "warm_up_profile/A1234/A1234_13_fear_20260813_153653_759281.jpg",
+        "warm_up_profile/A1234/A1234_14_fear_20260813_153709_349974.jpg",
+        "warm_up_profile/A1234/A1234_15_fear_20260813_153709_350254.jpg",
+        "warm_up_profile/A1234/A1234_16_fear_20260813_153709_350420.jpg"
       ],
       "complete": true,
-      "captured_at": "2026-08-11T15:37:31"
+      "captured_at": "2026-08-13T15:37:09"
     },
     "surprise": {
       "requested_emotion": "surprise",
       "script": "I opened the door and found an unexpected celebration waiting for me.",
-      "transcript": "This is the emotion for surprise.",
+      "transcript": "This is my emotion for surprise.",
       "images": [
-        "warm_up_profile/A1234/A1234_9_surprise_20260811_153741_648920.jpg",
-        "warm_up_profile/A1234/A1234_10_surprise_20260811_153741_649226.jpg"
+        "warm_up_profile/A1234/A1234_17_surprise_20260813_153721_563870.jpg",
+        "warm_up_profile/A1234/A1234_18_surprise_20260813_153721_564150.jpg",
+        "warm_up_profile/A1234/A1234_19_surprise_20260813_153721_564335.jpg",
+        "warm_up_profile/A1234/A1234_20_surprise_20260813_153721_564492.jpg"
       ],
       "complete": true,
-      "captured_at": "2026-08-11T15:37:41"
+      "captured_at": "2026-08-13T15:37:21"
+    },
+    "disgust": {
+      "requested_emotion": "disgust",
+      "script": "I smelled something rotten, and I feel disgusted by it.",
+      "transcript": "This is my motion for these costs.",
+      "images": [
+        "warm_up_profile/A1234/A1234_21_disgust_20260813_153738_029867.jpg",
+        "warm_up_profile/A1234/A1234_22_disgust_20260813_153738_030157.jpg",
+        "warm_up_profile/A1234/A1234_23_disgust_20260813_153738_030348.jpg",
+        "warm_up_profile/A1234/A1234_24_disgust_20260813_153738_030524.jpg"
+      ],
+      "complete": true,
+      "captured_at": "2026-08-13T15:37:38"
     },
     "neutral": {
       "requested_emotion": "neutral",
       "script": "This is just a plain description of my day. Nothing about it feels especially strong one way or another.",
-      "transcript": "Ciao",
+      "transcript": "This is my emotion for neutral",
       "images": [
-        "warm_up_profile/A1234/A1234_11_neutral_20260811_153752_115902.jpg",
-        "warm_up_profile/A1234/A1234_12_neutral_20260811_153752_116172.jpg"
+        "warm_up_profile/A1234/A1234_25_neutral_20260813_153752_686525.jpg",
+        "warm_up_profile/A1234/A1234_26_neutral_20260813_153752_686957.jpg",
+        "warm_up_profile/A1234/A1234_27_neutral_20260813_153752_687236.jpg",
+        "warm_up_profile/A1234/A1234_28_neutral_20260813_153752_687509.jpg"
       ],
       "complete": true,
-      "captured_at": "2026-08-11T15:37:52"
+      "captured_at": "2026-08-13T15:37:52"
     }
   },
   "au_calibration": {
-    "version": 1,
-    "participant_folder": "A1234",
-    "created_at": "2026-08-11T15:38:07",
-    "extractor": "py-feat Detectorv2",
-    "device": "cpu",
-    "au_columns": [
-      "AU01",
-      "AU02",
-      "AU04",
-      "AU05",
-      "AU06",
-      "AU07",
-      "AU09",
-      "AU10",
-      "AU11",
-      "AU12",
-      "AU14",
-      "AU15",
-      "AU17",
-      "AU20",
-      "AU23",
-      "AU24",
-      "AU25",
-      "AU26",
-      "AU28",
-      "AU43"
-    ],
-    "uses_only_saved_warmup_crops": true,
-    "crops_per_emotion": 2,
-    "parameters": {
-      "neutral_min_consistency": 0.8,
-      "min_reference_consistency": 0.55,
-      "note": "PILOT-TUNE thresholds from observed calibration distributions."
-    },
-    "status": "ready",
-    "neutral": {
-      "images": [
-        "warm_up_profile/A1234/A1234_11_neutral_20260811_153752_115902.jpg",
-        "warm_up_profile/A1234/A1234_12_neutral_20260811_153752_116172.jpg"
-      ],
-      "vectors": [
-        [
-          0.175831,
-          0.057192,
-          0.13383,
-          0.035135,
-          0.003924,
-          0.039959,
-          0.044035,
-          0.461931,
-          0.0,
-          0.084464,
-          0.097486,
-          0.442481,
-          0.056637,
-          0.020396,
-          0.061371,
-          0.865617,
-          0.154443,
-          0.025952,
-          0.092987,
-          0.050347
-        ],
-        [
-          0.165488,
-          0.062645,
-          0.144407,
-          0.033591,
-          0.005831,
-          0.036907,
-          0.050108,
-          0.481964,
-          0.0,
-          0.108324,
-          0.234361,
-          0.423622,
-          0.055773,
-          0.019257,
-          0.077045,
-          0.91192,
-          0.134141,
-          0.028965,
-          0.091056,
-          0.046073
-        ]
-      ],
-      "mean": [
-        0.17066,
-        0.059919,
-        0.139118,
-        0.034363,
-        0.004878,
-        0.038433,
-        0.047072,
-        0.471947,
-        0.0,
-        0.096394,
-        0.165923,
-        0.433052,
-        0.056205,
-        0.019826,
-        0.069208,
-        0.888768,
-        0.144292,
-        0.027459,
-        0.092021,
-        0.04821
-      ],
-      "status": "ok",
-      "normalized_distance": 0.034056,
-      "consistency": 0.965944
-    },
-    "emotions": {
-      "joy": {
-        "images": [
-          "warm_up_profile/A1234/A1234_1_joy_20260811_153644_454843.jpg",
-          "warm_up_profile/A1234/A1234_2_joy_20260811_153644_455130.jpg"
-        ],
-        "vectors": [
-          [
-            0.194435,
-            0.139461,
-            0.101211,
-            0.019421,
-            0.065177,
-            0.047704,
-            0.009739,
-            0.694546,
-            0.0,
-            0.303805,
-            0.13134,
-            0.498282,
-            0.140114,
-            0.020536,
-            0.641082,
-            0.53267,
-            0.527434,
-            0.028708,
-            0.105662,
-            0.348199
-          ],
-          [
-            0.188296,
-            0.246359,
-            0.093264,
-            0.046864,
-            0.235762,
-            0.191726,
-            0.008178,
-            0.948368,
-            0.0,
-            0.530943,
-            0.297868,
-            0.332583,
-            0.105622,
-            0.012488,
-            0.1083,
-            0.119365,
-            0.862715,
-            0.185724,
-            0.122753,
-            0.131126
-          ]
-        ],
-        "mean": [
-          0.191365,
-          0.19291,
-          0.097237,
-          0.033143,
-          0.15047,
-          0.119715,
-          0.008959,
-          0.821457,
-          0.0,
-          0.417374,
-          0.214604,
-          0.415433,
-          0.122868,
-          0.016512,
-          0.374691,
-          0.326017,
-          0.695074,
-          0.107216,
-          0.114207,
-          0.239663
-        ],
-        "status": "ok",
-        "delta_vectors": [
-          [
-            0.023775,
-            0.079542,
-            -0.037907,
-            -0.014942,
-            0.0603,
-            0.009271,
-            -0.037333,
-            0.222598,
-            0.0,
-            0.207411,
-            -0.034583,
-            0.06523,
-            0.083909,
-            0.00071,
-            0.571874,
-            -0.356098,
-            0.383142,
-            0.001249,
-            0.013641,
-            0.299989
-          ],
-          [
-            0.017636,
-            0.18644,
-            -0.045854,
-            0.012501,
-            0.230884,
-            0.153293,
-            -0.038894,
-            0.476421,
-            0.0,
-            0.434549,
-            0.131945,
-            -0.100469,
-            0.049417,
-            -0.007338,
-            0.039092,
-            -0.769404,
-            0.718423,
-            0.158266,
-            0.030732,
-            0.082916
-          ]
-        ],
-        "delta_prototype": [
-          0.020706,
-          0.132991,
-          -0.041881,
-          -0.001221,
-          0.145592,
-          0.081282,
-          -0.038113,
-          0.34951,
-          0.0,
-          0.32098,
-          0.048681,
-          -0.017619,
-          0.066663,
-          -0.003314,
-          0.305483,
-          -0.562751,
-          0.550783,
-          0.079757,
-          0.022186,
-          0.191453
-        ],
-        "reference_consistency": 0.698074,
-        "usable": true
-      },
-      "sadness": {
-        "images": [
-          "warm_up_profile/A1234/A1234_3_sadness_20260811_153710_688451.jpg",
-          "warm_up_profile/A1234/A1234_4_sadness_20260811_153710_688722.jpg"
-        ],
-        "vectors": [
-          [
-            0.1633,
-            0.063981,
-            0.120664,
-            0.093986,
-            0.000961,
-            0.10692,
-            0.043152,
-            0.401527,
-            0.0,
-            0.060426,
-            0.158492,
-            0.600095,
-            0.134317,
-            0.050149,
-            0.130129,
-            0.415922,
-            0.317954,
-            0.036258,
-            0.132839,
-            0.153664
-          ],
-          [
-            0.163847,
-            0.071043,
-            0.16932,
-            0.085268,
-            0.0064,
-            0.104785,
-            0.047856,
-            0.365407,
-            0.0,
-            0.060799,
-            0.169303,
-            0.540152,
-            0.132869,
-            0.039551,
-            0.138872,
-            0.482991,
-            0.301952,
-            0.051277,
-            0.123229,
-            0.129152
-          ]
-        ],
-        "mean": [
-          0.163573,
-          0.067512,
-          0.144992,
-          0.089627,
-          0.00368,
-          0.105852,
-          0.045504,
-          0.383467,
-          0.0,
-          0.060612,
-          0.163898,
-          0.570124,
-          0.133593,
-          0.04485,
-          0.1345,
-          0.449457,
-          0.309953,
-          0.043768,
-          0.128034,
-          0.141408
-        ],
-        "status": "ok",
-        "delta_vectors": [
-          [
-            -0.00736,
-            0.004062,
-            -0.018454,
-            0.059623,
-            -0.003917,
-            0.068487,
-            -0.00392,
-            -0.070421,
-            0.0,
-            -0.035968,
-            -0.007431,
-            0.167043,
-            0.078112,
-            0.030323,
-            0.060921,
-            -0.472847,
-            0.173662,
-            0.0088,
-            0.040817,
-            0.105454
-          ],
-          [
-            -0.006813,
-            0.011124,
-            0.030202,
-            0.050905,
-            0.001522,
-            0.066352,
-            0.000784,
-            -0.106541,
-            0.0,
-            -0.035595,
-            0.00338,
-            0.1071,
-            0.076664,
-            0.019725,
-            0.069664,
-            -0.405777,
-            0.15766,
-            0.023819,
-            0.031208,
-            0.080942
-          ]
-        ],
-        "delta_prototype": [
-          -0.007086,
-          0.007593,
-          0.005874,
-          0.055264,
-          -0.001197,
-          0.067419,
-          -0.001568,
-          -0.088481,
-          0.0,
-          -0.035782,
-          -0.002026,
-          0.137072,
-          0.077388,
-          0.025024,
-          0.065292,
-          -0.439312,
-          0.165661,
-          0.016309,
-          0.036013,
-          0.093198
-        ],
-        "reference_consistency": 0.985973,
-        "usable": true
-      },
-      "anger": {
-        "images": [
-          "warm_up_profile/A1234/A1234_5_anger_20260811_153720_940527.jpg",
-          "warm_up_profile/A1234/A1234_6_anger_20260811_153720_940797.jpg"
-        ],
-        "vectors": [
-          [
-            0.19335,
-            0.015183,
-            0.961813,
-            0.045569,
-            0.039404,
-            0.269526,
-            0.504228,
-            0.910837,
-            0.0,
-            0.036476,
-            0.0,
-            0.165029,
-            0.252809,
-            0.030542,
-            0.101572,
-            0.219403,
-            0.667722,
-            0.060203,
-            0.124121,
-            0.114682
-          ],
-          [
-            0.151368,
-            0.027293,
-            0.857653,
-            0.045583,
-            0.017591,
-            0.400374,
-            0.168433,
-            0.808301,
-            0.0,
-            0.071062,
-            0.077247,
-            0.214505,
-            0.169364,
-            0.039441,
-            0.057324,
-            0.217925,
-            0.833255,
-            0.250234,
-            0.09036,
-            0.172513
-          ]
-        ],
-        "mean": [
-          0.172359,
-          0.021238,
-          0.909733,
-          0.045576,
-          0.028498,
-          0.33495,
-          0.336331,
-          0.859569,
-          0.0,
-          0.053769,
-          0.038623,
-          0.189767,
-          0.211087,
-          0.034992,
-          0.079448,
-          0.218664,
-          0.750488,
-          0.155219,
-          0.10724,
-          0.143598
-        ],
-        "status": "ok",
-        "delta_vectors": [
-          [
-            0.02269,
-            -0.044735,
-            0.822694,
-            0.011206,
-            0.034527,
-            0.231093,
-            0.457156,
-            0.43889,
-            0.0,
-            -0.059918,
-            -0.165923,
-            -0.268023,
-            0.196604,
-            0.010715,
-            0.032364,
-            -0.669366,
-            0.52343,
-            0.032745,
-            0.0321,
-            0.066472
-          ],
-          [
-            -0.019292,
-            -0.032626,
-            0.718535,
-            0.01122,
-            0.012713,
-            0.361941,
-            0.121361,
-            0.336353,
-            0.0,
-            -0.025332,
-            -0.088676,
-            -0.218547,
-            0.113159,
-            0.019615,
-            -0.011884,
-            -0.670843,
-            0.688963,
-            0.222776,
-            -0.001661,
-            0.124303
-          ]
-        ],
-        "delta_prototype": [
-          0.001699,
-          -0.038681,
-          0.770615,
-          0.011213,
-          0.02362,
-          0.296517,
-          0.289259,
-          0.387621,
-          0.0,
-          -0.042625,
-          -0.1273,
-          -0.243285,
-          0.154881,
-          0.015165,
-          0.01024,
-          -0.670105,
-          0.606197,
-          0.12776,
-          0.015219,
-          0.095387
-        ],
-        "reference_consistency": 0.938418,
-        "usable": true
-      },
-      "fear": {
-        "images": [
-          "warm_up_profile/A1234/A1234_7_fear_20260811_153731_054833.jpg",
-          "warm_up_profile/A1234/A1234_8_fear_20260811_153731_055140.jpg"
-        ],
-        "vectors": [
-          [
-            0.341065,
-            0.158399,
-            0.184048,
-            0.900865,
-            0.009562,
-            0.0,
-            0.08099,
-            0.466479,
-            0.0,
-            0.060357,
-            0.361788,
-            0.140813,
-            0.08917,
-            0.028451,
-            0.133653,
-            0.362007,
-            0.522966,
-            0.327426,
-            0.078946,
-            0.02009
-          ],
-          [
-            0.32837,
-            0.219325,
-            0.224161,
-            0.917821,
-            0.005251,
-            0.0,
-            0.094484,
-            0.502918,
-            0.0,
-            0.069206,
-            0.296257,
-            0.126082,
-            0.121999,
-            0.026225,
-            0.168203,
-            0.304267,
-            0.545096,
-            0.379843,
-            0.080865,
-            0.040188
-          ]
-        ],
-        "mean": [
-          0.334718,
-          0.188862,
-          0.204105,
-          0.909343,
-          0.007407,
-          0.0,
-          0.087737,
-          0.484698,
-          0.0,
-          0.064782,
-          0.329023,
-          0.133448,
-          0.105585,
-          0.027338,
-          0.150928,
-          0.333137,
-          0.534031,
-          0.353634,
-          0.079905,
-          0.030139
-        ],
-        "status": "ok",
-        "delta_vectors": [
-          [
-            0.170405,
-            0.098481,
-            0.04493,
-            0.866502,
-            0.004684,
-            -0.038433,
-            0.033918,
-            -0.005468,
-            0.0,
-            -0.036037,
-            0.195865,
-            -0.292239,
-            0.032965,
-            0.008624,
-            0.064445,
-            -0.526762,
-            0.378674,
-            0.299967,
-            -0.013075,
-            -0.02812
-          ],
-          [
-            0.15771,
-            0.159407,
-            0.085043,
-            0.883458,
-            0.000373,
-            -0.038433,
-            0.047412,
-            0.030971,
-            0.0,
-            -0.027188,
-            0.130333,
-            -0.30697,
-            0.065794,
-            0.006399,
-            0.098995,
-            -0.584502,
-            0.400804,
-            0.352385,
-            -0.011156,
-            -0.008022
-          ]
-        ],
-        "delta_prototype": [
-          0.164058,
-          0.128944,
-          0.064986,
-          0.87498,
-          0.002529,
-          -0.038433,
-          0.040665,
-          0.012751,
-          0.0,
-          -0.031613,
-          0.163099,
-          -0.299604,
-          0.04938,
-          0.007512,
-          0.08172,
-          -0.555632,
-          0.389739,
-          0.326176,
-          -0.012116,
-          -0.018071
-        ],
-        "reference_consistency": 0.994395,
-        "usable": true
-      },
-      "surprise": {
-        "images": [
-          "warm_up_profile/A1234/A1234_9_surprise_20260811_153741_648920.jpg",
-          "warm_up_profile/A1234/A1234_10_surprise_20260811_153741_649226.jpg"
-        ],
-        "vectors": [
-          [
-            0.247413,
-            0.304509,
-            0.343879,
-            0.86667,
-            0.116527,
-            0.086757,
-            0.143941,
-            0.742398,
-            0.0,
-            0.111694,
-            0.277068,
-            0.123372,
-            0.112012,
-            0.016678,
-            0.21772,
-            0.14403,
-            0.916816,
-            0.375739,
-            0.155201,
-            0.007102
-          ],
-          [
-            0.288281,
-            0.176049,
-            0.364938,
-            0.629051,
-            0.059947,
-            0.007804,
-            0.099812,
-            0.520868,
-            0.0,
-            0.130642,
-            0.171535,
-            0.280612,
-            0.124514,
-            0.024069,
-            0.112342,
-            0.465721,
-            0.464904,
-            0.244502,
-            0.085978,
-            0.0
-          ]
-        ],
-        "mean": [
-          0.267847,
-          0.240279,
-          0.354409,
-          0.747861,
-          0.088237,
-          0.047281,
-          0.121876,
-          0.631633,
-          0.0,
-          0.121168,
-          0.224302,
-          0.201992,
-          0.118263,
-          0.020374,
-          0.165031,
-          0.304875,
-          0.69086,
-          0.310121,
-          0.12059,
-          0.003551
-        ],
-        "status": "ok",
-        "delta_vectors": [
-          [
-            0.076753,
-            0.244591,
-            0.204761,
-            0.832307,
-            0.111649,
-            0.048324,
-            0.096869,
-            0.270451,
-            0.0,
-            0.0153,
-            0.111144,
-            -0.30968,
-            0.055807,
-            -0.003148,
-            0.148512,
-            -0.744738,
-            0.772524,
-            0.348281,
-            0.06318,
-            -0.041108
-          ],
-          [
-            0.117621,
-            0.11613,
-            0.225819,
-            0.594688,
-            0.055069,
-            -0.030629,
-            0.05274,
-            0.048921,
-            0.0,
-            0.034248,
-            0.005612,
-            -0.15244,
-            0.068309,
-            0.004243,
-            0.043134,
-            -0.423047,
-            0.320612,
-            0.217043,
-            -0.006043,
-            -0.04821
-          ]
-        ],
-        "delta_prototype": [
-          0.097187,
-          0.180361,
-          0.21529,
-          0.713498,
-          0.083359,
-          0.008847,
-          0.074805,
-          0.159686,
-          0.0,
-          0.024774,
-          0.058378,
-          -0.23106,
-          0.062058,
-          0.000547,
-          0.095823,
-          -0.583893,
-          0.546568,
-          0.282662,
-          0.028568,
-          -0.044659
-        ],
-        "reference_consistency": 0.954454,
-        "usable": true
-      }
-    },
-    "usable_emotion_count": 5,
-    "profile_path": "warm_up_profile/A1234/au_calibration.json"
+    "status": "unavailable",
+    "reason": "name 'normalize_ekman_emotion' is not defined"
   },
   "test_emotion_round": {
     "transcript": "Hello, how are you?",
     "fusion": {
-      "emotion": "neutral",
-      "confidence": 0.9715,
-      "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=1.00, prosody=surprise rel=0.30.",
+      "emotion": "joy",
+      "confidence": 0.3181,
+      "reason": "Fixed-prosody/adaptive-text-visual fusion selected joy: text=joy rel=0.34 weight=0.90, visual=None rel=0.00 weight=0.00, prosody=surprise weight=0.10.",
       "scores": {
-        "joy": 0.0038,
-        "sadness": 0.0038,
-        "anger": 0.0038,
-        "fear": 0.0038,
-        "surprise": 0.0097,
-        "disgust": 0.0038,
-        "neutral": 0.9715
+        "joy": 0.3181,
+        "sadness": 0.1655,
+        "anger": 0.0892,
+        "fear": 0.0511,
+        "surprise": 0.1365,
+        "disgust": 0.0359,
+        "neutral": 0.2037
       },
       "weights": {
-        "base_text": 0.5,
-        "base_visual": 0.4,
+        "base_text": 0.4,
+        "base_visual": 0.5,
         "base_prosody": 0.1,
-        "reliability_text": 1.0,
-        "reliability_visual": 1.0,
-        "reliability_prosody": 0.3,
-        "active_normalized_text": 0.5376,
-        "active_normalized_visual": 0.4301,
-        "active_normalized_prosody": 0.0323
+        "reliability_text": 0.339,
+        "reliability_visual": 0.0,
+        "reliability_prosody": 1.0,
+        "adaptive_text_visual_pool": 0.9,
+        "active_normalized_text": 0.9,
+        "active_normalized_visual": 0.0,
+        "active_normalized_prosody": 0.1
       },
       "text_emotion": {
-        "emotion": "neutral",
-        "confidence": 1.0,
-        "reason": "The text is a greeting and inquiry about the other person's well-being, indicating a neutral emotional state."
-      },
-      "visual_emotion": {
-        "emotion": "neutral",
-        "deepface_emotion": "neutral",
-        "confidence": 0.9999868774414062,
+        "emotion": "joy",
+        "confidence": 0.3389830508474576,
         "scores": {
-          "angry": 1.4048588127479888e-05,
-          "disgust": 1.1862664166252587e-17,
-          "fear": 2.9694012482650578e-05,
-          "happy": 0.0010262614814564586,
-          "sad": 0.00022658550005871803,
-          "surprise": 1.4047287550056353e-05,
-          "neutral": 99.99868774414062
+          "joy": 0.3389830508474576,
+          "sadness": 0.1694915254237288,
+          "anger": 0.0847457627118644,
+          "fear": 0.0423728813559322,
+          "surprise": 0.12711864406779658,
+          "disgust": 0.025423728813559317,
+          "neutral": 0.21186440677966098
         },
-        "region": {
-          "x": 1285,
-          "y": 338,
-          "w": 163,
-          "h": 163
-        }
+        "reason": "Warm and friendly greeting"
       },
+      "visual_emotion": {},
       "prosody_emotion": {
         "available": true,
         "emotion": "surprise",
-        "confidence": 0.3,
-        "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+        "confidence": 0.22138196857158954,
+        "reason": "Large pitch excursion with dynamic vocal energy supports a weak surprise cue.",
         "features": {
-          "peak": 1.0,
-          "rms": 0.3335653841495514,
-          "duration": 2.784,
-          "energy_std": 0.21575024614110927,
-          "zero_crossing_rate": 0.08362705700110006
+          "peak": 0.7014327049255371,
+          "rms": 0.1254364550113678,
+          "duration": 2.912,
+          "energy_std": 0.08789572864770889,
+          "energy_cv": 0.9716689607957608,
+          "energy_range": 0.20636754296720028,
+          "zero_crossing_rate": 0.08095984202957653,
+          "pitch_median_hz": 213.3333282470703,
+          "pitch_mean_hz": 212.63589477539062,
+          "pitch_std_hz": 50.029991149902344,
+          "pitch_range_hz": 121.64503479003906,
+          "voiced_ratio": 0.6935483870967742,
+          "spectral_centroid_hz": 1152.2562081692731,
+          "spectral_flatness": 0.19803486409306315
         }
       }
     },
-    "image": "warm_up_profile/A1234/test_13_20260811_153824_862393.jpg",
-    "response": "I detected a neutral tone in your voice with about 97% confidence, and I'm doing well, thanks for asking!",
-    "captured_at": "2026-08-11T15:38:26"
+    "image": null,
+    "response": "I detected joy in your tone with about 32% confidence!",
+    "captured_at": "2026-08-13T15:38:22"
   },
-  "qa_session": [
-    {
-      "question": "What is your name?",
-      "answer": "I am Ameca, a humanoid social robot developed by EngineeredArts and currently used in the university laboratory for research and demonstrations on human-robot interaction.",
-      "fusion": {
-        "emotion": "neutral",
-        "confidence": 0.8267,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=sadness rel=0.41, prosody=surprise rel=0.30.",
-        "scores": {
-          "joy": 0.0051,
-          "sadness": 0.1322,
-          "anger": 0.0129,
-          "fear": 0.0051,
-          "surprise": 0.013,
-          "disgust": 0.0051,
-          "neutral": 0.8267
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.4052,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.7225,
-          "active_normalized_visual": 0.2342,
-          "active_normalized_prosody": 0.0433
-        },
-        "text_emotion": {
-          "emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "curiosity and inquiry"
-        },
-        "visual_emotion": {
-          "emotion": "sadness",
-          "deepface_emotion": "sad",
-          "confidence": 0.542806396484375,
-          "scores": {
-            "angry": 3.355329751968384,
-            "disgust": 7.03535496526797e-09,
-            "fear": 0.011379320174455643,
-            "happy": 0.002278630854561925,
-            "sad": 54.2806396484375,
-            "surprise": 1.3000034414289985e-05,
-            "neutral": 42.350364685058594
-          },
-          "region": {
-            "x": 1277,
-            "y": 364,
-            "w": 154,
-            "h": 154
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-          "features": {
-            "peak": 1.0,
-            "rms": 0.22433976829051971,
-            "duration": 1.952,
-            "energy_std": 0.15474964360514862,
-            "zero_crossing_rate": 0.11635874611763952
-          }
-        }
-      },
-      "image": "warm_up_profile/A1234/questions_14_20260811_153854_153008.jpg",
-      "captured_at": "2026-08-11T15:38:54"
-    },
-    {
-      "question": "That would be all.",
-      "answer": "Thank you for the session! It was a pleasure assisting you with Artificial Intelligence and Robotics topics. If you have any further questions or need assistance in the future, please don't hesitate to reach out. Have a great day!",
-      "fusion": {
-        "emotion": "neutral",
-        "confidence": 0.9711,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=1.00, prosody=surprise rel=0.30.",
-        "scores": {
-          "joy": 0.0038,
-          "sadness": 0.0041,
-          "anger": 0.0038,
-          "fear": 0.0038,
-          "surprise": 0.0097,
-          "disgust": 0.0038,
-          "neutral": 0.9711
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.9995,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.5378,
-          "active_normalized_visual": 0.43,
-          "active_normalized_prosody": 0.0323
-        },
-        "text_emotion": {
-          "emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "statement implies finality"
-        },
-        "visual_emotion": {
-          "emotion": "neutral",
-          "deepface_emotion": "neutral",
-          "confidence": 0.999127197265625,
-          "scores": {
-            "angry": 0.004280471708625555,
-            "disgust": 5.108930205971474e-12,
-            "fear": 0.0001210090413223952,
-            "happy": 2.9306102078408003e-06,
-            "sad": 0.08287056535482407,
-            "surprise": 3.3510505659251066e-07,
-            "neutral": 99.9127197265625
-          },
-          "region": {
-            "x": 1266,
-            "y": 382,
-            "w": 140,
-            "h": 140
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-          "features": {
-            "peak": 1.0,
-            "rms": 0.3334960341453552,
-            "duration": 1.824,
-            "energy_std": 0.25372597074571435,
-            "zero_crossing_rate": 0.08049206729945516
-          }
-        }
-      },
-      "image": "warm_up_profile/A1234/questions_15_20260811_153910_766104.jpg",
-      "captured_at": "2026-08-11T15:39:11"
-    }
-  ],
+  "qa_session": [],
   "conversation": [
     {
       "role": "assistant",
       "content": "Hi, what is your name? Please spell it out for me -- for example, my name is A M E C A, Ameca.",
-      "timestamp": "2026-08-11T15:36:22",
+      "timestamp": "2026-08-13T15:35:43",
       "intent": "name_prompt"
     },
     {
       "role": "user",
-      "content": "D-A-V-I-T",
-      "timestamp": "2026-08-11T15:36:22",
+      "content": "D-A-M",
+      "timestamp": "2026-08-13T15:35:43",
       "intent": "name_response"
     },
     {
       "role": "assistant",
-      "content": "Nice to meet you, Davit. In this warm-up session, I have two goals: first, to capture a baseline of your facial expressions; and second, to have a short teaching conversation with you.",
-      "timestamp": "2026-08-11T15:36:35",
+      "content": "Nice to meet you, Dam. In this warm-up session, I have two goals: first, to capture a baseline of your facial expressions; and second, to have a short teaching conversation with you.",
+      "timestamp": "2026-08-13T15:35:57",
       "intent": "goals_statement"
     },
     {
       "role": "user",
-      "content": "This is the emotion for joy.",
-      "timestamp": "2026-08-11T15:36:44",
+      "content": "This is my emotional for joy.",
+      "timestamp": "2026-08-13T15:36:06",
       "intent": "baseline_emotion_reading",
       "requested_emotion": "joy"
     },
     {
       "role": "assistant",
       "content": "Expression has been saved.",
-      "timestamp": "2026-08-11T15:36:46",
+      "timestamp": "2026-08-13T15:36:08",
       "intent": "baseline_ack"
     },
     {
       "role": "user",
-      "content": "the emotion for sadness.",
-      "timestamp": "2026-08-11T15:37:10",
+      "content": "motion close that nice.",
+      "timestamp": "2026-08-13T15:36:32",
       "intent": "baseline_emotion_reading",
       "requested_emotion": "sadness"
     },
     {
       "role": "assistant",
       "content": "Expression has been saved.",
-      "timestamp": "2026-08-11T15:37:12",
+      "timestamp": "2026-08-13T15:36:34",
       "intent": "baseline_ack"
     },
     {
       "role": "user",
-      "content": "with the emotion for anger.",
-      "timestamp": "2026-08-11T15:37:20",
+      "content": "for under.",
+      "timestamp": "2026-08-13T15:36:43",
       "intent": "baseline_emotion_reading",
       "requested_emotion": "anger"
     },
     {
       "role": "assistant",
       "content": "Expression has been saved.",
-      "timestamp": "2026-08-11T15:37:23",
+      "timestamp": "2026-08-13T15:36:45",
       "intent": "baseline_ack"
     },
     {
       "role": "user",
-      "content": "the emotion for fear.",
-      "timestamp": "2026-08-11T15:37:31",
+      "content": "for here.",
+      "timestamp": "2026-08-13T15:37:09",
       "intent": "baseline_emotion_reading",
       "requested_emotion": "fear"
     },
     {
       "role": "assistant",
       "content": "Expression has been saved.",
-      "timestamp": "2026-08-11T15:37:33",
+      "timestamp": "2026-08-13T15:37:11",
       "intent": "baseline_ack"
     },
     {
       "role": "user",
-      "content": "This is the emotion for surprise.",
-      "timestamp": "2026-08-11T15:37:41",
+      "content": "This is my emotion for surprise.",
+      "timestamp": "2026-08-13T15:37:21",
       "intent": "baseline_emotion_reading",
       "requested_emotion": "surprise"
     },
     {
       "role": "assistant",
       "content": "Expression has been saved.",
-      "timestamp": "2026-08-11T15:37:43",
+      "timestamp": "2026-08-13T15:37:23",
       "intent": "baseline_ack"
     },
     {
       "role": "user",
-      "content": "Ciao",
-      "timestamp": "2026-08-11T15:37:52",
+      "content": "This is my motion for these costs.",
+      "timestamp": "2026-08-13T15:37:38",
+      "intent": "baseline_emotion_reading",
+      "requested_emotion": "disgust"
+    },
+    {
+      "role": "assistant",
+      "content": "Expression has been saved.",
+      "timestamp": "2026-08-13T15:37:40",
+      "intent": "baseline_ack"
+    },
+    {
+      "role": "user",
+      "content": "This is my emotion for neutral",
+      "timestamp": "2026-08-13T15:37:52",
       "intent": "baseline_emotion_reading",
       "requested_emotion": "neutral"
     },
     {
       "role": "assistant",
       "content": "Expression has been saved.",
-      "timestamp": "2026-08-11T15:37:54",
+      "timestamp": "2026-08-13T15:37:54",
       "intent": "baseline_ack"
     },
     {
       "role": "user",
       "content": "Hello, how are you?",
-      "timestamp": "2026-08-11T15:38:26",
+      "timestamp": "2026-08-13T15:38:22",
       "intent": "test_emotion",
       "fusion": {
-        "emotion": "neutral",
-        "confidence": 0.9715,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=1.00, prosody=surprise rel=0.30.",
+        "emotion": "joy",
+        "confidence": 0.3181,
+        "reason": "Fixed-prosody/adaptive-text-visual fusion selected joy: text=joy rel=0.34 weight=0.90, visual=None rel=0.00 weight=0.00, prosody=surprise weight=0.10.",
         "scores": {
-          "joy": 0.0038,
-          "sadness": 0.0038,
-          "anger": 0.0038,
-          "fear": 0.0038,
-          "surprise": 0.0097,
-          "disgust": 0.0038,
-          "neutral": 0.9715
+          "joy": 0.3181,
+          "sadness": 0.1655,
+          "anger": 0.0892,
+          "fear": 0.0511,
+          "surprise": 0.1365,
+          "disgust": 0.0359,
+          "neutral": 0.2037
         },
         "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
+          "base_text": 0.4,
+          "base_visual": 0.5,
           "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 1.0,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.5376,
-          "active_normalized_visual": 0.4301,
-          "active_normalized_prosody": 0.0323
+          "reliability_text": 0.339,
+          "reliability_visual": 0.0,
+          "reliability_prosody": 1.0,
+          "adaptive_text_visual_pool": 0.9,
+          "active_normalized_text": 0.9,
+          "active_normalized_visual": 0.0,
+          "active_normalized_prosody": 0.1
         },
         "text_emotion": {
-          "emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "The text is a greeting and inquiry about the other person's well-being, indicating a neutral emotional state."
-        },
-        "visual_emotion": {
-          "emotion": "neutral",
-          "deepface_emotion": "neutral",
-          "confidence": 0.9999868774414062,
+          "emotion": "joy",
+          "confidence": 0.3389830508474576,
           "scores": {
-            "angry": 1.4048588127479888e-05,
-            "disgust": 1.1862664166252587e-17,
-            "fear": 2.9694012482650578e-05,
-            "happy": 0.0010262614814564586,
-            "sad": 0.00022658550005871803,
-            "surprise": 1.4047287550056353e-05,
-            "neutral": 99.99868774414062
+            "joy": 0.3389830508474576,
+            "sadness": 0.1694915254237288,
+            "anger": 0.0847457627118644,
+            "fear": 0.0423728813559322,
+            "surprise": 0.12711864406779658,
+            "disgust": 0.025423728813559317,
+            "neutral": 0.21186440677966098
           },
-          "region": {
-            "x": 1285,
-            "y": 338,
-            "w": 163,
-            "h": 163
-          }
+          "reason": "Warm and friendly greeting"
         },
+        "visual_emotion": {},
         "prosody_emotion": {
           "available": true,
           "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
+          "confidence": 0.22138196857158954,
+          "reason": "Large pitch excursion with dynamic vocal energy supports a weak surprise cue.",
           "features": {
-            "peak": 1.0,
-            "rms": 0.3335653841495514,
-            "duration": 2.784,
-            "energy_std": 0.21575024614110927,
-            "zero_crossing_rate": 0.08362705700110006
+            "peak": 0.7014327049255371,
+            "rms": 0.1254364550113678,
+            "duration": 2.912,
+            "energy_std": 0.08789572864770889,
+            "energy_cv": 0.9716689607957608,
+            "energy_range": 0.20636754296720028,
+            "zero_crossing_rate": 0.08095984202957653,
+            "pitch_median_hz": 213.3333282470703,
+            "pitch_mean_hz": 212.63589477539062,
+            "pitch_std_hz": 50.029991149902344,
+            "pitch_range_hz": 121.64503479003906,
+            "voiced_ratio": 0.6935483870967742,
+            "spectral_centroid_hz": 1152.2562081692731,
+            "spectral_flatness": 0.19803486409306315
           }
         }
       }
     },
     {
       "role": "assistant",
-      "content": "I detected a neutral tone in your voice with about 97% confidence, and I'm doing well, thanks for asking!",
-      "timestamp": "2026-08-11T15:38:34",
+      "content": "I detected joy in your tone with about 32% confidence!",
+      "timestamp": "2026-08-13T15:38:28",
       "intent": "test_emotion_response"
     },
     {
       "role": "user",
-      "content": "What is your name?",
-      "timestamp": "2026-08-11T15:38:54",
-      "intent": "question",
-      "fusion": {
-        "emotion": "neutral",
-        "confidence": 0.8267,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=sadness rel=0.41, prosody=surprise rel=0.30.",
-        "scores": {
-          "joy": 0.0051,
-          "sadness": 0.1322,
-          "anger": 0.0129,
-          "fear": 0.0051,
-          "surprise": 0.013,
-          "disgust": 0.0051,
-          "neutral": 0.8267
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.4052,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.7225,
-          "active_normalized_visual": 0.2342,
-          "active_normalized_prosody": 0.0433
-        },
-        "text_emotion": {
-          "emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "curiosity and inquiry"
-        },
-        "visual_emotion": {
-          "emotion": "sadness",
-          "deepface_emotion": "sad",
-          "confidence": 0.542806396484375,
-          "scores": {
-            "angry": 3.355329751968384,
-            "disgust": 7.03535496526797e-09,
-            "fear": 0.011379320174455643,
-            "happy": 0.002278630854561925,
-            "sad": 54.2806396484375,
-            "surprise": 1.3000034414289985e-05,
-            "neutral": 42.350364685058594
-          },
-          "region": {
-            "x": 1277,
-            "y": 364,
-            "w": 154,
-            "h": 154
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-          "features": {
-            "peak": 1.0,
-            "rms": 0.22433976829051971,
-            "duration": 1.952,
-            "energy_std": 0.15474964360514862,
-            "zero_crossing_rate": 0.11635874611763952
-          }
-        }
-      }
-    },
-    {
-      "role": "assistant",
-      "content": "I am Ameca, a humanoid social robot developed by EngineeredArts and currently used in the university laboratory for research and demonstrations on human-robot interaction.",
-      "timestamp": "2026-08-11T15:39:06",
-      "intent": "answer"
-    },
-    {
-      "role": "user",
-      "content": "That would be all.",
-      "timestamp": "2026-08-11T15:39:11",
-      "intent": "question",
-      "fusion": {
-        "emotion": "neutral",
-        "confidence": 0.9711,
-        "reason": "Adaptive reliability-aware fusion selected neutral: text=neutral rel=1.00, visual=neutral rel=1.00, prosody=surprise rel=0.30.",
-        "scores": {
-          "joy": 0.0038,
-          "sadness": 0.0041,
-          "anger": 0.0038,
-          "fear": 0.0038,
-          "surprise": 0.0097,
-          "disgust": 0.0038,
-          "neutral": 0.9711
-        },
-        "weights": {
-          "base_text": 0.5,
-          "base_visual": 0.4,
-          "base_prosody": 0.1,
-          "reliability_text": 1.0,
-          "reliability_visual": 0.9995,
-          "reliability_prosody": 0.3,
-          "active_normalized_text": 0.5378,
-          "active_normalized_visual": 0.43,
-          "active_normalized_prosody": 0.0323
-        },
-        "text_emotion": {
-          "emotion": "neutral",
-          "confidence": 1.0,
-          "reason": "statement implies finality"
-        },
-        "visual_emotion": {
-          "emotion": "neutral",
-          "deepface_emotion": "neutral",
-          "confidence": 0.999127197265625,
-          "scores": {
-            "angry": 0.004280471708625555,
-            "disgust": 5.108930205971474e-12,
-            "fear": 0.0001210090413223952,
-            "happy": 2.9306102078408003e-06,
-            "sad": 0.08287056535482407,
-            "surprise": 3.3510505659251066e-07,
-            "neutral": 99.9127197265625
-          },
-          "region": {
-            "x": 1266,
-            "y": 382,
-            "w": 140,
-            "h": 140
-          }
-        },
-        "prosody_emotion": {
-          "available": true,
-          "emotion": "surprise",
-          "confidence": 0.3,
-          "reason": "Higher or more variable vocal energy suggests heightened arousal.",
-          "features": {
-            "peak": 1.0,
-            "rms": 0.3334960341453552,
-            "duration": 1.824,
-            "energy_std": 0.25372597074571435,
-            "zero_crossing_rate": 0.08049206729945516
-          }
-        }
-      }
-    },
-    {
-      "role": "assistant",
-      "content": "Thank you for the session! It was a pleasure assisting you with Artificial Intelligence and Robotics topics. If you have any further questions or need assistance in the future, please don't hesitate to reach out. Have a great day!",
-      "timestamp": "2026-08-11T15:39:28",
-      "intent": "answer"
+      "content": "No!",
+      "timestamp": "2026-08-13T15:39:01",
+      "intent": "no_further_questions"
     }
   ],
   "video_path": "warm_up_videos/A1234/session_muxed.mp4",
-  "_next_image_id": 16,
+  "_next_image_id": 29,
   "check_facial_expression": true
 }
