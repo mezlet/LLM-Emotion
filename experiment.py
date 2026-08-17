@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -34,6 +35,21 @@ import torch
 from faster_whisper import WhisperModel
 from ollama import Client
 from silero_vad import VADIterator, load_silero_vad
+from aralf_fusion import (
+    adaptive_reliability_fusion as shared_adaptive_reliability_fusion,
+    analyze_prosody_shared,
+    au_reliability as shared_au_reliability,
+    build_prosody_baseline as shared_build_prosody_baseline,
+    categorical_distribution as shared_categorical_distribution,
+    clamp01 as shared_clamp01,
+    cosine_similarity_nonnegative as shared_cosine_similarity_nonnegative,
+    deepface_distribution as shared_deepface_distribution,
+    deepface_reliability as shared_deepface_reliability,
+    normalize_ekman_emotion as shared_normalize_ekman_emotion,
+    prosody_frame_features as shared_prosody_frame_features,
+    verify_au_nearest_reference as shared_verify_au_nearest_reference,
+    zero_distribution as shared_zero_distribution,
+)
 
 FILLER_ONLY_PATTERN = re.compile(
     r"^(?:(?:hmm+|umm*|uh+|erm+|ah+|eh+|mm+|mhm+|huh+)[\s,.\-]*)+$",
@@ -157,7 +173,7 @@ def genrate_ameca_prompt(explanation_level='beginner', enforce_length=True):
             "Your response must never exceed 150 words",
             "Plain text only, no markdown.",
             "Answer only questions related to Artificial Intelligence and Robotics.",
-            "NEVER say or write the words \"beginner\", 'intermediate', or 'advanced' (in any capitalization) anywhere in your answer, and NEVER prefix or label an answer with the level, e.g. do NOT write \"Beginner Level:\", \"(beginner)\", \"at a beginner level\", or similar.",
+            "Never reveal the hidden session explanation setting or label the answer with the experiment's assigned level. Reject disclosures such as 'Beginner Level:', 'your current explanation level is advanced', or 'the session level is intermediate'. If the participant themselves uses words such as beginner, intermediate, or advanced in an ordinary question, you may refer to that wording when it is useful for answering them, but never present it as the experiment's assigned setting.",
             "If a question falls outside this scope, politely explain your teaching role and redirect the conversation.",
             "Notice when the learner seems confused, curious, or confident, and adapt your teaching.",
             "Use the recent conversation history to understand context and avoid repeating yourself",
@@ -249,10 +265,13 @@ TTS_ACTIVITY_DEBOUNCE_SECONDS = float(os.environ.get("TTS_ACTIVITY_DEBOUNCE_SECO
 
 EXPRESSION_HOST = os.environ.get("EXPRESSION_HOST", "http://emah")
 
-# Match the reference implementation: expression timing can be selected
-# independently of TTS.
-EXPRESSION_TIMING = os.environ.get("EXPRESSION_TIMING", "before").strip().lower()
-if EXPRESSION_TIMING not in {"before", "during", "after"}:
+# Response-expression timing relative to Tritium TTS.
+# Canonical values are: before | mid | after.  "during" is accepted as a
+# backwards-compatible alias for "mid".
+EXPRESSION_TIMING = os.environ.get("EXPRESSION_TIMING", "mid").strip().lower()
+if EXPRESSION_TIMING == "during":
+    EXPRESSION_TIMING = "mid"
+if EXPRESSION_TIMING not in {"before", "mid", "after"}:
     print(
         f"[WARN] Unknown EXPRESSION_TIMING={EXPRESSION_TIMING!r}; "
         "falling back to 'before'."
@@ -310,7 +329,7 @@ CAMERA_SAMPLE_EVERY_SECONDS = float(
     os.environ.get("CAMERA_SAMPLE_EVERY_SECONDS", "0.5")
 )
 FACE_MAX_CANDIDATE_FRAMES = int(
-    os.environ.get("FACE_MAX_CANDIDATE_FRAMES", "2")
+    os.environ.get("FACE_MAX_CANDIDATE_FRAMES", "5")
 )
 
 DEEPFACE_PYTHON = os.environ.get("DEEPFACE_PYTHON", "")
@@ -338,16 +357,17 @@ QA_IMAGES_PER_TURN = int(os.environ.get("QA_IMAGES_PER_TURN", "2"))
 # within the adaptive text-visual pool, not final three-way weights.
 FUSION_TEXT_WEIGHT = float(os.environ.get("FUSION_TEXT_WEIGHT", "0.4"))
 FUSION_VISUAL_WEIGHT = float(os.environ.get("FUSION_VISUAL_WEIGHT", "0.5"))
-FUSION_PROSODY_WEIGHT = 0.10
-TEXT_VISUAL_FUSION_POOL = 1.0 - FUSION_PROSODY_WEIGHT
+FUSION_PROSODY_WEIGHT = float(os.environ.get("FUSION_PROSODY_WEIGHT", "0.10"))
+# All three values above are prior ratios. The shared ARALF core multiplies
+# each prior by per-turn reliability before one three-way normalization.
 
 # Visual reliability gates. DeepFace scores are percentages (0..100).
-FACE_MULTI_FRAME_COUNT = int(os.environ.get("FACE_MULTI_FRAME_COUNT", "2"))
+FACE_MULTI_FRAME_COUNT = int(os.environ.get("FACE_MULTI_FRAME_COUNT", "3"))
 FACE_MIN_TOP_SCORE = float(os.environ.get("FACE_MIN_TOP_SCORE", "35.0"))
 FACE_MIN_MARGIN = float(os.environ.get("FACE_MIN_MARGIN", "8.0"))
 
 # Participant-specific AU verification. The reference profile is created by the
-# warm-up code from FOUR independently AU-extracted saved crops per emotion.
+# warm-up code from THREE independently AU-extracted saved crops per emotion.
 AU_VERIFICATION_ENABLED_DEFAULT = os.environ.get("AU_VERIFICATION_ENABLED", "1") == "1"
 PYFEAT_DEVICE = os.environ.get("PYFEAT_DEVICE", "cpu")
 
@@ -402,11 +422,12 @@ AU_STATUS_HIGH_CONFIDENCE = float(os.environ.get("AU_STATUS_HIGH_CONFIDENCE", "0
 # prototypes is automatically downgraded to partial.
 AU_READY_MIN_USABLE_EMOTIONS = int(os.environ.get("AU_READY_MIN_USABLE_EMOTIONS", "4"))
 AU_PARTIAL_MIN_USABLE_EMOTIONS = int(os.environ.get("AU_PARTIAL_MIN_USABLE_EMOTIONS", "2"))
+AU_PARTIAL_RELIABILITY_SCALE = float(os.environ.get("AU_PARTIAL_RELIABILITY_SCALE", "0.65"))
 
 # Optional cross-turn smoothing of the FUSED participant emotion. This only
 # affects the tone supplied to generate_teacher_answer(); it never directly
 # controls Ameca's facial expression. The robot expression still comes from
-# the generated answer's separate response_emotion.
+# the response_emotion field generated together with the robot answer.
 EMOTION_SMOOTHING_ENABLED = os.environ.get("EMOTION_SMOOTHING_ENABLED", "1") == "1"
 EMOTION_SMOOTHING_ALPHA = float(os.environ.get("EMOTION_SMOOTHING_ALPHA", "0.6"))
 
@@ -426,6 +447,12 @@ PROSODY_VERY_HIGH_PITCH_RANGE_HZ = float(os.environ.get("PROSODY_VERY_HIGH_PITCH
 PROSODY_LOW_PITCH_RANGE_HZ = float(os.environ.get("PROSODY_LOW_PITCH_RANGE_HZ", "45"))
 PROSODY_ANGER_ZCR = float(os.environ.get("PROSODY_ANGER_ZCR", "0.075"))
 PROSODY_ANGER_CENTROID_HZ = float(os.environ.get("PROSODY_ANGER_CENTROID_HZ", "1200"))
+PROSODY_PERIODICITY_THRESHOLD = float(os.environ.get("PROSODY_PERIODICITY_THRESHOLD", "0.30"))
+PROSODY_Z_MODERATE = float(os.environ.get("PROSODY_Z_MODERATE", "0.75"))
+PROSODY_Z_HIGH = float(os.environ.get("PROSODY_Z_HIGH", "1.25"))
+PROSODY_Z_VERY_HIGH = float(os.environ.get("PROSODY_Z_VERY_HIGH", "1.75"))
+PROSODY_Z_LOW = float(os.environ.get("PROSODY_Z_LOW", "-1.0"))
+PROSODY_BASELINE_FILENAME = os.environ.get("PROSODY_BASELINE_FILENAME", "prosody_baseline.json")
 
 # Ollama connection used for teacher Q&A response generation.
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
@@ -437,8 +464,15 @@ EMOTION_MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
 TUTOR_RESPONSE_MAX_WORDS = int(
     os.environ.get(
         "TUTOR_RESPONSE_MAX_WORDS",
-        os.environ.get("RESPONSE_SUMMARY_MAX_WORDS", "180"),
+        os.environ.get("RESPONSE_SUMMARY_MAX_WORDS", "90"),
     )
+)
+
+# Answers may exceed the expected maximum by this many words without a retry.
+# Example: with a 90-word maximum and the default tolerance of 20, answers up
+# to 110 words are accepted. A larger overflow triggers one LLM rewrite.
+TUTOR_RESPONSE_OVERFLOW_TOLERANCE_WORDS = int(
+    os.environ.get("TUTOR_RESPONSE_OVERFLOW_TOLERANCE_WORDS", "20")
 )
 
 
@@ -504,11 +538,11 @@ def is_filler_only_transcript(text: str) -> bool:
 # =============================================================================
 
 # The warm-up is a separate preparation/calibration stage and is NOT counted
-# as an experiment session. Each participant completes FOUR experiment sessions:
+# as an experiment session. Each participant completes THREE experiment sessions:
 # warm_up_sessions/{participant_folder}_session{1,2,3,4}.json.
-# Experiment session 1 is the first teaching session; sessions 2-4 open with a
+# Experiment session 1 is the first teaching session; sessions 2-3 open with a
 # recap of the previous experiment session's summary.
-MAX_SESSIONS_PER_PARTICIPANT = int(os.environ.get("MAX_SESSIONS_PER_PARTICIPANT", "4"))
+MAX_SESSIONS_PER_PARTICIPANT = int(os.environ.get("MAX_SESSIONS_PER_PARTICIPANT", "3"))
 
 LEVEL_TOPIC_MENU: dict[str, list[str]] = {
     "beginner": [
@@ -531,8 +565,8 @@ LEVEL_TOPIC_MENU: dict[str, list[str]] = {
 
 def explanation_level_for_session(session_number: int) -> str:
     """
-    Default explanation-level progression across the FOUR experiment sessions:
-    session 1 is beginner, session 2 is intermediate, and sessions 3-4 are
+    Default explanation-level progression across the THREE experiment sessions:
+    session 1 is beginner, session 2 is intermediate, and session 3 is
     advanced. The separate warm-up does not participate in this progression.
     Only used when the
     experimenter hasn't explicitly overridden the level via
@@ -797,10 +831,9 @@ EKMAN_EMOTION_ALIASES = {
 
 
 def normalize_ekman_emotion(emotion: str) -> str:
-    """Return one canonical Ekman label plus neutral."""
-    normalized = str(emotion or "").strip().lower()
-    normalized = EKMAN_EMOTION_ALIASES.get(normalized, normalized)
-    return normalized if normalized in EKMAN_EMOTION_LABELS else "neutral"
+    """Canonical Ekman normalization shared with the warm-up pipeline."""
+    return shared_normalize_ekman_emotion(emotion)
+
 
 
 def ekman_facial_sequence(emotion: str) -> str:
@@ -840,13 +873,21 @@ class ProsodyEmotionResult:
     confidence: float
     reason: str
     features: dict[str, float]
+    scores: Optional[dict[str, float]] = None
+    reliability: Optional[float] = None
 
     @property
     def as_json(self) -> dict[str, Any]:
+        rel = self.confidence if self.reliability is None else self.reliability
         return {
             "available": self.available,
             "emotion": normalize_ekman_emotion(self.emotion),
-            "confidence": round(max(0.0, min(1.0, float(self.confidence))), 4),
+            "confidence": round(clamp01(float(self.confidence)), 4),
+            "reliability": round(clamp01(float(rel)), 4),
+            "scores": {
+                normalize_ekman_emotion(key): round(float(value), 6)
+                for key, value in (self.scores or {}).items()
+            },
             "reason": self.reason,
             "features": {
                 key: round(float(value), 6)
@@ -900,6 +941,7 @@ class FusedEmotionResult:
     weights: dict[str, float]
     text_emotion: dict[str, Any]
     visual_emotion: dict[str, Any]
+    au_emotion: dict[str, Any]
     prosody_emotion: dict[str, Any]
     response_times: dict[str, Any]
 
@@ -907,12 +949,13 @@ class FusedEmotionResult:
     def as_json(self) -> dict[str, Any]:
         return {
             "emotion": normalize_ekman_emotion(self.emotion),
-            "confidence": round(max(0.0, min(1.0, float(self.confidence))), 4),
+            "confidence": round(clamp01(self.confidence), 4),
             "reason": self.reason,
             "scores": {k: round(float(v), 6) for k, v in self.scores.items()},
             "weights": {k: round(float(v), 6) for k, v in self.weights.items()},
             "text_emotion": self.text_emotion,
             "visual_emotion": self.visual_emotion,
+            "au_emotion": self.au_emotion,
             "prosody_emotion": self.prosody_emotion,
             "response_times": {
                 k: (round(float(v), 4) if isinstance(v, (int, float)) else v)
@@ -923,9 +966,11 @@ class FusedEmotionResult:
     def to_emotion_result(self) -> EmotionResult:
         return EmotionResult(
             emotion=normalize_ekman_emotion(self.emotion),
-            confidence=max(0.0, min(1.0, float(self.confidence))),
+            confidence=clamp01(self.confidence),
             reason=self.reason,
+            scores=dict(self.scores),
         )
+
 
 
 def safe_json_extract(raw: str) -> Optional[dict]:
@@ -953,23 +998,56 @@ def safe_json_extract(raw: str) -> Optional[dict]:
 
 
 def build_emotion_prompt(transcribed_text: str) -> str:
+    """Build a compact prompt for participant TEXT emotion only.
+
+    The LLM must classify what is linguistically expressed in the current
+    utterance.  It must not infer feelings from the topic, experiment context,
+    or what a participant might plausibly feel.
+    """
     return f"""
-        You are an emotion classification system for a human-robot interaction session.
+Classify ONLY the emotion expressed by the participant's wording.
 
-        Estimate a score distribution across ALL of these Ekman emotion labels:
-        joy, sadness, anger, fear, surprise, disgust, neutral.
+Labels:
+joy, sadness, anger, fear, surprise, disgust, neutral.
 
-        Use the words as the primary signal. Every score must be between 0.0 and 1.0
-        and the seven scores must sum to 1.0. Do not add markdown or extra text.
+Interpretation:
+- joy: explicit happiness, delight, excitement, or positive affect
+- sadness: explicit unhappiness, loss, disappointment, or low mood
+- anger: explicit irritation, frustration, hostility, or anger
+- fear: explicit worry, anxiety, threat, or fear
+- surprise: explicit unexpectedness, astonishment, or being startled
+- disgust: explicit revulsion, aversion, or disgust
+- neutral: no clearly expressed Ekman emotion
 
-        Return JSON only in this exact shape:
-        {{"scores": {{"joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0,
-        "surprise": 0.0, "disgust": 0.0, "neutral": 0.0}},
-        "reason": "short explanation"}}
+Rules:
+- Use ONLY the participant utterance below.
+- Do not infer emotion from the topic itself, novelty, question intent, or experiment context.
+- Do not treat curiosity alone as joy or surprise.
+- A factual question, request, instruction, or informational statement with no clear emotional wording should strongly favor neutral.
+- Return probabilities for all seven labels. Values must be between 0 and 1. Python will normalize small rounding differences.
+- Return JSON only. Do not add a reason, markdown, or extra text.
 
-        Text:
-        {transcribed_text}
-        """.strip()
+PARTICIPANT UTTERANCE ONLY:
+<<<{transcribed_text}>>>
+""".strip()
+
+
+TEXT_EMOTION_RESPONSE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "scores": {
+            "type": "object",
+            "properties": {
+                emotion: {"type": "number", "minimum": 0.0, "maximum": 1.0}
+                for emotion in EKMAN_EMOTION_LABELS
+            },
+            "required": list(EKMAN_EMOTION_LABELS),
+            "additionalProperties": False,
+        }
+    },
+    "required": ["scores"],
+    "additionalProperties": False,
+}
 
 
 def _normalize_text_emotion_scores(raw_scores: Any) -> dict[str, float]:
@@ -986,6 +1064,28 @@ def _normalize_text_emotion_scores(raw_scores: Any) -> dict[str, float]:
     if total <= 0.0:
         return {emotion: 0.0 for emotion in EKMAN_EMOTION_LABELS}
     return {emotion: value / total for emotion, value in scores.items()}
+
+
+def _extract_text_emotion_scores(data: dict[str, Any]) -> tuple[dict[str, float], str]:
+    """Extract a real seven-score distribution without synthesizing one.
+
+    The structured Ollama schema should always produce ``{"scores": {...}}``.
+    A flat seven-key object is accepted only as a compatibility parser for an
+    older Ollama/model that ignores the nesting instruction.  A categorical
+    {emotion, confidence} response is deliberately NOT expanded into a fake
+    distribution because ARALF must consume the classifier's actual scores.
+    """
+    nested = data.get("scores")
+    if isinstance(nested, dict):
+        return _normalize_text_emotion_scores(nested), "structured_scores"
+
+    # Defensive compatibility path: accept the seven scores if the model put
+    # them at the top level despite the response schema.
+    if any(label in data for label in EKMAN_EMOTION_LABELS):
+        flat = {label: data.get(label, 0.0) for label in EKMAN_EMOTION_LABELS}
+        return _normalize_text_emotion_scores(flat), "flat_scores_fallback"
+
+    return {emotion: 0.0 for emotion in EKMAN_EMOTION_LABELS}, "missing_scores"
 
 
 def detect_text_emotion(
@@ -1005,12 +1105,21 @@ def detect_text_emotion(
     try:
         response = client.chat(
             model=model_name,
-            format="json",
+            format=TEXT_EMOTION_RESPONSE_SCHEMA,
             messages=[
-                {"role": "system", "content": "Return valid JSON only with all seven emotion scores."},
+                {
+                    "role": "system",
+                    "content": (
+                        "Classify only the emotion linguistically expressed in the current "
+                        "participant utterance. Return exactly the structured seven-score "
+                        "JSON object required by the supplied schema. Prefer neutral when "
+                        "no Ekman emotion is clearly expressed."
+                    ),
+                },
                 {"role": "user", "content": build_emotion_prompt(transcribed_text)},
             ],
-            options={"temperature": 0.1, "num_predict": 180, "num_ctx": 2048},
+            options={"temperature": 0.0, "num_predict": 90, "num_ctx": 1024},
+            keep_alive="30m",
             stream=False,
         )
     except Exception as exc:
@@ -1025,6 +1134,10 @@ def detect_text_emotion(
     raw = response.get("message", {}).get("content", "")
     data = safe_json_extract(raw)
     if not isinstance(data, dict):
+        print_ts(
+            "[WARN] Text emotion classifier returned unparsable JSON; "
+            f"raw output (first 300 chars): {raw[:300]!r}"
+        )
         return EmotionResult(
             emotion="neutral",
             confidence=0.0,
@@ -1032,22 +1145,12 @@ def detect_text_emotion(
             scores=empty_scores,
         )
 
-    scores = _normalize_text_emotion_scores(data.get("scores"))
-
-    # Backwards-compatible fallback for an old {emotion, confidence} response.
+    scores, parse_mode = _extract_text_emotion_scores(data)
     if sum(scores.values()) <= 0.0:
-        legacy_raw = str(data.get("emotion", "")).strip().lower()
-        legacy_emotion = normalize_ekman_emotion(legacy_raw)
-        try:
-            legacy_confidence = clamp01(float(data.get("confidence", 0.0)))
-        except Exception:
-            legacy_confidence = 0.0
-        if legacy_confidence > 0.0:
-            remaining = (1.0 - legacy_confidence) / max(1, len(EKMAN_EMOTION_LABELS) - 1)
-            scores = {emotion: remaining for emotion in EKMAN_EMOTION_LABELS}
-            scores[legacy_emotion] = legacy_confidence
-
-    if sum(scores.values()) <= 0.0:
+        print_ts(
+            "[WARN] Text emotion classifier returned no usable seven-score "
+            f"distribution; raw output (first 300 chars): {raw[:300]!r}"
+        )
         return EmotionResult(
             emotion="neutral",
             confidence=0.0,
@@ -1056,7 +1159,14 @@ def detect_text_emotion(
         )
 
     emotion, confidence = max(scores.items(), key=lambda item: item[1])
-    reason = str(data.get("reason", "")).strip() or "Emotion distribution inferred from transcript."
+    reason = (
+        "Text-only structured score distribution from the participant utterance; "
+        f"dominant={emotion}."
+        if parse_mode == "structured_scores"
+        else
+        "Text-only flat-score compatibility parse from the participant utterance; "
+        f"dominant={emotion}."
+    )
     return EmotionResult(
         emotion=emotion,
         confidence=clamp01(confidence),
@@ -1066,22 +1176,68 @@ def detect_text_emotion(
 
 
 LEVEL_LEAK_PATTERNS = [
-    # "Beginner Level:" / "Advanced level -" etc as a label/prefix, wherever
-    # it appears in the text (the model has been observed inserting this
-    # mid-answer, not just at the start).
-    re.compile(r"\b(?:beginner|intermediate|advanced)\s+level\s*[:\-]\s*", re.IGNORECASE),
-    # Parenthetical leak, e.g. "your current explanation level (beginner)".
-    re.compile(r"\(\s*(?:beginner|intermediate|advanced)\s*\)", re.IGNORECASE),
-    # Inline phrase leak, e.g. "at your current explanation level" / "at a beginner level".
+    # Explicit answer labels such as "Beginner Level:" or "Advanced level -".
+    # This is a disclosure of the hidden experimental setting, not ordinary
+    # participant-facing use of the word "beginner".
     re.compile(
-        r"\bat\s+(?:a|your current)\s+(?:beginner|intermediate|advanced\s+)?(?:explanation\s+)?level\b",
+        r"\b(?:beginner|intermediate|advanced)\s+(?:explanation\s+)?level\s*[:\-]",
+        re.IGNORECASE,
+    ),
+    # Direct statements that identify the experiment/session setting, e.g.
+    # "the session level is advanced" or "the explanation level: beginner".
+    re.compile(
+        r"\b(?:the\s+)?(?:session|experiment|explanation|teaching|difficulty)\s+"
+        r"(?:level|mode)\s*(?:is|=|:|-)\s*(?:beginner|intermediate|advanced)\b",
+        re.IGNORECASE,
+    ),
+    # Possessive/current-setting disclosures, e.g.
+    # "your current explanation level is advanced".
+    re.compile(
+        r"\b(?:my|your|our|this|current|assigned|configured|selected)\s+"
+        r"(?:current\s+)?(?:session\s+|experiment\s+|explanation\s+|teaching\s+|difficulty\s+)?"
+        r"(?:level|mode)\s*(?:is|=|:|-)\s*(?:beginner|intermediate|advanced)\b",
+        re.IGNORECASE,
+    ),
+    # First-person disclosures of the hidden configuration, e.g.
+    # "I am configured for an advanced level" or "I'm teaching at beginner level".
+    re.compile(
+        r"\b(?:i(?:'m|\s+am)?|we(?:'re|\s+are)?)\s+(?:currently\s+)?"
+        r"(?:configured\s+for|set\s+to|assigned\s+to|teaching\s+at|answering\s+at)\s+"
+        r"(?:an?\s+)?(?:beginner|intermediate|advanced)\s+(?:level|mode)\b",
+        re.IGNORECASE,
+    ),
+    # Parenthetical setting labels, but NOT ordinary phrases such as
+    # "as a beginner" or "for advanced learners".
+    re.compile(
+        r"\(\s*(?:session|explanation|teaching)?\s*(?:level|mode)?\s*[:=-]?\s*"
+        r"(?:beginner|intermediate|advanced)\s+(?:level|mode)\s*\)",
         re.IGNORECASE,
     ),
 ]
 
 
+def find_level_leak(text: str) -> Optional[str]:
+    """Return the matched hidden-setting phrase, or None when no leak exists.
+
+    A bare educational word such as ``beginner`` is intentionally NOT enough
+    to count as a leak.  The guard only blocks wording that exposes the hidden
+    session/explanation configuration.
+    """
+    candidate = str(text or "")
+    for pattern in LEVEL_LEAK_PATTERNS:
+        match = pattern.search(candidate)
+        if match:
+            return match.group(0)
+    return None
+
+
+def contains_level_leak(text: str) -> bool:
+    return find_level_leak(text) is not None
+
+
 def strip_level_leak(text: str) -> str:
-    cleaned = text
+    """Best-effort cleanup helper retained for compatibility/debugging."""
+    cleaned = str(text or "")
     for pattern in LEVEL_LEAK_PATTERNS:
         cleaned = pattern.sub("", cleaned)
     cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
@@ -1100,13 +1256,12 @@ def generate_teacher_answer(
     tone_scores: Optional[dict[str, float]] = None,
     max_words: Optional[int] = None,
 ) -> tuple[str, EmotionResult]:
-    """Generate a complete tutor answer and response emotion in one LLM call.
+    """Generate the tutor answer and its robot-response emotion in ONE LLM call.
 
-    No generated answer is shortened or cut after generation. The model is
-    instructed to self-check its word count before emitting the final JSON.
-    If the first answer is under-length, one explicit expansion retry is made.
-    Over-length answers are rejected, and a complete fallback is returned
-    instead of truncating generated text.
+    The teacher LLM returns both the participant-facing ``answer`` and the
+    emotional tone that the ROBOT'S OWN ANSWER expresses.  The response-emotion
+    fields are actuation metadata for TTS/expression playback; they are never
+    fed into ARALF.  ARALF continues to use only participant-side modalities.
     """
     resolved_max_words = max_words or TUTOR_RESPONSE_MAX_WORDS
     resolved_max_words = max(30, int(resolved_max_words))
@@ -1138,9 +1293,16 @@ def generate_teacher_answer(
     runtime_contract = f"""
         RUNTIME RESPONSE CONTRACT
         - The JSON object is only an internal transport envelope. The participant hears only the value of the answer field.
+        - During the actual experiment, NEVER verbalize emotion-detection confidence, percentages, modality scores, score distributions, fusion weights, or other internal confidence values in the answer field.
+        - The emotion/confidence/reason fields are internal actuation and logging metadata only; they must never be copied into the spoken answer.
+        - Do not tell the participant that an emotion was detected or state a confidence score unless a separate warm-up routine explicitly asks for that behavior. This teacher function is the actual experiment and must not do so.
+        - After writing the answer, choose the emotion label that best describes the emotional tone expressed by THAT ROBOT ANSWER.
+        - The response-emotion label must describe the answer you wrote, not the participant's detected/fused emotion and not the participant's question.
+        - For a factual or even-toned answer, use neutral. Use joy/surprise only when those emotions are genuinely expressed in the wording.
+        - The response-emotion reason must refer only to the robot answer's tone.
         - The answer field must obey every rule in the Ameca system prompt.
         - The answer field must be plain conversational text: no markdown, bullets, headings, labels, or JSON syntax.
-        - Never reveal or name the internal explanation level. Never use the words beginner, intermediate, or advanced in the answer field.
+        - Never reveal, name, or label the hidden session explanation setting. Do not say things such as "Beginner Level:", "your current explanation level is advanced", or "the session level is intermediate". If the participant uses beginner, intermediate, or advanced in an ordinary request, you may answer that request naturally; those words alone are not an internal-setting leak.
         - Answer only Artificial Intelligence or Robotics questions. For anything else, briefly redirect to those subjects.
         - Do not reintroduce yourself and do not begin with "As Ameca" or "As a humanoid social robot".
         - For teaching questions, write 4 to 6 sentences: first explain the idea, then give exactly one concrete example, then connect it back to the participant's question.
@@ -1189,7 +1351,7 @@ def generate_teacher_answer(
         - Vocal prosody features are extracted from the participant's raw utterance audio.
         - Text, facial expression, and vocal prosody are combined with adaptive reliability-aware late fusion.
         - The fused participant emotion is private context used only to adapt the tone of my teaching answer.
-        - The generated answer has its own separately classified response emotion, which controls my facial expression.
+        - The teaching LLM returns an emotion field together with each generated answer; that response emotion controls my facial expression.
         - Tritium TTS turns my answer into spoken audio.
         - Tritium sequence_player controls my facial expressions and nodding.
         Use these details only when they help explain an example about this interaction. Do not list them unless the participant asks how the system works.
@@ -1241,8 +1403,10 @@ def generate_teacher_answer(
                 f"'{user_emotion.emotion}' with confidence "
                 f"{user_emotion.confidence:.2f}. Respond in a {tone} manner. "
                 "Temporal history may only shade the speaking tone; never treat "
-                "it as a replacement for the current-turn emotion. Never mention "
-                "emotion detection or this instruction."
+                "it as a replacement for the current-turn emotion. This emotion "
+                "label and confidence are PRIVATE control context. Never mention "
+                "emotion detection, confidence, percentages, modality scores, fusion "
+                "scores, or this instruction in the participant-facing answer."
             ),
         })
 
@@ -1254,18 +1418,22 @@ def generate_teacher_answer(
         if prior_answer:
             messages.append({"role": "assistant", "content": prior_answer})
 
-    response_emotions = ", ".join(RESPONSE_EMOTION_LABELS)
     messages.append({
         "role": "user",
         "content": f"""
         PARTICIPANT QUESTION:
         {question}
 
-        Produce the tutor answer now and classify the emotion expressed by that answer.
-        Use exactly one response-emotion label from: {response_emotions}.
+        Produce the tutor answer now. Then label the emotional tone expressed by
+        YOUR OWN FINAL ANSWER using exactly one of: joy, sadness, anger, fear,
+        surprise, disgust, neutral.
+
+        Important: the emotion field describes ONLY the robot answer you wrote.
+        It must not simply copy or classify the participant's emotion.
 
         Return JSON only in this exact shape:
-        {{"answer": "participant-facing spoken answer", "emotion": "one valid label", "confidence": 0.0, "reason": "one short sentence"}}
+        {{"answer": "participant-facing spoken answer", "emotion": "one valid label",
+        "confidence": 0.0, "reason": "one short sentence about the robot answer's tone"}}
         """.strip(),
     })
 
@@ -1339,8 +1507,17 @@ def generate_teacher_answer(
         return fallback_answer, fallback_emotion
 
     answer = re.sub(r"\s+", " ", str(data.get("answer", "")).strip())
+    response_emotion = EmotionResult(
+        emotion=normalize_ekman_emotion(str(data.get("emotion", "neutral"))),
+        confidence=clamp01(data.get("confidence", 0.0)),
+        reason=(
+            str(data.get("reason", "")).strip()
+            or "Teacher LLM supplied the robot answer's emotional tone."
+        ),
+    )
     debug_payload["raw_model_output"] = raw_content
     debug_payload["parsed_answer_initial"] = answer
+    debug_payload["parsed_response_emotion_initial"] = response_emotion.as_json
 
     with debug_path.open("w", encoding="utf-8") as f:
         json.dump(debug_payload, f, indent=2, ensure_ascii=False, default=str)
@@ -1348,39 +1525,63 @@ def generate_teacher_answer(
     if not answer:
         answer = fallback_answer
 
-    if re.search(r"\b(?:beginner|intermediate|advanced)\b", answer, re.IGNORECASE):
+    level_leak_match = find_level_leak(answer)
+    if level_leak_match:
         print_ts(
-            "[WARN] Teacher answer exposed the internal explanation level. "
-            "The non-compliant answer was rejected without editing or truncation."
+            "[WARN] Teacher answer exposed the hidden session explanation setting "
+            f"via {level_leak_match!r}. The non-compliant answer was rejected "
+            "without editing or truncation."
         )
         return (
             "Let us focus on the idea itself. Please ask the question again, and I will explain it clearly using an Artificial Intelligence or Robotics example.",
             EmotionResult(
                 emotion="neutral",
                 confidence=1.0,
-                reason="Answer exposed an internal explanation-level label and was rejected.",
+                reason="Answer disclosed the hidden session explanation setting and was rejected.",
             ),
         )
 
     final_word_count = len(answer.split())
     if final_word_count < target_min_words:
         print_ts(
-            f"[WARN] Teacher generated only {final_word_count} words, below "
-            f"the {target_min_words}-word target. Retrying once with an explicit "
-            "expansion instruction."
+            f"[INFO] Teacher generated {final_word_count} words, below "
+            f"the {target_min_words}-word target. Accepting the first complete "
+            "answer without an LLM retry."
         )
+
+    overflow_tolerance = max(0, int(TUTOR_RESPONSE_OVERFLOW_TOLERANCE_WORDS))
+    overflow_words = max(0, final_word_count - resolved_max_words)
+
+    if 0 < overflow_words <= overflow_tolerance:
+        print_ts(
+            f"[INFO] Teacher generated {final_word_count} words, which is "
+            f"{overflow_words} word(s) above the {resolved_max_words}-word expected "
+            f"maximum but within the +{overflow_tolerance}-word tolerance. "
+            "Accepting the first complete answer without retry."
+        )
+
+    elif overflow_words > overflow_tolerance:
+        print_ts(
+            f"[WARN] Teacher generated {final_word_count} words, which is "
+            f"{overflow_words} word(s) above the {resolved_max_words}-word expected "
+            f"maximum and exceeds the +{overflow_tolerance}-word tolerance. "
+            "Retrying once with a shorter-answer instruction."
+        )
+
         retry_messages = list(messages)
         retry_messages.append({"role": "assistant", "content": raw_content})
         retry_messages.append({
             "role": "user",
             "content": (
-                f"Your previous answer was only {final_word_count} words. Rewrite the "
-                f"same answer so the spoken answer is between {target_min_words} and "
-                f"{target_max_words} words. Preserve the meaning, add one useful "
-                "concrete detail or explanation, do not invent unsupported facts, and "
-                "keep the response complete. Return exactly the same JSON schema."
+                f"Your previous spoken answer was {final_word_count} words. Rewrite the "
+                f"same answer so it is no more than {resolved_max_words} words. Preserve "
+                "the meaning, keep exactly one useful concrete example when relevant, do "
+                "not invent unsupported facts, keep the answer complete, and return exactly "
+                "the same JSON schema with the emotion describing the rewritten robot answer."
             ),
         })
+
+        retry_ok = False
         try:
             retry_response = client.chat(
                 model=model_name,
@@ -1388,7 +1589,7 @@ def generate_teacher_answer(
                 messages=retry_messages,
                 options={
                     "temperature": 0.20,
-                    "num_predict": 280,
+                    "num_predict": 240,
                     "num_ctx": 8192,
                     "repeat_penalty": 1.1,
                 },
@@ -1402,125 +1603,75 @@ def generate_teacher_answer(
                 else ""
             )
             retry_word_count = len(retry_answer.split()) if retry_answer else 0
-            debug_payload["underlength_retry"] = {
+            retry_level_leak = find_level_leak(retry_answer) if retry_answer else None
+            retry_overflow = max(0, retry_word_count - resolved_max_words)
+
+            debug_payload["overlength_retry"] = {
                 "previous_word_count": final_word_count,
+                "expected_max_words": resolved_max_words,
+                "overflow_tolerance_words": overflow_tolerance,
                 "raw_model_output": retry_raw,
                 "parsed_answer": retry_answer,
                 "word_count": retry_word_count,
+                "overflow_words": retry_overflow,
+                "level_leak": retry_level_leak,
             }
             with debug_path.open("w", encoding="utf-8") as f:
                 json.dump(debug_payload, f, indent=2, ensure_ascii=False, default=str)
 
-            retry_level_leak = bool(
-                re.search(r"\b(?:beginner|intermediate|advanced)\b", retry_answer, re.IGNORECASE)
-            )
+            # The retry is judged by the same tolerance rule. Ideally it is <= the
+            # expected maximum, but a small residual overflow of <=20 words is allowed.
             if (
                 isinstance(retry_data, dict)
                 and retry_answer
                 and not retry_level_leak
-                and target_min_words <= retry_word_count <= target_max_words
+                and retry_overflow <= overflow_tolerance
             ):
-                data = retry_data
-                raw_content = retry_raw
                 answer = retry_answer
+                raw_content = retry_raw
+                data = retry_data
                 final_word_count = retry_word_count
+                response_emotion = EmotionResult(
+                    emotion=normalize_ekman_emotion(str(retry_data.get("emotion", "neutral"))),
+                    confidence=clamp01(retry_data.get("confidence", 0.0)),
+                    reason=(
+                        str(retry_data.get("reason", "")).strip()
+                        or "Teacher LLM supplied the rewritten robot answer's emotional tone."
+                    ),
+                )
+                retry_ok = True
                 print_ts(
-                    f"[TEACHER] Under-length retry succeeded: "
-                    f"{final_word_count} words."
+                    f"[TEACHER] Over-length retry succeeded: {final_word_count} words "
+                    f"({retry_overflow} above expected max; tolerance={overflow_tolerance})."
                 )
             else:
                 print_ts(
-                    f"[WARN] Teacher retry still missed the response contract "
-                    f"(words={retry_word_count}, level_leak={retry_level_leak}). "
-                    "Using a complete templated expansion rather than the short draft."
+                    f"[WARN] Teacher over-length retry still missed the allowed range "
+                    f"(words={retry_word_count}, overflow={retry_overflow}, "
+                    f"tolerance={overflow_tolerance}, level_leak={retry_level_leak!r})."
                 )
-                core = answer.rstrip()
-                if core and core[-1] not in ".!?":
-                    core += "."
-                answer = (
-                    f"{core} A useful way to make the idea clearer is to identify what "
-                    "information the system receives, how that information is processed, "
-                    "and what result or action follows. In Artificial Intelligence and "
-                    "Robotics, connecting those three parts usually makes the concept easier "
-                    "to understand and shows why it matters in practice. Which part would "
-                    "you like me to explain in more detail?"
-                ).strip()
-                final_word_count = len(answer.split())
-                if final_word_count < target_min_words:
-                    answer += (
-                        " The key learning goal is to connect the explanation to a concrete "
-                        "system behavior, so the concept is easier to recognize in later examples."
-                    )
-                    final_word_count = len(answer.split())
-                data = dict(data)
-                data["answer"] = answer
         except Exception as exc:
-            print_ts(f"[WARN] Teacher under-length retry failed: {exc}")
-            core = answer.rstrip()
-            if core and core[-1] not in ".!?":
-                core += "."
-            answer = (
-                f"{core} A useful way to make the idea clearer is to identify what "
-                "information the system receives, how that information is processed, "
-                "and what result or action follows. In Artificial Intelligence and "
-                "Robotics, connecting those three parts usually makes the concept easier "
-                "to understand and shows why it matters in practice. Which part would "
-                "you like me to explain in more detail?"
-            ).strip()
-            final_word_count = len(answer.split())
-            if final_word_count < target_min_words:
-                answer += (
-                    " The key learning goal is to connect the explanation to a concrete "
-                    "system behavior, so the concept is easier to recognize in later examples."
-                )
-                final_word_count = len(answer.split())
-            data = dict(data)
-            data["answer"] = answer
+            print_ts(f"[WARN] Teacher over-length retry failed: {exc}")
 
-    if final_word_count > resolved_max_words:
-        print_ts(
-            f"[WARN] Teacher generated {final_word_count} words, exceeding "
-            f"the {resolved_max_words}-word limit. The answer was rejected; "
-            "it was not truncated."
-        )
-        return (
-            "I have more detail than can fit clearly into one short response. "
-            "Please ask me to focus on one part of the question, and I will "
-            "explain that part concisely.",
-            EmotionResult(
-                emotion="neutral",
-                confidence=1.0,
-                reason="Over-limit generated answer was rejected without truncation.",
-            ),
-        )
-
-    raw_emotion = str(data.get("emotion", "neutral")).strip().lower()
-    emotion = normalize_ekman_emotion(raw_emotion)
-
-    try:
-        confidence = max(0.0, min(1.0, float(data.get("confidence", 0.0))))
-    except (TypeError, ValueError):
-        confidence = 0.0
-
-    reason = (
-        str(data.get("reason", "")).strip()
-        or "Emotion inferred from the generated tutor answer."
-    )
-
-    if raw_emotion not in EKMAN_EMOTION_LABELS and raw_emotion not in EKMAN_EMOTION_ALIASES:
-        confidence = min(confidence, 0.3)
-        reason = "Invalid response-emotion label; neutral fallback used."
+        if not retry_ok:
+            return (
+                "I have more detail than can fit clearly into one short response. "
+                "Please ask me to focus on one part of the question, and I will "
+                "explain that part concisely.",
+                EmotionResult(
+                    emotion="neutral",
+                    confidence=1.0,
+                    reason="Over-limit answer remained outside the allowed tolerance after one retry.",
+                ),
+            )
 
     print_ts(
         f"[TEACHER] answer={final_word_count}/{resolved_max_words} words; "
-        f"response_emotion={emotion} (confidence={confidence:.2f})"
+        f"response_emotion={response_emotion.emotion} "
+        f"(confidence={response_emotion.confidence:.2f}; supplied by the same teacher LLM response)"
     )
 
-    return answer, EmotionResult(
-        emotion=emotion,
-        confidence=confidence,
-        reason=reason,
-    )
+    return answer, response_emotion
 
 
 def generate_session_summary(
@@ -1950,62 +2101,69 @@ class Narrator:
         emotion: str = "neutral",
         confidence: float = 1.0,
     ) -> None:
-        """
-        Speak using the reference EXPRESSION_TIMING behavior.
+        """Speak text and display the ROBOT RESPONSE emotion via play_sequence().
 
-        before:
-            play expression -> wait for its reported animation duration -> TTS
-
-        during:
-            start TTS -> immediately start the expression
-
-        after:
-            TTS -> wait until speech is finished -> play expression
-
-        The double-nod remains a turn-end cue after speech.
+        Participant emotion belongs upstream in ARALF / teacher-tone adaptation.
+        It never replaces the response emotion here. Response confidence remains
+        internal metadata for expression actuation/logging and is NOT appended to
+        the TTS text. EXPRESSION_TIMING controls whether the response expression
+        is played before, at the midpoint of, or after the spoken response.
         """
         spoken = clean_text_for_tts(text)
         if spoken:
             print(f"\nAMECA: {spoken}", flush=True)
 
+        response_emotion = normalize_ekman_emotion(emotion)
+        response_confidence = clamp01(confidence)
+
         if EXPRESSION_TIMING == "before":
             expected_duration = self._apply_expression(
-                emotion,
-                confidence,
+                response_emotion, response_confidence, force=True
             )
-
             if expected_duration and expected_duration > 0:
                 print_ts(
-                    f"[EXPRESSION] Waiting {expected_duration:.2f}s for the "
-                    "facial expression animation to finish before speaking."
+                    f"[EXPRESSION] Played response emotion before TTS; "
+                    f"waiting {expected_duration:.2f}s for the sequence."
                 )
                 time.sleep(expected_duration)
-
             self.speaker.say(text)
 
-        elif EXPRESSION_TIMING == "after":
+        elif EXPRESSION_TIMING == "mid":
             self.speaker.say(text)
-            self.speaker.wait_until_finished()
+            estimated = estimate_speech_duration_seconds(spoken) if spoken else 0.0
+            mid_delay = max(0.0, estimated * 0.5)
+            if mid_delay > 0.0:
+                print_ts(
+                    f"[EXPRESSION] Scheduling response emotion at speech midpoint "
+                    f"(~{mid_delay:.2f}s after TTS start)."
+                )
+                time.sleep(mid_delay)
             self._apply_expression(
-                emotion,
-                confidence,
+                response_emotion, response_confidence, force=True
             )
 
-        else:  # EXPRESSION_TIMING == "during"
+        else:  # after
             self.speaker.say(text)
-            self._apply_expression(
-                emotion,
-                confidence,
-            )
+            speech_finished = self.speaker.wait_until_finished()
+            if speech_finished:
+                self._apply_expression(
+                    response_emotion, response_confidence, force=True
+                )
+            else:
+                print_ts(
+                    "[EXPRESSION] Skipping after-speech response expression because "
+                    "TTS completion was not confirmed."
+                )
 
-        # Keep the turn-end cue synchronized to actual TTS completion.  If
-        # completion cannot be established before the safety watchdog, do NOT
-        # nod: a missing nod is safer than a nod in the middle of speech.
         if NOD_AFTER_SPEECH_ENABLED:
             speech_finished = self.speaker.wait_until_finished()
-
             if speech_finished and self.gesture is not None:
                 self.gesture.play(self.nod_sequence)
+            elif not speech_finished:
+                print_ts(
+                    "[NOD] Skipping turn-end nod because TTS completion was not confirmed."
+                )
+
 
 
 # =============================================================================
@@ -3543,33 +3701,12 @@ DEEPFACE_TO_EKMAN = {
 # =============================================================================
 
 def clamp01(value: float) -> float:
-    """Clamp a finite scalar to [0, 1]; NaN/Inf never become valid evidence."""
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError):
-        return 0.0
-    if not np.isfinite(numeric):
-        return 0.0
-    return max(0.0, min(1.0, numeric))
+    return shared_clamp01(value)
+
 
 def cosine_similarity_nonnegative(a: np.ndarray, b: np.ndarray) -> float:
-    a = np.asarray(a, dtype=np.float32)
-    b = np.asarray(b, dtype=np.float32)
-    if (
-        a.size == 0
-        or b.size == 0
-        or a.size != b.size
-        or not np.all(np.isfinite(a))
-        or not np.all(np.isfinite(b))
-    ):
-        return 0.0
-    denom = float(np.linalg.norm(a) * np.linalg.norm(b))
-    if not np.isfinite(denom) or denom <= 1e-8:
-        return 0.0
-    similarity = float(np.dot(a, b) / denom)
-    if not np.isfinite(similarity):
-        return 0.0
-    return clamp01(similarity)
+    return shared_cosine_similarity_nonnegative(a, b)
+
 
 class PyFeatAUDetector:
     """
@@ -3914,10 +4051,47 @@ class PyFeatAUDetector:
 
         self._ready = False
 
+def load_participant_prosody_baseline(participant_folder: str) -> Optional[dict[str, Any]]:
+    path = PROFILE_DIR / participant_folder / PROSODY_BASELINE_FILENAME
+    if not path.is_file():
+        print_ts(f"Prosody baseline not found: {path}; using absolute-threshold fallback.")
+        return None
+    try:
+        with path.open("r", encoding="utf-8") as file:
+            baseline = json.load(file)
+    except Exception as exc:
+        print_ts(f"[WARN] Could not read prosody baseline {path}: {exc}")
+        return None
+    status = str(baseline.get("status", ""))
+    if status not in {"ready", "partial"}:
+        print_ts(f"[WARN] Prosody baseline has unusable status ({status!r}); using fallback.")
+        return None
+    sample_count = int(baseline.get("sample_count", 0) or 0)
+    minimum = int(baseline.get("minimum_ready_samples", 3) or 3)
+    if status == "partial" or sample_count < minimum:
+        print_ts(
+            f"[WARN] Loaded PARTIAL participant prosody baseline with "
+            f"{sample_count}/{minimum} recommended neutral samples; "
+            "prosody reliability will be reduced."
+        )
+    else:
+        print_ts(
+            f"Loaded participant prosody baseline: pitch={float(baseline.get('pitch_median_hz', 0.0)):.1f}Hz, "
+            f"rms={float(baseline.get('rms', 0.0)):.4f}, samples={sample_count}."
+        )
+    return baseline
+
+
 def load_participant_au_calibration(participant_folder: str) -> Optional[dict[str, Any]]:
+    """Load and validate the raw AU reference bank used by live fusion.
+
+    Runtime validation deliberately ignores legacy delta/cosine prototypes.  The
+    live classifier compares AU vectors directly with the saved warm-up vectors,
+    which avoids the neutral≈zero-vector cosine failure mode.
+    """
     path = PROFILE_DIR / participant_folder / AU_PROFILE_FILENAME
     if not path.is_file():
-        print_ts(f"AU verification profile not found: {path}; using normal DeepFace reliability.")
+        print_ts(f"AU calibration profile not found: {path}; AU contribution disabled.")
         return None
     try:
         with path.open("r", encoding="utf-8") as file:
@@ -3927,41 +4101,52 @@ def load_participant_au_calibration(participant_folder: str) -> Optional[dict[st
         return None
 
     stored_status = str(profile.get("status", "unknown"))
-    neutral = profile.get("neutral") or {}
-    neutral_mean = np.asarray(neutral.get("mean", []), dtype=np.float32)
-    neutral_valid = bool(
-        neutral_mean.size > 0
-        and np.all(np.isfinite(neutral_mean))
-        and clamp01(float(neutral.get("consistency", 0.0))) > 0.0
-    )
+    au_columns = list(profile.get("au_columns", []) or [])
+    expected_refs = int(profile.get("crops_per_emotion", 0) or 0)
+    if expected_refs != 4 or not au_columns:
+        profile["stored_status"] = stored_status
+        profile["status"] = "insufficient"
+        profile["runtime_validation_status"] = "invalid_columns_or_reference_count"
+        print_ts(
+            f"[WARN] AU calibration cannot contribute: expected four references per "
+            f"emotion and a non-empty AU column list (stored refs={expected_refs})."
+        )
+        return profile
 
-    # Revalidate every stored prototype, including legacy profiles created
-    # before NaN/Inf guards were added. Invalid prototypes are disabled in
-    # memory and cannot participate in the current experiment.
+    def valid_vectors(raw_vectors: Any) -> list[list[float]]:
+        valid: list[list[float]] = []
+        for raw in (raw_vectors or []):
+            vector = np.asarray(raw, dtype=np.float32).reshape(-1)
+            if (
+                vector.size == len(au_columns)
+                and np.all(np.isfinite(vector))
+            ):
+                valid.append(vector.astype(float).tolist())
+        return valid
+
+    neutral = profile.get("neutral") or {}
+    neutral_vectors = valid_vectors(neutral.get("vectors"))
+    neutral_valid = len(neutral_vectors) == expected_refs
+    neutral["vectors"] = neutral_vectors
+    profile["neutral"] = neutral
+
     usable_count = 0
     for emotion, item in (profile.get("emotions") or {}).items():
-        if not item.get("usable"):
-            continue
-        prototype = np.asarray(item.get("delta_prototype", []), dtype=np.float32)
-        valid = bool(
-            neutral_valid
-            and prototype.size == neutral_mean.size
-            and prototype.size > 0
-            and np.all(np.isfinite(prototype))
-            and np.isfinite(float(item.get("reference_consistency", 0.0)))
+        vectors = valid_vectors(item.get("vectors"))
+        item["vectors"] = vectors
+        valid = bool(item.get("usable") is not False and len(vectors) == expected_refs)
+        item["usable"] = valid
+        item["runtime_validation_status"] = (
+            "raw_reference_bank_ready" if valid else "disabled_invalid_raw_reference_bank"
         )
-        if not valid:
-            item["usable"] = False
-            item["runtime_validation_status"] = "disabled_nonfinite_or_invalid_prototype"
-            continue
-        usable_count += 1
+        if valid:
+            usable_count += 1
 
     profile["usable_emotion_count"] = usable_count
     profile["stored_status"] = stored_status
+    profile["runtime_classifier"] = "nearest_reference_rms_distance"
 
-    if not neutral_valid or stored_status in {
-        "missing_or_invalid_neutral_reference", "unreliable_neutral_reference"
-    }:
+    if not neutral_valid:
         effective_status = "invalid_neutral_reference"
     elif usable_count >= AU_READY_MIN_USABLE_EMOTIONS:
         effective_status = "ready"
@@ -3973,222 +4158,22 @@ def load_participant_au_calibration(participant_folder: str) -> Optional[dict[st
 
     if effective_status not in {"ready", "partial"}:
         print_ts(
-            f"AU verification disabled for participant: calibration status={effective_status!r} "
-            f"(stored={stored_status!r}, valid_usable_emotions={usable_count}). "
-            "DeepFace reliability will be used unchanged."
+            f"AU contribution disabled: calibration status={effective_status!r} "
+            f"(stored={stored_status!r}, valid usable emotions={usable_count})."
         )
         return profile
 
     if effective_status == "partial":
         print_ts(
             f"Loaded PARTIAL participant AU calibration: {path} "
-            f"(valid usable emotions={usable_count}; stored status={stored_status!r}). "
-            "It may confirm DeepFace agreement but cannot challenge or penalize DeepFace."
+            f"(usable emotions={usable_count}); AU reliability will be down-scaled."
         )
     else:
         print_ts(
             f"Loaded participant AU calibration: {path} "
-            f"(valid usable emotions={usable_count})."
+            f"(usable emotions={usable_count}, classifier=nearest-reference RMS)."
         )
     return profile
-
-def derive_au_status(deepface_emotion: str, au_emotion: str, confidence: float) -> str:
-    confidence = clamp01(confidence)
-    same = normalize_ekman_emotion(deepface_emotion) == normalize_ekman_emotion(au_emotion)
-    if confidence < AU_STATUS_LOW_CONFIDENCE:
-        return "unverified"
-    if confidence < AU_STATUS_HIGH_CONFIDENCE:
-        return "weak_confirmation" if same else "weak_conflict"
-    return "confirmed" if same else "conflict"
-
-
-def _au_rms_distance(vector: np.ndarray, reference: np.ndarray) -> float:
-    """RMS-like Euclidean distance for finite personalized AU vectors."""
-    vector = np.asarray(vector, dtype=np.float32)
-    reference = np.asarray(reference, dtype=np.float32)
-    if (
-        vector.size == 0
-        or reference.size == 0
-        or vector.size != reference.size
-        or not np.all(np.isfinite(vector))
-        or not np.all(np.isfinite(reference))
-    ):
-        return float("inf")
-    distance = float(np.linalg.norm(vector - reference) / np.sqrt(max(1, vector.size)))
-    return distance if np.isfinite(distance) else float("inf")
-
-def derive_participant_neutral_gate(
-    calibration: dict[str, Any],
-    neutral_mean: np.ndarray,
-) -> tuple[float, dict[str, float]]:
-    """Derive a neutral boundary from this participant's warm-up profile."""
-    neutral = calibration.get("neutral") or {}
-    try:
-        neutral_variability = max(0.0, float(neutral.get("normalized_distance", 0.0)))
-    except (TypeError, ValueError):
-        neutral_variability = 0.0
-
-    if neutral_variability <= 0.0:
-        neutral_vectors = neutral.get("vectors") or []
-        if len(neutral_vectors) >= 2:
-            a = np.asarray(neutral_vectors[0], dtype=np.float32)
-            b = np.asarray(neutral_vectors[1], dtype=np.float32)
-            if a.size == b.size == neutral_mean.size:
-                neutral_variability = _au_rms_distance(a, b)
-
-    emotion_distances: list[float] = []
-    for item in (calibration.get("emotions") or {}).values():
-        if not item.get("usable"):
-            continue
-        prototype = np.asarray(item.get("delta_prototype", []), dtype=np.float32)
-        if prototype.size != neutral_mean.size:
-            continue
-        distance = float(np.linalg.norm(prototype) / np.sqrt(max(1, prototype.size)))
-        if np.isfinite(distance) and distance > 0.0:
-            emotion_distances.append(distance)
-
-    closest_emotion_distance = min(emotion_distances) if emotion_distances else 0.0
-    fraction = clamp01(AU_NEUTRAL_GATE_FRACTION)
-    if closest_emotion_distance > neutral_variability > 0.0:
-        gate = neutral_variability + fraction * (closest_emotion_distance - neutral_variability)
-    elif closest_emotion_distance > 0.0:
-        gate = fraction * closest_emotion_distance
-    else:
-        gate = AU_NEUTRAL_GATE_FALLBACK
-
-    gate = max(1e-4, float(gate))
-    return gate, {
-        "neutral_variability": float(neutral_variability),
-        "closest_emotion_distance": float(closest_emotion_distance),
-        "gate_fraction": float(fraction),
-        "neutral_gate": float(gate),
-    }
-
-
-def _classify_single_au_vector(
-    *,
-    vector: np.ndarray,
-    neutral_mean: np.ndarray,
-    neutral: dict[str, Any],
-    emotion_profiles: dict[str, Any],
-    neutral_gate: float,
-) -> dict[str, Any]:
-    """Classify one finite facial moment; never average different moments."""
-    vector = np.asarray(vector, dtype=np.float32)
-    neutral_mean = np.asarray(neutral_mean, dtype=np.float32)
-    if (
-        vector.size == 0
-        or vector.size != neutral_mean.size
-        or not np.all(np.isfinite(vector))
-        or not np.all(np.isfinite(neutral_mean))
-    ):
-        return {
-            "emotion": None, "confidence": 0.0, "invalid_live_au": True,
-            "reason": "Live AU vector or neutral reference contained NaN/Inf or had the wrong size.",
-            "candidate_scores": {},
-        }
-
-    live_delta = vector - neutral_mean
-    if not np.all(np.isfinite(live_delta)):
-        return {
-            "emotion": None, "confidence": 0.0, "invalid_live_au": True,
-            "reason": "Live AU delta contained NaN/Inf.", "candidate_scores": {},
-        }
-
-    activation_strength = float(np.linalg.norm(live_delta) / np.sqrt(max(1, live_delta.size)))
-    if not np.isfinite(activation_strength):
-        return {
-            "emotion": None, "confidence": 0.0, "invalid_live_au": True,
-            "reason": "Live AU activation strength was non-finite.", "candidate_scores": {},
-        }
-
-    strength_term = clamp01(activation_strength / max(1e-8, AU_STRENGTH_SATURATION))
-    neutral_consistency = clamp01(float(neutral.get("consistency", 0.0)))
-    neutral_similarity = clamp01(
-        1.0 - activation_strength / max(1e-8, max(AU_NEUTRAL_DISTANCE_SATURATION, neutral_gate))
-    )
-
-    candidates: dict[str, dict[str, float]] = {
-        "neutral": {
-            "similarity": neutral_similarity,
-            "selection_score": neutral_similarity * neutral_consistency,
-            "reference_consistency": neutral_consistency,
-        }
-    }
-
-    for emotion, item in emotion_profiles.items():
-        if not item.get("usable"):
-            continue
-        prototype = np.asarray(item.get("delta_prototype", []), dtype=np.float32)
-        if (
-            prototype.size != live_delta.size
-            or prototype.size == 0
-            or not np.all(np.isfinite(prototype))
-        ):
-            continue
-        similarity = cosine_similarity_nonnegative(live_delta, prototype)
-        reference_consistency = clamp01(float(item.get("reference_consistency", 0.0)))
-        selection_score = similarity * strength_term * reference_consistency
-        candidates[normalize_ekman_emotion(emotion)] = {
-            "similarity": similarity,
-            "selection_score": selection_score,
-            "reference_consistency": reference_consistency,
-        }
-
-    if activation_strength <= neutral_gate:
-        neutral_support = clamp01(1.0 - activation_strength / max(1e-8, neutral_gate))
-        return {
-            "emotion": "neutral",
-            "confidence": clamp01(neutral_support * neutral_consistency),
-            "similarity": neutral_similarity,
-            "margin": 0.0,
-            "activation_strength": activation_strength,
-            "strength_term": strength_term,
-            "neutral_gate_hit": True,
-            "reference_consistency": neutral_consistency,
-            "second_best_emotion": None,
-            "candidate_scores": candidates,
-        }
-
-    ranked = sorted(
-        [(emotion, values) for emotion, values in candidates.items() if emotion != "neutral"],
-        key=lambda item: item[1]["selection_score"],
-        reverse=True,
-    )
-    if not ranked:
-        return {
-            "emotion": None, "confidence": 0.0, "similarity": 0.0, "margin": 0.0,
-            "activation_strength": activation_strength, "strength_term": strength_term,
-            "neutral_gate_hit": False, "reference_consistency": 0.0,
-            "second_best_emotion": None, "candidate_scores": candidates,
-        }
-
-    emotion, best = ranked[0]
-    second_score = ranked[1][1]["selection_score"] if len(ranked) > 1 else 0.0
-    margin = max(0.0, float(best["selection_score"]) - float(second_score))
-    similarity = clamp01(float(best["similarity"]))
-    reference_consistency = clamp01(float(best["reference_consistency"]))
-    sim_term = clamp01((similarity - AU_MIN_SIMILARITY) / max(1e-8, 1.0 - AU_MIN_SIMILARITY))
-    margin_term = clamp01(margin / max(1e-8, AU_MARGIN_SATURATION))
-    confidence = clamp01(sim_term * margin_term * strength_term * reference_consistency)
-    return {
-        "emotion": emotion,
-        "confidence": confidence,
-        "similarity": similarity,
-        "margin": margin,
-        "activation_strength": activation_strength,
-        "strength_term": strength_term,
-        "neutral_gate_hit": False,
-        "reference_consistency": reference_consistency,
-        "second_best_emotion": ranked[1][0] if len(ranked) > 1 else None,
-        "candidate_scores": candidates,
-    }
-
-def _au_reference_similarity_from_distance(distance: float) -> float:
-    """Convert normalized AU RMS distance to a bounded closeness score."""
-    if not np.isfinite(distance):
-        return 0.0
-    return clamp01(1.0 - max(0.0, float(distance)))
 
 
 def verify_live_crops_with_au(
@@ -4198,279 +4183,31 @@ def verify_live_crops_with_au(
     detector: Optional[PyFeatAUDetector],
     calibration: Optional[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Classify two live AU frames by nearest warm-up AU references.
-
-    Each live frame is compared against every saved warm-up AU vector. For each
-    emotion, the closest of its four warm-up references is retained for that
-    live frame. The two per-frame minimum distances are averaged, and the emotion
-    with the smallest mean distance becomes the AU prediction.
-
-    AU confidence combines: (1) closeness of the winning reference, (2) the
-    distance margin over the second-best emotion, and (3) agreement of the two
-    live frames. This gives a 0..1 score that can be compared directly with the
-    DeepFace top-emotion confidence.
-    """
-    started = time.time()
-    base = {
-        "available": False,
-        "status": "unavailable",
-        "confidence": 0.0,
-        "au_emotion": None,
-        "deepface_emotion": normalize_ekman_emotion(deepface_emotion) if deepface_emotion else None,
-        "analysis_seconds": 0.0,
-    }
-    if not calibration:
-        base["status"] = "no_calibration_profile"
-        return base
-
-    calibration_status = str(calibration.get("status", "invalid_calibration"))
-    if detector is None:
-        base["status"] = "au_detector_unavailable"
-        return base
-
-    au_columns = list(calibration.get("au_columns", []) or [])
-    if not au_columns:
-        base["status"] = "invalid_profile_vectors"
-        return base
-
-    # Build direct reference bank: four neutral vectors + four vectors for every
-    # usable affective emotion.
-    reference_bank: dict[str, list[np.ndarray]] = {}
-    neutral = calibration.get("neutral") or {}
-    neutral_refs = [np.asarray(v, dtype=np.float32) for v in (neutral.get("vectors") or [])]
-    neutral_refs = [v for v in neutral_refs if v.size > 0 and np.all(np.isfinite(v))]
-    if neutral_refs:
-        reference_bank["neutral"] = neutral_refs
-
-    for raw_emotion, item in (calibration.get("emotions") or {}).items():
-        refs = [np.asarray(v, dtype=np.float32) for v in (item.get("vectors") or [])]
-        refs = [v for v in refs if v.size > 0 and np.all(np.isfinite(v))]
-        if refs:
-            reference_bank[normalize_ekman_emotion(raw_emotion)] = refs
-
-    if not reference_bank or "neutral" not in reference_bank:
-        base["status"] = "no_usable_reference_bank"
-        return base
-
-    # This experiment version intentionally requires the new four-image
-    # warm-up profile. Old two-image calibration files are not used.
-    expected_ref_count = 4
-    if int(calibration.get("crops_per_emotion", 0) or 0) != expected_ref_count:
-        base["status"] = "requires_four_reference_crops"
-        base["stored_crops_per_emotion"] = calibration.get("crops_per_emotion")
-        return base
-
-    expected_emotions = [
-        normalize_ekman_emotion(e)
-        for e in (calibration.get("reference_emotions") or reference_bank.keys())
-    ]
-    incomplete = {
-        emotion: len(reference_bank.get(emotion, []))
-        for emotion in expected_emotions
-        if len(reference_bank.get(emotion, [])) != expected_ref_count
-    }
-    if incomplete:
-        base["status"] = "incomplete_reference_bank"
-        base["reference_counts"] = {emotion: len(reference_bank.get(emotion, [])) for emotion in expected_emotions}
-        return base
-
-    try:
-        extracted = detector.extract_arrays(crops[:2])
-    except Exception as exc:
-        base["status"] = "au_extraction_failed"
-        base["reason"] = str(exc)
-        base["analysis_seconds"] = round(time.time() - started, 4)
-        return base
-
-    if list(detector.au_columns) != au_columns:
-        base["status"] = "au_column_mismatch"
-        base["reason"] = f"Warm-up AU columns {au_columns!r} do not match live columns {detector.au_columns!r}."
-        base["analysis_seconds"] = round(time.time() - started, 4)
-        return base
-
-    live_vectors: list[tuple[int, np.ndarray]] = []
-    invalid_count = 0
-    for frame_index, value in enumerate(extracted):
-        if value is None:
-            invalid_count += 1
-            continue
-        vector = np.asarray(value, dtype=np.float32)
-        if vector.size == 0 or not np.all(np.isfinite(vector)):
-            invalid_count += 1
-            continue
-        # All references must share the same AU dimension.
-        sample_ref = next(iter(reference_bank.values()))[0]
-        if vector.size != sample_ref.size:
-            invalid_count += 1
-            continue
-        live_vectors.append((frame_index, vector))
-
-    if not live_vectors:
-        base.update({
-            "status": "invalid_live_au" if invalid_count else "no_live_au_vector",
-            "invalid_live_au_count": invalid_count,
-            "analysis_seconds": round(time.time() - started, 4),
-        })
-        return base
-
-    per_frame: list[dict[str, Any]] = []
-    aggregate_distances: dict[str, list[float]] = {emotion: [] for emotion in reference_bank}
-
-    for frame_index, live in live_vectors:
-        emotion_matches: dict[str, Any] = {}
-        for emotion, refs in reference_bank.items():
-            distances = [_au_rms_distance(live, ref) for ref in refs]
-            best_ref_index = int(np.argmin(distances))
-            best_distance = float(distances[best_ref_index])
-            aggregate_distances[emotion].append(best_distance)
-            emotion_matches[emotion] = {
-                "closest_reference_index": best_ref_index,
-                "distance": round(best_distance, 6),
-                "similarity": round(_au_reference_similarity_from_distance(best_distance), 6),
-            }
-
-        frame_ranked = sorted(
-            emotion_matches.items(),
-            key=lambda item: float(item[1]["distance"]),
+    """Single supported live AU classifier: nearest saved AU references."""
+    result = shared_verify_au_nearest_reference(
+        crops=crops,
+        deepface_emotion=deepface_emotion,
+        detector=detector,
+        calibration=calibration,
+        margin_saturation=AU_MARGIN_SATURATION,
+        live_frame_count=AU_LIVE_FRAME_COUNT,
+        expected_ref_count=4,
+    )
+    if result.get("available"):
+        print_ts(
+            "AU nearest-reference result: "
+            f"emotion={result.get('au_emotion')}, "
+            f"confidence={float(result.get('confidence', 0.0)):.2f}, "
+            f"best_distance={float(result.get('best_mean_distance', 0.0)):.3f}, "
+            f"margin={float(result.get('distance_margin', 0.0)):.3f}, "
+            f"frame_agreement={float(result.get('frame_agreement_ratio', 0.0)):.2f}."
         )
-        frame_winner = frame_ranked[0][0] if frame_ranked else None
-        per_frame.append({
-            "frame_index": frame_index,
-            "winner": frame_winner,
-            "matches": emotion_matches,
-        })
-
-    mean_distances = {
-        emotion: float(np.mean(distances))
-        for emotion, distances in aggregate_distances.items()
-        if distances
-    }
-    ranked = sorted(mean_distances.items(), key=lambda item: item[1])
-    if not ranked:
-        base["status"] = "no_usable_frame_decision"
-        base["analysis_seconds"] = round(time.time() - started, 4)
-        return base
-
-    au_emotion, best_distance = ranked[0]
-    second_distance = ranked[1][1] if len(ranked) > 1 else 1.0
-    best_similarity = _au_reference_similarity_from_distance(best_distance)
-    distance_margin = max(0.0, float(second_distance) - float(best_distance))
-    margin_component = clamp01(distance_margin / max(1e-8, AU_MARGIN_SATURATION))
-
-    frame_winners = [item.get("winner") for item in per_frame if item.get("winner")]
-    agreement_ratio = (
-        sum(1 for winner in frame_winners if winner == au_emotion) / max(1, len(frame_winners))
-    )
-
-    # No separation between the best and second-best emotion should not receive
-    # full confidence, even when the absolute AU distance is small. With a clear
-    # margin the confidence approaches the direct closest-reference similarity.
-    au_confidence = clamp01(
-        best_similarity
-        * (0.5 + 0.5 * margin_component)
-        * agreement_ratio
-    )
-
-    similarities = {
-        emotion: _au_reference_similarity_from_distance(distance)
-        for emotion, distance in mean_distances.items()
-    }
-    sim_total = float(sum(similarities.values()))
-    if sim_total > 0.0:
-        au_distribution = {emotion: value / sim_total for emotion, value in similarities.items()}
-    else:
-        au_distribution = {emotion: 0.0 for emotion in EKMAN_EMOTION_LABELS}
-    for emotion in EKMAN_EMOTION_LABELS:
-        au_distribution.setdefault(emotion, 0.0)
-
-    result = {
-        **base,
-        "available": True,
-        "status": "nearest_reference_match",
-        "confidence": round(au_confidence, 6),
-        "au_emotion": au_emotion,
-        "agreement": (
-            normalize_ekman_emotion(deepface_emotion) == au_emotion
-            if deepface_emotion else None
-        ),
-        "best_mean_distance": round(float(best_distance), 6),
-        "second_best_mean_distance": round(float(second_distance), 6),
-        "distance_margin": round(distance_margin, 6),
-        "best_similarity": round(best_similarity, 6),
-        "margin_component": round(margin_component, 6),
-        "frame_agreement_ratio": round(agreement_ratio, 6),
-        "per_frame": per_frame,
-        "mean_distances": {emotion: round(value, 6) for emotion, value in mean_distances.items()},
-        "au_distribution": {emotion: round(value, 6) for emotion, value in au_distribution.items()},
-        "reference_counts": {emotion: len(refs) for emotion, refs in reference_bank.items()},
-        "live_crop_count": len(live_vectors),
-        "invalid_live_au_count": invalid_count,
-        "calibration_status": calibration_status,
-        "analysis_seconds": round(time.time() - started, 4),
-    }
-    print_ts(
-        f"AU nearest-reference result: emotion={au_emotion}, confidence={au_confidence:.2f}, "
-        f"best_distance={best_distance:.3f}, margin={distance_margin:.3f}, "
-        f"frame_agreement={agreement_ratio:.2f}, frames={len(live_vectors)}."
-    )
     return result
 
 
-def select_visual_source_by_confidence(
-    visual: VisualEmotionResult,
-    verification: dict[str, Any],
-) -> VisualEmotionResult:
-    """Choose DeepFace or AU strictly by confidence, as requested.
 
-    DeepFace wins only when its confidence is strictly higher. On an exact tie,
-    AU wins. If AU is unavailable, the DeepFace result is left unchanged.
-    """
-    deepface_emotion = visual.dominant_emotion
-    deepface_confidence = clamp01(float(visual.confidence)) if visual.available else 0.0
-    deepface_scores = dict(visual.averaged_scores)
 
-    verification["deepface_emotion"] = (
-        normalize_ekman_emotion(deepface_emotion) if deepface_emotion else None
-    )
-    verification["deepface_confidence"] = round(deepface_confidence, 6)
-    verification["deepface_averaged_scores"] = deepface_scores
 
-    if not verification.get("available") or not verification.get("au_emotion"):
-        verification["selected_source"] = "deepface" if visual.available else "none"
-        verification["selected_emotion"] = verification.get("deepface_emotion")
-        verification["selected_confidence"] = round(deepface_confidence, 6)
-        visual.au_verification = verification
-        return visual
-
-    au_emotion = normalize_ekman_emotion(str(verification.get("au_emotion")))
-    au_confidence = clamp01(float(verification.get("confidence", 0.0)))
-
-    if visual.available and deepface_confidence > au_confidence:
-        verification["selected_source"] = "deepface"
-        verification["selected_emotion"] = verification.get("deepface_emotion")
-        verification["selected_confidence"] = round(deepface_confidence, 6)
-        visual.au_verification = verification
-        return visual
-
-    # AU wins when DeepFace is unavailable, lower-confidence, or exactly tied.
-    verification["selected_source"] = "au"
-    verification["selected_emotion"] = au_emotion
-    verification["selected_confidence"] = round(au_confidence, 6)
-    visual.available = True
-    visual.reliable = au_confidence > 0.0
-    visual.dominant_emotion = au_emotion
-    visual.confidence = au_confidence
-    au_distribution = verification.get("au_distribution") or {}
-    visual.averaged_scores = {
-        emotion: 100.0 * max(0.0, float(au_distribution.get(emotion, 0.0)))
-        for emotion in EKMAN_EMOTION_LABELS
-    }
-    visual.reason = (
-        f"AU selected over DeepFace by confidence: AU={au_emotion} {au_confidence:.3f}, "
-        f"DeepFace={verification.get('deepface_emotion')} {deepface_confidence:.3f}."
-    )
-    visual.au_verification = verification
-    return visual
 
 def _empty_visual_emotion(reason: str) -> VisualEmotionResult:
     return VisualEmotionResult(
@@ -4645,308 +4382,66 @@ def analyze_visual_emotion_and_crops(
 
 
 def _prosody_frame_features(audio: np.ndarray, sample_rate: int) -> dict[str, float]:
-    """Extract dependency-free acoustic features from one utterance.
+    return shared_prosody_frame_features(
+        audio,
+        sample_rate,
+        periodicity_threshold=PROSODY_PERIODICITY_THRESHOLD,
+    )
 
-    Pitch is estimated from FFT autocorrelation over overlapping voiced frames.
-    The estimates are intentionally coarse: they are used only as weak prosodic
-    evidence, not as a stand-alone emotion ground truth.
-    """
-    x = np.asarray(audio, dtype=np.float32).reshape(-1)
-    if x.size == 0:
-        return {}
-
-    # Remove DC offset without peak-normalising; absolute energy remains useful.
-    x = x - float(np.mean(x))
-    peak = float(np.max(np.abs(x))) if x.size else 0.0
-    rms = float(np.sqrt(np.mean(x ** 2))) if x.size else 0.0
-    duration = float(x.size / max(1, sample_rate))
-    zcr = float(np.mean(np.abs(np.diff(np.signbit(x))))) if x.size > 1 else 0.0
-
-    frame_len = max(256, int(round(0.040 * sample_rate)))
-    hop = max(128, int(round(0.020 * sample_rate)))
-    if x.size < frame_len:
-        padded = np.zeros(frame_len, dtype=np.float32)
-        padded[:x.size] = x
-        x_for_frames = padded
-    else:
-        x_for_frames = x
-
-    frames: list[np.ndarray] = []
-    frame_rms: list[float] = []
-    for start_idx in range(0, max(1, x_for_frames.size - frame_len + 1), hop):
-        frame = x_for_frames[start_idx:start_idx + frame_len]
-        if frame.size < frame_len:
-            break
-        frames.append(frame)
-        frame_rms.append(float(np.sqrt(np.mean(frame ** 2))))
-
-    if not frames:
-        frames = [x_for_frames[:frame_len]]
-        frame_rms = [float(np.sqrt(np.mean(frames[0] ** 2)))]
-
-    rms_array = np.asarray(frame_rms, dtype=np.float32)
-    energy_std = float(np.std(rms_array))
-    energy_mean = float(np.mean(rms_array))
-    energy_cv = float(energy_std / max(1e-8, energy_mean))
-    energy_p90 = float(np.percentile(rms_array, 90))
-    energy_p10 = float(np.percentile(rms_array, 10))
-    energy_range = max(0.0, energy_p90 - energy_p10)
-
-    # Voiced-frame threshold adapts to microphone level while keeping a small
-    # absolute floor so room noise is not interpreted as pitch.
-    active_threshold = max(0.008, float(np.percentile(rms_array, 35)) * 0.70)
-    window = np.hanning(frame_len).astype(np.float32)
-    min_lag = max(1, int(sample_rate / 350.0))
-    max_lag = min(frame_len - 2, int(sample_rate / 70.0))
-    nfft = 1 << ((2 * frame_len - 1).bit_length())
-
-    pitches: list[float] = []
-    centroids: list[float] = []
-    flatness_values: list[float] = []
-
-    freqs = np.fft.rfftfreq(frame_len, d=1.0 / sample_rate)
-    for frame, frms in zip(frames, frame_rms):
-        if frms < active_threshold:
-            continue
-        centered = frame - float(np.mean(frame))
-        weighted = centered * window
-
-        # Spectral descriptors.
-        mag = np.abs(np.fft.rfft(weighted)).astype(np.float64)
-        mag_sum = float(np.sum(mag))
-        if mag_sum > 1e-12:
-            centroids.append(float(np.sum(freqs * mag) / mag_sum))
-            flatness_values.append(float(
-                np.exp(np.mean(np.log(mag + 1e-12))) / (np.mean(mag) + 1e-12)
-            ))
-
-        # FFT autocorrelation pitch estimate.
-        spectrum = np.fft.rfft(weighted, n=nfft)
-        ac = np.fft.irfft(spectrum * np.conj(spectrum), n=nfft)[:frame_len]
-        ac0 = float(ac[0]) if ac.size else 0.0
-        if ac0 <= 1e-10 or max_lag <= min_lag:
-            continue
-        search = ac[min_lag:max_lag + 1]
-        rel_idx = int(np.argmax(search))
-        lag = min_lag + rel_idx
-        periodicity = float(ac[lag] / ac0)
-        if periodicity >= 0.30:
-            f0 = float(sample_rate / lag)
-            if 70.0 <= f0 <= 350.0:
-                pitches.append(f0)
-
-    active_count = sum(1 for v in frame_rms if v >= active_threshold)
-    voiced_ratio = float(len(pitches) / max(1, active_count))
-    if pitches:
-        pitch_arr = np.asarray(pitches, dtype=np.float32)
-        pitch_median = float(np.median(pitch_arr))
-        pitch_mean = float(np.mean(pitch_arr))
-        pitch_std = float(np.std(pitch_arr))
-        pitch_p90 = float(np.percentile(pitch_arr, 90))
-        pitch_p10 = float(np.percentile(pitch_arr, 10))
-        pitch_range = max(0.0, pitch_p90 - pitch_p10)
-    else:
-        pitch_median = pitch_mean = pitch_std = pitch_range = 0.0
-
-    return {
-        "peak": peak,
-        "rms": rms,
-        "duration": duration,
-        "energy_std": energy_std,
-        "energy_cv": energy_cv,
-        "energy_range": energy_range,
-        "zero_crossing_rate": zcr,
-        "pitch_median_hz": pitch_median,
-        "pitch_mean_hz": pitch_mean,
-        "pitch_std_hz": pitch_std,
-        "pitch_range_hz": pitch_range,
-        "voiced_ratio": voiced_ratio,
-        "spectral_centroid_hz": float(np.median(centroids)) if centroids else 0.0,
-        "spectral_flatness": float(np.median(flatness_values)) if flatness_values else 0.0,
-    }
 
 
 def _scaled_confidence(value: float, low: float, high: float, floor: float = 0.15) -> float:
-    """Map a cue into a deliberately small [floor, PROSODY_MAX_CONFIDENCE] range."""
+    # Retained only for backward compatibility with external imports. The live
+    # prosody classifier is implemented in aralf_fusion.py.
     if high <= low:
         return min(PROSODY_MAX_CONFIDENCE, floor)
     strength = clamp01((value - low) / (high - low))
     return min(PROSODY_MAX_CONFIDENCE, floor + strength * (PROSODY_MAX_CONFIDENCE - floor))
 
 
+
 def analyze_prosody_from_audio(
     audio_16k: np.ndarray,
     sample_rate: int = TARGET_SAMPLE_RATE,
+    participant_baseline: Optional[dict[str, Any]] = None,
 ) -> ProsodyEmotionResult:
-    """Conservative acoustic-only prosody classification.
+    result = analyze_prosody_shared(
+        audio_16k,
+        sample_rate,
+        baseline=participant_baseline,
+        config={
+            "min_duration": PROSODY_MIN_DURATION_SECONDS,
+            "min_voiced_ratio": PROSODY_MIN_VOICED_RATIO,
+            "max_confidence": PROSODY_MAX_CONFIDENCE,
+            "low_rms": PROSODY_LOW_RMS,
+            "high_rms": PROSODY_HIGH_RMS,
+            "very_high_rms": PROSODY_VERY_HIGH_RMS,
+            "high_pitch_median_hz": PROSODY_HIGH_PITCH_MEDIAN_HZ,
+            "high_pitch_range_hz": PROSODY_HIGH_PITCH_RANGE_HZ,
+            "very_high_pitch_range_hz": PROSODY_VERY_HIGH_PITCH_RANGE_HZ,
+            "low_pitch_range_hz": PROSODY_LOW_PITCH_RANGE_HZ,
+            "anger_zcr": PROSODY_ANGER_ZCR,
+            "anger_centroid_hz": PROSODY_ANGER_CENTROID_HZ,
+            "periodicity_threshold": PROSODY_PERIODICITY_THRESHOLD,
+            "z_moderate": PROSODY_Z_MODERATE,
+            "z_high": PROSODY_Z_HIGH,
+            "z_very_high": PROSODY_Z_VERY_HIGH,
+            "z_low": PROSODY_Z_LOW,
+        },
+    )
+    return ProsodyEmotionResult(
+        available=bool(result.get("available")),
+        emotion=normalize_ekman_emotion(str(result.get("emotion", "neutral"))),
+        confidence=clamp01(float(result.get("confidence", 0.0))),
+        reliability=clamp01(float(result.get("reliability", result.get("confidence", 0.0)))),
+        scores={
+            normalize_ekman_emotion(k): float(v)
+            for k, v in (result.get("scores") or {}).items()
+        },
+        reason=str(result.get("reason", "")),
+        features={k: float(v) for k, v in (result.get("features") or {}).items()},
+    )
 
-    The old implementation mapped almost any loud/variable utterance directly to
-    surprise. This version requires multiple acoustic cues to agree. When the
-    evidence is ambiguous, it abstains (`available=False`) so prosody contributes
-    zero weight to fusion instead of injecting a systematic surprise bias.
-
-    This remains a lightweight heuristic, not a trained speech-emotion model;
-    therefore confidence is intentionally capped at PROSODY_MAX_CONFIDENCE.
-    """
-    if audio_16k is None or audio_16k.size == 0:
-        return ProsodyEmotionResult(
-            available=False,
-            emotion="neutral",
-            confidence=0.0,
-            reason="No raw utterance audio was available for prosody analysis.",
-            features={},
-        )
-
-    try:
-        features = _prosody_frame_features(np.asarray(audio_16k, dtype=np.float32), sample_rate)
-        if not features:
-            raise RuntimeError("no acoustic features could be extracted")
-
-        rms = float(features.get("rms", 0.0))
-        duration = float(features.get("duration", 0.0))
-        zcr = float(features.get("zero_crossing_rate", 0.0))
-        pitch_median = float(features.get("pitch_median_hz", 0.0))
-        pitch_range = float(features.get("pitch_range_hz", 0.0))
-        pitch_std = float(features.get("pitch_std_hz", 0.0))
-        voiced_ratio = float(features.get("voiced_ratio", 0.0))
-        centroid = float(features.get("spectral_centroid_hz", 0.0))
-        energy_cv = float(features.get("energy_cv", 0.0))
-
-        if duration < PROSODY_MIN_DURATION_SECONDS:
-            return ProsodyEmotionResult(
-                available=False,
-                emotion="neutral",
-                confidence=0.0,
-                reason="Utterance was too short for a stable acoustic prosody estimate.",
-                features=features,
-            )
-
-        if voiced_ratio < PROSODY_MIN_VOICED_RATIO or pitch_median <= 0.0:
-            return ProsodyEmotionResult(
-                available=False,
-                emotion="neutral",
-                confidence=0.0,
-                reason="Too little stable voiced speech was available for prosody classification.",
-                features=features,
-            )
-
-        # Surprise: large pitch excursion is mandatory. High energy by itself is
-        # never enough. This is the key fix for the previous surprise bias.
-        surprise_pitch = (
-            pitch_range >= PROSODY_HIGH_PITCH_RANGE_HZ
-            and pitch_median >= (PROSODY_HIGH_PITCH_MEDIAN_HZ - 30.0)
-        )
-        if surprise_pitch and rms >= 0.12:
-            confidence = _scaled_confidence(
-                pitch_range,
-                PROSODY_HIGH_PITCH_RANGE_HZ,
-                PROSODY_VERY_HIGH_PITCH_RANGE_HZ + 80.0,
-                floor=0.18,
-            )
-            return ProsodyEmotionResult(
-                available=True,
-                emotion="surprise",
-                confidence=confidence,
-                reason="Large pitch excursion with dynamic vocal energy supports a weak surprise cue.",
-                features=features,
-            )
-
-        # Fear: sustained high pitch plus variability, but not the very high
-        # energy/roughness pattern used for anger.
-        if (
-            pitch_median >= PROSODY_HIGH_PITCH_MEDIAN_HZ
-            and PROSODY_LOW_PITCH_RANGE_HZ <= pitch_range < PROSODY_HIGH_PITCH_RANGE_HZ
-            and rms < PROSODY_VERY_HIGH_RMS
-        ):
-            confidence = _scaled_confidence(
-                pitch_median,
-                PROSODY_HIGH_PITCH_MEDIAN_HZ,
-                PROSODY_HIGH_PITCH_MEDIAN_HZ + 100.0,
-                floor=0.16,
-            )
-            return ProsodyEmotionResult(
-                available=True,
-                emotion="fear",
-                confidence=confidence,
-                reason="High and variable pitch with non-extreme vocal energy supports a weak fear cue.",
-                features=features,
-            )
-
-        # Anger: very high energy plus at least one rough/bright spectral cue.
-        # This catches strongly emphatic speech without treating all loud speech
-        # as surprise.
-        if (
-            rms >= PROSODY_VERY_HIGH_RMS
-            and (zcr >= PROSODY_ANGER_ZCR or centroid >= PROSODY_ANGER_CENTROID_HZ)
-        ):
-            confidence = _scaled_confidence(
-                rms,
-                PROSODY_VERY_HIGH_RMS,
-                PROSODY_VERY_HIGH_RMS + 0.35,
-                floor=0.18,
-            )
-            return ProsodyEmotionResult(
-                available=True,
-                emotion="anger",
-                confidence=confidence,
-                reason="Very high vocal energy with a rough/bright acoustic profile supports a weak anger cue.",
-                features=features,
-            )
-
-        # Sadness: subdued energy with comparatively little pitch movement.
-        if rms <= PROSODY_LOW_RMS and pitch_range <= PROSODY_LOW_PITCH_RANGE_HZ:
-            confidence = _scaled_confidence(
-                PROSODY_LOW_RMS - rms,
-                0.0,
-                PROSODY_LOW_RMS,
-                floor=0.16,
-            )
-            return ProsodyEmotionResult(
-                available=True,
-                emotion="sadness",
-                confidence=confidence,
-                reason="Low vocal energy and limited pitch movement support a weak sadness cue.",
-                features=features,
-            )
-
-        # Joy is deliberately conservative: moderately high energy plus clear,
-        # but not extreme, pitch movement. If the pattern overlaps heavily with
-        # fear/surprise, those branches above win first.
-        if (
-            rms >= PROSODY_HIGH_RMS
-            and PROSODY_LOW_PITCH_RANGE_HZ < pitch_range < PROSODY_VERY_HIGH_PITCH_RANGE_HZ
-            and pitch_std >= 18.0
-        ):
-            confidence = _scaled_confidence(
-                pitch_range,
-                PROSODY_LOW_PITCH_RANGE_HZ,
-                PROSODY_VERY_HIGH_PITCH_RANGE_HZ,
-                floor=0.15,
-            )
-            return ProsodyEmotionResult(
-                available=True,
-                emotion="joy",
-                confidence=confidence,
-                reason="Moderately high energy with expressive pitch movement supports a weak joy cue.",
-                features=features,
-            )
-
-        # Ordinary or ambiguous speech should not cast a categorical vote.
-        return ProsodyEmotionResult(
-            available=False,
-            emotion="neutral",
-            confidence=0.0,
-            reason="Acoustic cues were mixed or too weak for a reliable categorical prosody vote; prosody abstained.",
-            features=features,
-        )
-    except Exception as exc:
-        return ProsodyEmotionResult(
-            available=False,
-            emotion="neutral",
-            confidence=0.0,
-            reason=f"Prosody analysis failed: {exc}",
-            features={},
-        )
 
 def emotion_distribution(emotion: str, confidence: float) -> dict[str, float]:
     """Turn one categorical Ekman result into a probability-like distribution."""
@@ -4967,11 +4462,13 @@ def emotion_distribution(emotion: str, confidence: float) -> dict[str, float]:
 
 
 def text_emotion_distribution(text_emotion: EmotionResult) -> dict[str, float]:
-    """Use the classifier's real seven-emotion distribution when available."""
-    scores = _normalize_text_emotion_scores(text_emotion.scores or {})
-    if sum(scores.values()) > 0.0:
-        return scores
-    return emotion_distribution(text_emotion.emotion, text_emotion.confidence)
+    """Return ONLY the participant-text classifier's seven-emotion scores.
+
+    ARALF must consume the actual score distribution produced from the user's
+    transcript.  The dominant text label is diagnostic metadata only and is
+    never expanded back into a synthetic one-hot/categorical distribution.
+    """
+    return _normalize_text_emotion_scores(text_emotion.scores or {})
 
 def visual_distribution(visual: Optional[VisualEmotionResult]) -> dict[str, float]:
     scores = {emotion: 0.0 for emotion in EKMAN_EMOTION_LABELS}
@@ -4988,68 +4485,40 @@ def visual_distribution(visual: Optional[VisualEmotionResult]) -> dict[str, floa
     return {emotion: value / total for emotion, value in scores.items()}
 
 
-def explicit_emotion_from_text(text: str) -> Optional[str]:
-    t = str(text or "").lower()
-    patterns = {
-        "anger": ["angry", "annoyed", "frustrated", "furious", "irritated", "i hate", "so annoying"],
-        "sadness": ["sad", "exhausted", "burned out", "overwhelmed", "unhappy", "crying"],
-        "fear": ["afraid", "scared", "terrified", "anxious", "worried", "panic", "nervous"],
-        "joy": ["happy", "excited", "glad", "amazing", "i love", "that's awesome", "that's great"],
-        "surprise": ["surprised", "unexpected", "shocked", "i can't believe", "no way"],
-        "disgust": ["disgusting", "gross", "revolting"],
-    }
-    for emotion, terms in patterns.items():
-        if any(term in t for term in terms):
-            return emotion
-    return None
 
 
-def text_reliability_score(text_emotion: EmotionResult, user_text: str) -> float:
-    base = max(0.0, min(1.0, float(text_emotion.confidence)))
-    explicit = explicit_emotion_from_text(user_text)
-    if explicit and explicit == normalize_ekman_emotion(text_emotion.emotion):
-        base = max(base, 0.90)
-    elif explicit:
-        base = max(base, 0.75)
-    return base
+
+
+def text_reliability_score(text_emotion: EmotionResult, user_text: str = "") -> float:
+    """Reliability for the participant-text distribution used by ARALF.
+
+    If the classifier did not return a usable seven-emotion distribution, text
+    is unavailable for fusion rather than being reconstructed from its dominant
+    label.
+    """
+    distribution = text_emotion_distribution(text_emotion)
+    if sum(distribution.values()) <= 0.0:
+        return 0.0
+    return clamp01(float(text_emotion.confidence))
+
 
 
 def visual_reliability_score(visual: Optional[VisualEmotionResult]) -> float:
+    """Smooth DeepFace reliability shared with warm-up; no threshold cliff."""
     if visual is None or not visual.available:
         return 0.0
-
-    verification = visual.au_verification or {}
-    selected_source = str(verification.get("selected_source", ""))
-    if selected_source == "au":
-        # Once AU wins the direct confidence comparison, its own confidence is
-        # the reliability of the selected visual evidence.
-        return clamp01(float(verification.get("selected_confidence", visual.confidence)))
-
-    # DeepFace-selected (or legacy) path: preserve the existing reliability
-    # calculation based on top score, margin, and frame coverage.
-    raw_scores = verification.get("deepface_averaged_scores") if selected_source == "deepface" else None
-    score_source = raw_scores if isinstance(raw_scores, dict) and raw_scores else visual.averaged_scores
-    values = sorted(
-        [float(score_source.get(e, 0.0)) for e in EKMAN_EMOTION_LABELS],
-        reverse=True,
+    return shared_deepface_reliability(
+        visual.averaged_scores,
+        usable_frame_count=max(0, int(visual.sampled_frame_count)),
+        target_frame_count=max(1, int(FACE_MULTI_FRAME_COUNT)),
     )
-    top = values[0] if values else 0.0
-    second = values[1] if len(values) > 1 else 0.0
-    margin = max(0.0, top - second)
 
-    top_component = min(1.0, top / 100.0)
-    margin_component = min(1.0, margin / 60.0)
-    frame_component = min(1.0, visual.sampled_frame_count / max(1.0, float(FACE_MULTI_FRAME_COUNT)))
-    declared = 1.0 if visual.reliable else 0.65
-    return max(
-        0.0,
-        min(1.0, (0.45 * top_component + 0.35 * margin_component + 0.20 * frame_component) * declared),
-    )
 
 def prosody_reliability_score(prosody: Optional[ProsodyEmotionResult]) -> float:
     if prosody is None or not prosody.available:
         return 0.0
-    return max(0.0, min(PROSODY_MAX_CONFIDENCE, float(prosody.confidence)))
+    rel = prosody.confidence if prosody.reliability is None else prosody.reliability
+    return max(0.0, min(PROSODY_MAX_CONFIDENCE, float(rel)))
 
 
 def adaptive_reliability_aware_fusion(
@@ -5057,86 +4526,89 @@ def adaptive_reliability_aware_fusion(
     visual_emotion: Optional[VisualEmotionResult],
     prosody_emotion: Optional[ProsodyEmotionResult],
     user_text: str = "",
+    au_verification: Optional[dict[str, Any]] = None,
     modality_response_times: Optional[dict[str, Optional[float]]] = None,
 ) -> FusedEmotionResult:
-    """Use prosody at fixed 0.10 when available; adapt only text vs visual."""
+    """Shared two-level ARALF: text / face / prosody, with DeepFace+AU inside face."""
+    # IMPORTANT: ARALF consumes the full score distribution produced from the
+    # participant's transcript.  response_emotion is never an ARALF input.
     text_dist = text_emotion_distribution(text_emotion)
-    visual_dist = visual_distribution(visual_emotion)
-
-    prosody_available = bool(prosody_emotion and prosody_emotion.available)
-    if prosody_available:
-        # Prosody contributes a fixed 0.10 whenever a usable prosody result exists.
-        # Its confidence shapes only the prosody emotion distribution, never its weight.
-        prosody_dist = emotion_distribution(prosody_emotion.emotion, prosody_emotion.confidence)
-        prosody_name = normalize_ekman_emotion(prosody_emotion.emotion)
-        wp = FUSION_PROSODY_WEIGHT
-    else:
-        # No prosody result means no prosody contribution at all. The complete
-        # fusion mass is then shared adaptively between text and visual.
-        prosody_dist = {emotion: 0.0 for emotion in EKMAN_EMOTION_LABELS}
-        prosody_name = None
-        wp = 0.0
-
     text_rel = text_reliability_score(text_emotion, user_text)
-    visual_rel = visual_reliability_score(visual_emotion)
 
-    explicit = explicit_emotion_from_text(user_text)
-    visual_label = visual_emotion.dominant_emotion if visual_emotion else None
-    if explicit:
-        text_rel = max(text_rel, 0.95)
-        if visual_label and normalize_ekman_emotion(visual_label) != explicit:
-            visual_rel *= 0.45
-
-    # Reliability adaptation occurs ONLY between text and visual. When
-    # prosody exists they share the remaining 0.90; otherwise they share 1.00.
-    text_visual_pool = 1.0 - wp
-    raw_text = max(0.0, FUSION_TEXT_WEIGHT) * text_rel
-    raw_visual = max(0.0, FUSION_VISUAL_WEIGHT) * visual_rel
-    tv_total = raw_text + raw_visual
-    if tv_total <= 0.0:
-        wt, wv = text_visual_pool, 0.0
+    if visual_emotion and visual_emotion.available:
+        deepface_dist = shared_deepface_distribution(visual_emotion.averaged_scores)
+        deepface_rel = visual_reliability_score(visual_emotion)
+        visual_label = normalize_ekman_emotion(visual_emotion.dominant_emotion or "neutral")
     else:
-        wt = text_visual_pool * (raw_text / tv_total)
-        wv = text_visual_pool * (raw_visual / tv_total)
+        deepface_dist = shared_zero_distribution()
+        deepface_rel = 0.0
+        visual_label = None
 
-    fused_scores = {
-        emotion: (
-            wt * text_dist.get(emotion, 0.0)
-            + wv * visual_dist.get(emotion, 0.0)
-            + wp * prosody_dist.get(emotion, 0.0)
-        )
-        for emotion in EKMAN_EMOTION_LABELS
-    }
-    dominant, confidence = max(fused_scores.items(), key=lambda item: item[1])
-    confidence = clamp01(confidence)
-
-    visual_name = normalize_ekman_emotion(visual_label) if visual_label else None
-    reason = (
-        f"Fixed-prosody/adaptive-text-visual fusion selected {dominant}: "
-        f"text={normalize_ekman_emotion(text_emotion.emotion)} rel={text_rel:.2f} weight={wt:.2f}, "
-        f"visual={visual_name} rel={visual_rel:.2f} weight={wv:.2f}, "
-        f"prosody={prosody_name} weight={wp:.2f}."
+    verification = au_verification or (
+        visual_emotion.au_verification if visual_emotion is not None else None
+    ) or {}
+    au_dist = verification.get("au_distribution") or shared_zero_distribution()
+    au_rel = shared_au_reliability(
+        verification,
+        partial_scale=AU_PARTIAL_RELIABILITY_SCALE,
     )
 
+    prosody_available = bool(prosody_emotion and prosody_emotion.available)
+    if prosody_available and prosody_emotion is not None:
+        prosody_dist = (
+            dict(prosody_emotion.scores or {})
+            if prosody_emotion.scores
+            else shared_categorical_distribution(
+                prosody_emotion.emotion,
+                prosody_emotion.confidence,
+            )
+        )
+        prosody_rel = prosody_reliability_score(prosody_emotion)
+        prosody_name = normalize_ekman_emotion(prosody_emotion.emotion)
+    else:
+        prosody_dist = shared_zero_distribution()
+        prosody_rel = 0.0
+        prosody_name = None
+
+    fused = shared_adaptive_reliability_fusion(
+        text_dist=text_dist,
+        text_rel=text_rel,
+        deepface_dist=deepface_dist,
+        deepface_rel=deepface_rel,
+        au_dist=au_dist,
+        au_rel=au_rel,
+        prosody_dist=prosody_dist,
+        prosody_rel=prosody_rel,
+        text_prior=FUSION_TEXT_WEIGHT,
+        face_prior=FUSION_VISUAL_WEIGHT,
+        prosody_prior=FUSION_PROSODY_WEIGHT,
+    )
+
+    au_json = {
+        "available": bool(verification.get("available")),
+        "emotion": (
+            normalize_ekman_emotion(str(verification.get("au_emotion")))
+            if verification.get("au_emotion") else None
+        ),
+        "confidence": round(clamp01(float(verification.get("confidence", 0.0))), 4),
+        "reliability": round(au_rel, 4),
+        "calibration_status": verification.get("calibration_status"),
+        "status": verification.get("status"),
+        "distribution": dict(verification.get("au_distribution") or {}),
+        "details": verification,
+    }
     return FusedEmotionResult(
-        emotion=dominant,
-        confidence=confidence,
-        reason=reason,
-        scores=fused_scores,
-        weights={
-            "base_text": FUSION_TEXT_WEIGHT,
-            "base_visual": FUSION_VISUAL_WEIGHT,
-            "base_prosody": wp,
-            "reliability_text": text_rel,
-            "reliability_visual": visual_rel,
-            "reliability_prosody": (1.0 if prosody_available else 0.0),
-            "adaptive_text_visual_pool": text_visual_pool,
-            "active_normalized_text": wt,
-            "active_normalized_visual": wv,
-            "active_normalized_prosody": wp,
-        },
+        emotion=fused.emotion,
+        confidence=fused.confidence,
+        reason=fused.reason,
+        scores=fused.scores,
+        weights=fused.weights,
         text_emotion=text_emotion.as_json,
-        visual_emotion=(visual_emotion.as_json if visual_emotion else _empty_visual_emotion("No visual result.").as_json),
+        visual_emotion=(
+            visual_emotion.as_json
+            if visual_emotion else _empty_visual_emotion("No visual result.").as_json
+        ),
+        au_emotion=au_json,
         prosody_emotion=(
             prosody_emotion.as_json
             if prosody_emotion
@@ -5145,29 +4617,25 @@ def adaptive_reliability_aware_fusion(
         response_times=modality_response_times or {},
     )
 
+
 def apply_temporal_emotion_smoothing(
     current_scores: dict[str, float],
     previous_scores: Optional[dict[str, float]],
     alpha: float = EMOTION_SMOOTHING_ALPHA,
-    visual_reliability: float = 1.0,
+    evidence_quality: float = 1.0,
 ) -> dict[str, float]:
-    """Reliability-weighted EMA used only for temporal tone shading/diagnostics.
-
-    A weak or unavailable visual modality must not let a strong visual read from
-    a previous turn dominate the current turn. With visual_reliability=0 the
-    effective alpha becomes 1.0, so the current fused distribution replaces the
-    stale history for that update.
-    """
+    """EMA for tone shading; weak current evidence trusts stale history less."""
     if not previous_scores:
         return dict(current_scores)
-    base_alpha = max(0.0, min(1.0, float(alpha)))
-    visual_rel = max(0.0, min(1.0, float(visual_reliability)))
-    effective_alpha = base_alpha + (1.0 - base_alpha) * (1.0 - visual_rel)
+    base_alpha = clamp01(alpha)
+    quality = clamp01(evidence_quality)
+    effective_alpha = base_alpha + (1.0 - base_alpha) * (1.0 - quality)
     return {
         emotion: effective_alpha * float(current_scores.get(emotion, 0.0))
         + (1.0 - effective_alpha) * float(previous_scores.get(emotion, 0.0))
         for emotion in EKMAN_EMOTION_LABELS
     }
+
 
 
 def dominant_from_scores(scores: dict[str, float]) -> tuple[str, float]:
@@ -5667,9 +5135,18 @@ def grade_self_rag_context(client: Client, transcript: str, candidates: list[dic
         information or a different person's name, use_context must be false.
         """.strip()
     try:
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "use_context": {"type": "boolean"},
+                "reason": {"type": "string"},
+            },
+            "required": ["use_context", "reason"],
+            "additionalProperties": False,
+        }
         response = client.chat(
             model=SELF_RAG_MODEL_NAME,
-            format="json",
+            format=response_schema,
             messages=[
                 {"role": "system", "content": "You return valid JSON only."},
                 {"role": "user", "content": prompt},
@@ -5733,22 +5210,22 @@ def generate_self_rag_answer(
     client: Optional[Client],
     transcript: str,
     self_rag_context: SelfRAGContext,
-) -> str:
-    """
-    Standalone answer generator: its OWN small system prompt, completely
-    separate from genrate_ameca_prompt()/the teacher pipeline. Never folds
-    Self-RAG context into any other system message. This is the exact
-    text passed straight to narrator.say() -> Tritium TTS for the turn.
-    """
+) -> tuple[str, EmotionResult]:
+    """Generate a grounded Self-RAG reply and its response emotion in one LLM call."""
     fallback_no_context = (
         "I don't currently have retrieved information on that specific "
         "point about the robotic research lab, so I don't want to guess."
     )
+    fallback_emotion = EmotionResult(
+        emotion="neutral",
+        confidence=1.0,
+        reason="Fallback Self-RAG answer is factual and even-toned.",
+    )
     if client is None:
-        return fallback_no_context if not self_rag_context.used else fallback_no_context
+        return fallback_no_context, fallback_emotion
 
     if not self_rag_context.used or not self_rag_context.context_text.strip():
-        return fallback_no_context
+        return fallback_no_context, fallback_emotion
 
     prompt = f"""
         You are answering a question about a robotic research laboratory,
@@ -5772,29 +5249,71 @@ def generate_self_rag_answer(
         - Use no more than {TUTOR_RESPONSE_MAX_WORDS} words.
         - Silently count the reply words before returning the JSON.
         - If it is too long, rewrite it internally before returning it.
+        - During the actual experiment, never verbalize emotion confidence,
+          confidence percentages, modality scores, fusion scores, or internal
+          emotion-detection metadata in the reply.
+        - The emotion/confidence/reason fields are internal metadata used for
+          expression actuation and logging only; never copy them into the reply.
+        - After writing the reply, choose the emotion that best describes the
+          emotional tone expressed by THAT ROBOT REPLY.
+        - Do not classify or copy the participant's emotion.
+        - A factual/even-toned reply should be neutral.
 
         Return JSON only in this exact shape:
-        {{"reply": "your answer here"}}
+        {{"reply": "your answer here", "emotion": "one valid label",
+        "confidence": 0.0, "reason": "short sentence about the robot reply's tone"}}
         """.strip()
+
+    response_schema = {
+        "type": "object",
+        "properties": {
+            "reply": {"type": "string"},
+            "emotion": {"type": "string", "enum": RESPONSE_EMOTION_LABELS},
+            "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+            "reason": {"type": "string"},
+        },
+        "required": ["reply", "emotion", "confidence", "reason"],
+        "additionalProperties": False,
+    }
 
     try:
         response = client.chat(
             model=SELF_RAG_MODEL_NAME,
-            format="json",
+            format=response_schema,
             messages=[
-                {"role": "system", "content": "You return valid JSON only and never invent facts."},
+                {
+                    "role": "system",
+                    "content": (
+                        "Return valid JSON only. The emotion describes only the robot reply "
+                        "you generate, never the participant. Emotion/confidence metadata is "
+                        "internal only and must not appear in the spoken reply. Never invent facts."
+                    ),
+                },
                 {"role": "user", "content": prompt},
             ],
-            options={"temperature": 0.0, "num_predict": 220, "num_ctx": 4096, "repeat_penalty": 1.15},
+            options={
+                "temperature": 0.0,
+                "num_predict": 220,
+                "num_ctx": 4096,
+                "repeat_penalty": 1.15,
+            },
             stream=False,
         )
         data = safe_json_extract(response.get("message", {}).get("content", ""))
         if isinstance(data, dict):
-            reply = str(data.get("reply", "")).strip()
+            reply = re.sub(r"\s+", " ", str(data.get("reply", "")).strip())
+            if reply and len(reply.split()) <= TUTOR_RESPONSE_MAX_WORDS:
+                response_emotion = EmotionResult(
+                    emotion=normalize_ekman_emotion(str(data.get("emotion", "neutral"))),
+                    confidence=clamp01(data.get("confidence", 0.0)),
+                    reason=(
+                        str(data.get("reason", "")).strip()
+                        or "Self-RAG LLM supplied the robot reply's emotional tone."
+                    ),
+                )
+                return reply, response_emotion
+
             if reply:
-                reply = re.sub(r"\s+", " ", reply)
-                if len(reply.split()) <= TUTOR_RESPONSE_MAX_WORDS:
-                    return reply
                 print_ts(
                     "[WARN] Self-RAG reply exceeded the word limit and was "
                     "rejected without truncation."
@@ -5802,12 +5321,17 @@ def generate_self_rag_answer(
                 return (
                     "I found relevant laboratory information, but the generated "
                     "explanation was too long for one response. Please ask about "
-                    "one specific detail so I can answer concisely."
+                    "one specific detail so I can answer concisely.",
+                    EmotionResult(
+                        emotion="neutral",
+                        confidence=1.0,
+                        reason="Length-limit fallback response is factual and even-toned.",
+                    ),
                 )
-        return fallback_no_context
+        return fallback_no_context, fallback_emotion
     except Exception as exc:
         print_ts(f"[SELF-RAG] Standalone answer generation failed: {exc}")
-        return fallback_no_context
+        return fallback_no_context, fallback_emotion
 
 
 # =============================================================================
@@ -5844,6 +5368,7 @@ def run_small_talk_qa_session(
     deepface: Optional[DeepFaceClient],
     au_detector: Optional[PyFeatAUDetector],
     au_calibration: Optional[dict[str, Any]],
+    prosody_baseline: Optional[dict[str, Any]],
     ollama_client: Optional[Client],
     emotion_model: str,
     participant_folder: str,
@@ -5891,58 +5416,128 @@ def run_small_talk_qa_session(
             break
 
         # ---------------------------------------------------------------
-        # Three independent participant-emotion modalities
+        # Participant-emotion channels run concurrently after ASR.
+        #
+        # Three independent branches are launched at the same time:
+        #   1) text-emotion LLM
+        #   2) visual branch: DeepFace -> face crops -> AU verification
+        #   3) prosody
+        #
+        # AU remains inside the visual branch because it depends on the
+        # DeepFace-confirmed face crops. ARALF still waits for all available
+        # branches before computing the fused participant emotion.
         # ---------------------------------------------------------------
-        text_started = time.time()
-        text_emotion = detect_text_emotion(
-            ollama_client,
-            transcript,
-            model_name=emotion_model,
-        )
-        text_seconds = time.time() - text_started
+        parallel_started = time.perf_counter()
 
-        visual_emotion, visual_matches = analyze_visual_emotion_and_crops(
-            frames=frames,
-            deepface=deepface,
-            max_crops=max(QA_IMAGES_PER_TURN, AU_LIVE_FRAME_COUNT),
-            debug_dir=debug_dir,
-            requested_emotion="questions",
-        )
+        def _text_branch() -> tuple[EmotionResult, float]:
+            started = time.perf_counter()
+            result = detect_text_emotion(
+                ollama_client,
+                transcript,
+                model_name=emotion_model,
+            )
+            return result, time.perf_counter() - started
 
-        # Extract AU vectors from exactly two live face crops. Each live AU
-        # vector is compared with all four warm-up AU references per emotion.
-        live_au_crops = [
-            crop_face(frame, region)
-            for frame, region in visual_matches[:2]
-        ]
-        au_verification = verify_live_crops_with_au(
-            crops=live_au_crops,
-            deepface_emotion=visual_emotion.dominant_emotion,
-            detector=au_detector,
-            calibration=au_calibration,
-        )
-        visual_emotion = select_visual_source_by_confidence(
-            visual_emotion,
-            au_verification,
-        )
+        def _prosody_branch() -> tuple[ProsodyEmotionResult, float]:
+            started = time.perf_counter()
+            result = analyze_prosody_from_audio(
+                audio_for_prosody,
+                TARGET_SAMPLE_RATE,
+                participant_baseline=prosody_baseline,
+            )
+            return result, time.perf_counter() - started
 
-        prosody_started = time.time()
-        prosody_emotion = analyze_prosody_from_audio(
-            audio_for_prosody,
-            TARGET_SAMPLE_RATE,
+        def _visual_au_branch() -> tuple[
+            VisualEmotionResult,
+            list[tuple[np.ndarray, dict[str, Any]]],
+            dict[str, Any],
+            float,
+            float,
+        ]:
+            visual_started = time.perf_counter()
+            visual_result, matches = analyze_visual_emotion_and_crops(
+                frames=frames,
+                deepface=deepface,
+                max_crops=max(QA_IMAGES_PER_TURN, AU_LIVE_FRAME_COUNT),
+                debug_dir=debug_dir,
+                requested_emotion="questions",
+            )
+            visual_seconds_local = time.perf_counter() - visual_started
+
+            # AU requires the face crops selected by the visual stage, so it
+            # follows DeepFace inside this branch while text/prosody continue
+            # running in parallel on their own workers.
+            live_au_crops = [
+                crop_face(frame, region)
+                for frame, region in matches[:2]
+            ]
+            au_started = time.perf_counter()
+            verification = verify_live_crops_with_au(
+                crops=live_au_crops,
+                deepface_emotion=visual_result.dominant_emotion,
+                detector=au_detector,
+                calibration=au_calibration,
+            )
+            au_seconds_local = time.perf_counter() - au_started
+            # AU is an independent ARALF contributor; attaching the details
+            # here is only for provenance in the visual JSON.
+            visual_result.au_verification = verification
+            return (
+                visual_result,
+                matches,
+                verification,
+                visual_seconds_local,
+                au_seconds_local,
+            )
+
+        with ThreadPoolExecutor(
+            max_workers=3,
+            thread_name_prefix="emotion",
+        ) as emotion_pool:
+            text_future = emotion_pool.submit(_text_branch)
+            visual_future = emotion_pool.submit(_visual_au_branch)
+            prosody_future = emotion_pool.submit(_prosody_branch)
+
+            text_emotion, text_seconds = text_future.result()
+            (
+                visual_emotion,
+                visual_matches,
+                au_verification,
+                visual_seconds,
+                au_seconds,
+            ) = visual_future.result()
+            prosody_emotion, prosody_seconds = prosody_future.result()
+
+        parallel_seconds = time.perf_counter() - parallel_started
+        sequential_equivalent_seconds = (
+            text_seconds + visual_seconds + au_seconds + prosody_seconds
         )
-        prosody_seconds = time.time() - prosody_started
+        overlap_saved_seconds = max(
+            0.0, sequential_equivalent_seconds - parallel_seconds
+        )
+        print_ts(
+            "[TIMING] Concurrent emotion modalities: "
+            f"wall={parallel_seconds:.2f}s; "
+            f"text={text_seconds:.2f}s; "
+            f"DeepFace={visual_seconds:.2f}s; "
+            f"AU={au_seconds:.2f}s; "
+            f"prosody={prosody_seconds:.3f}s; "
+            f"overlap_saved≈{overlap_saved_seconds:.2f}s"
+        )
 
         fused_emotion = adaptive_reliability_aware_fusion(
             text_emotion=text_emotion,
             visual_emotion=visual_emotion,
             prosody_emotion=prosody_emotion,
             user_text=transcript,
+            au_verification=au_verification,
             modality_response_times={
                 "text_seconds": text_seconds,
-                "visual_seconds": visual_emotion.analysis_seconds,
-                "au_verification_seconds": float((visual_emotion.au_verification or {}).get("analysis_seconds", 0.0)),
+                "visual_seconds": visual_seconds,
+                "au_verification_seconds": au_seconds,
                 "prosody_seconds": prosody_seconds,
+                "parallel_emotion_wall_seconds": parallel_seconds,
+                "parallel_overlap_saved_seconds": overlap_saved_seconds,
             },
         )
 
@@ -5950,21 +5545,20 @@ def run_small_talk_qa_session(
         # Temporal smoothing is retained only as a secondary distribution for
         # tone shading and diagnostics; it never replaces this label.
         user_emotion_for_teacher = fused_emotion.to_emotion_result()
-        current_visual_reliability = max(
-            0.0,
-            min(1.0, float(fused_emotion.weights.get("reliability_visual", 0.0))),
+        current_evidence_quality = clamp01(
+            float(fused_emotion.weights.get("evidence_quality", 0.0))
         )
         if EMOTION_SMOOTHING_ENABLED:
-            base_alpha = max(0.0, min(1.0, float(EMOTION_SMOOTHING_ALPHA)))
+            base_alpha = clamp01(float(EMOTION_SMOOTHING_ALPHA))
             smoothing_effective_alpha = (
                 base_alpha
-                + (1.0 - base_alpha) * (1.0 - current_visual_reliability)
+                + (1.0 - base_alpha) * (1.0 - current_evidence_quality)
             )
             smoothed_emotion_scores = apply_temporal_emotion_smoothing(
                 current_scores=fused_emotion.scores,
                 previous_scores=smoothed_emotion_scores,
                 alpha=base_alpha,
-                visual_reliability=current_visual_reliability,
+                evidence_quality=current_evidence_quality,
             )
         else:
             smoothing_effective_alpha = 1.0
@@ -5976,13 +5570,22 @@ def run_small_talk_qa_session(
             f"(confidence={text_emotion.confidence:.2f})"
         )
         print_ts(
+            "Participant text distribution used by ARALF: "
+            + json.dumps(text_emotion_distribution(text_emotion), sort_keys=True)
+        )
+        print_ts(
             f"Participant prosody emotion: {normalize_ekman_emotion(prosody_emotion.emotion)} "
             f"(available={prosody_emotion.available}, confidence={prosody_emotion.confidence:.2f})"
         )
-        visual_selection = visual_emotion.au_verification or {}
         print_ts(
-            f"Participant visual selection: source={visual_selection.get('selected_source', 'deepface')} "
-            f"emotion={visual_emotion.dominant_emotion} confidence={visual_emotion.confidence:.2f}"
+            f"Participant DeepFace emotion: {visual_emotion.dominant_emotion} "
+            f"confidence={visual_emotion.confidence:.2f}, "
+            f"reliability={fused_emotion.weights.get('reliability_deepface', 0.0):.2f}"
+        )
+        print_ts(
+            f"Participant AU emotion: {au_verification.get('au_emotion')} "
+            f"available={au_verification.get('available', False)}, "
+            f"reliability={fused_emotion.weights.get('reliability_au', 0.0):.2f}"
         )
         print_ts(
             f"Participant fused emotion (authoritative current turn): "
@@ -5993,7 +5596,7 @@ def run_small_talk_qa_session(
             f"(confidence={smoothed_confidence:.2f}, "
             f"base_alpha={EMOTION_SMOOTHING_ALPHA:.2f}, "
             f"effective_alpha={smoothing_effective_alpha:.2f}, "
-            f"visual_reliability={current_visual_reliability:.2f})"
+            f"evidence_quality={current_evidence_quality:.2f})"
         )
         print_ts("Multimodal fusion JSON:")
         fusion_json = fused_emotion.as_json
@@ -6001,7 +5604,7 @@ def run_small_talk_qa_session(
             "enabled": EMOTION_SMOOTHING_ENABLED,
             "base_alpha": EMOTION_SMOOTHING_ALPHA,
             "effective_alpha": smoothing_effective_alpha,
-            "visual_reliability": current_visual_reliability,
+            "evidence_quality": current_evidence_quality,
             "smoothed_scores": smoothed_emotion_scores,
             "smoothed_emotion": smoothed_label,
             "smoothed_confidence": smoothed_confidence,
@@ -6034,11 +5637,17 @@ def run_small_talk_qa_session(
             self_rag_context = build_self_rag_context(
                 ollama_client, SELF_RAG_STORE, transcript
             )
-            answer = generate_self_rag_answer(
+            answer, self_rag_response_emotion = generate_self_rag_answer(
                 ollama_client, transcript, self_rag_context
             )
             print_ts(
                 f"[SELF-RAG] used={self_rag_context.used} reason={self_rag_context.reason!r}"
+            )
+            print_ts(
+                f"Robot response emotion (Self-RAG): "
+                f"{self_rag_response_emotion.emotion} "
+                f"(confidence={self_rag_response_emotion.confidence:.2f}) -> "
+                f"facial sequence={ekman_facial_sequence(self_rag_response_emotion.emotion)!r}"
             )
 
             session["qa_session"].append({
@@ -6048,13 +5657,10 @@ def run_small_talk_qa_session(
                 "images": saved_images,
                 "text_emotion": text_emotion.as_json,
                 "visual_emotion": visual_emotion.as_json,
+                "au_emotion": fused_emotion.au_emotion,
                 "prosody_emotion": prosody_emotion.as_json,
                 "fused_emotion": fusion_json,
-                "response_emotion": EmotionResult(
-                    emotion="neutral",
-                    confidence=1.0,
-                    reason="Self-RAG standalone answer.",
-                ).as_json,
+                "response_emotion": self_rag_response_emotion.as_json,
                 "self_rag": self_rag_context.as_json,
                 "captured_at": now_iso(),
             })
@@ -6069,7 +5675,11 @@ def run_small_talk_qa_session(
                 prosody_emotion=prosody_emotion.as_json,
                 fused_emotion=fusion_json,
             )
-            narrator.say(answer, emotion="neutral", confidence=1.0)
+            narrator.say(
+                answer,
+                emotion=self_rag_response_emotion.emotion,
+                confidence=self_rag_response_emotion.confidence,
+            )
             append_turn(
                 session,
                 "assistant",
@@ -6130,6 +5740,7 @@ def run_small_talk_qa_session(
             "images": saved_images,
             "text_emotion": text_emotion.as_json,
             "visual_emotion": visual_emotion.as_json,
+            "au_emotion": fused_emotion.au_emotion,
             "prosody_emotion": prosody_emotion.as_json,
             "fused_emotion": fusion_json,
             "response_emotion": response_emotion.as_json,
@@ -6173,7 +5784,8 @@ def run_small_talk_qa_session(
 def run_warm_up(args: argparse.Namespace) -> None:
     global FACE_CASCADE_PATH_OVERRIDE, REQUIRE_EYE_CONFIRMATION
     global CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS
-    global SELF_RAG_STORE
+    global SELF_RAG_STORE, EXPRESSION_TIMING
+    EXPRESSION_TIMING = str(args.expression_timing).strip().lower()
     if args.face_cascade_path:
         FACE_CASCADE_PATH_OVERRIDE = args.face_cascade_path
     if args.require_eye_confirmation:
@@ -6274,7 +5886,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
     session = new_session(participant_id, participant_folder, session_number)
     session["check_facial_expression"] = check_facial_expression
     session["emotion_fusion"] = {
-        "type": "fixed_0.10_prosody_adaptive_text_visual_fusion",
+        "type": "ARALF_text_distribution_face_deepface_au_prosody",
         "taxonomy": "Ekman six basic emotions plus neutral",
         "base_weights": {
             "text": FUSION_TEXT_WEIGHT,
@@ -6288,6 +5900,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
     }
     session["explanation_level"] = explanation_level
     session["previous_session_summary"] = previous_session_summary
+    session["response_expression_timing"] = EXPRESSION_TIMING
     save_session(participant_id, session)
 
     speaker = RobotSpeaker(
@@ -6304,6 +5917,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
     deepface: Optional[DeepFaceClient] = None
     au_detector: Optional[PyFeatAUDetector] = None
     au_calibration: Optional[dict[str, Any]] = None
+    prosody_baseline: Optional[dict[str, Any]] = None
     video_recorder: Optional[Any] = None
 
     print_ts("Loading Silero VAD...")
@@ -6379,13 +5993,18 @@ def run_warm_up(args: argparse.Namespace) -> None:
         except Exception as exc:
             print_ts(f"[WARN] Could not start TTS activity monitor: {exc}")
 
+    prosody_baseline = load_participant_prosody_baseline(participant_folder)
+    session["prosody_baseline_status"] = (
+        str(prosody_baseline.get("status")) if prosody_baseline else "profile_missing"
+    )
+
     try:
         if check_facial_expression and args.au_verification:
             au_calibration = load_participant_au_calibration(participant_folder)
             session["au_calibration_status"] = (
                 str(au_calibration.get("status")) if au_calibration else "profile_missing"
             )
-            if au_calibration and au_calibration.get("status") == "ready":
+            if au_calibration and au_calibration.get("status") in {"ready", "partial"}:
                 try:
                     au_detector = PyFeatAUDetector(
                         device=args.pyfeat_device,
@@ -6399,7 +6018,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
                         f"[WARN] Py-Feat AU verifier unavailable ({exc}); "
                         "continuing with normal DeepFace reliability."
                     )
-                    session["au_calibration_status"] = "ready_worker_unavailable"
+                    session["au_calibration_status"] = f"{au_calibration.get('status')}_worker_unavailable"
                     session["au_verification_worker_error"] = str(exc)
                     au_detector = None
             else:
@@ -6514,7 +6133,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
         append_turn(session, "assistant", goals_text, intent="goals_statement")
         save_session(participant_id, session)
 
-        # ---- Step 4: teacher Q&A with text + DeepFace + prosody fusion,
+        # ---- Step 4: teacher Q&A with text + face (DeepFace + AU) + prosody fusion,
         # one bounded answer call with separate response-emotion classification,
         # always-nod delivery, and standalone Self-RAG short-circuit. --------
         run_small_talk_qa_session(
@@ -6526,6 +6145,7 @@ def run_warm_up(args: argparse.Namespace) -> None:
             deepface=deepface,
             au_detector=au_detector,
             au_calibration=au_calibration,
+            prosody_baseline=prosody_baseline,
             ollama_client=ollama_client,
             emotion_model=args.emotion_model,
             participant_folder=participant_folder,
@@ -6621,7 +6241,7 @@ def parse_arguments() -> argparse.Namespace:
             "The separate warm-up/calibration stage is not counted as an experiment session. "
             "single-utterance name capture (skipped if the participant is "
             "already known from an earlier session), a goals statement, and "
-            "a short teacher Q&A with adaptive text + DeepFace + prosody "
+            "a short teacher Q&A with adaptive text + face (DeepFace + AU) + prosody "
             "participant-emotion fusion, optional face-crop capture, one bounded "
             "teacher-answer pass that separately classifies the response emotion, and "
             "emotion-aware (never negative) facial expression driven by the "
@@ -6806,6 +6426,15 @@ def parse_arguments() -> argparse.Namespace:
         help=(
             "Tritium sequence_player host used for both the turn-end nod "
             "gesture and the emotion-driven facial expression."
+        ),
+    )
+    parser.add_argument(
+        "--expression_timing",
+        choices=["before", "mid", "after"],
+        default=EXPRESSION_TIMING,
+        help=(
+            "When to play the robot response-emotion sequence relative to TTS: "
+            "before speech, at the estimated midpoint, or after speech."
         ),
     )
     parser.add_argument(
