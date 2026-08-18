@@ -367,9 +367,9 @@ FACE_MIN_TOP_SCORE = float(os.environ.get("FACE_MIN_TOP_SCORE", "35.0"))
 FACE_MIN_MARGIN = float(os.environ.get("FACE_MIN_MARGIN", "8.0"))
 
 # Participant-specific AU verification. The reference profile is created by the
-# warm-up code from THREE independently AU-extracted saved crops per emotion.
+# warm-up code from FOUR independently AU-extracted saved crops per emotion.
 AU_VERIFICATION_ENABLED_DEFAULT = os.environ.get("AU_VERIFICATION_ENABLED", "1") == "1"
-PYFEAT_DEVICE = os.environ.get("PYFEAT_DEVICE", "cpu")
+PYFEAT_DEVICE = os.environ.get("PYFEAT_DEVICE", "cuda")
 
 # Py-Feat is intentionally isolated in a separate subprocess/environment.
 # If Detectorv2 or one of its compiled dependencies segfaults, only the worker
@@ -385,37 +385,17 @@ PYFEAT_REQUEST_TIMEOUT_SECONDS = float(
 
 AU_PROFILE_FILENAME = os.environ.get("AU_PROFILE_FILENAME", "au_calibration.json")
 
-# PILOT-TUNE as one hyperparameter set from pilot-data distributions. These
-# values are explicit defaults, not claims of theoretically optimal cutoffs.
-AU_MIN_SIMILARITY = float(os.environ.get("AU_MIN_SIMILARITY", "0.45"))
-AU_MARGIN_SATURATION = float(os.environ.get("AU_MARGIN_SATURATION", "0.25"))
-AU_STRENGTH_SATURATION = float(os.environ.get("AU_STRENGTH_SATURATION", "0.20"))
-# Retained as a soft diagnostic scale for neutral similarity. The actual neutral
-# decision is participant-specific and derived from the warm-up profile.
-AU_NEUTRAL_DISTANCE_SATURATION = float(os.environ.get("AU_NEUTRAL_DISTANCE_SATURATION", "0.20"))
-AU_NEUTRAL_GATE_FRACTION = float(os.environ.get("AU_NEUTRAL_GATE_FRACTION", "0.50"))
-AU_NEUTRAL_GATE_FALLBACK = float(os.environ.get("AU_NEUTRAL_GATE_FALLBACK", "0.08"))
-AU_LIVE_FRAME_COUNT = int(os.environ.get("AU_LIVE_FRAME_COUNT", "2"))
-AU_MIN_FRAME_AGREEMENT = float(os.environ.get("AU_MIN_FRAME_AGREEMENT", "0.66"))
-AU_SINGLE_FRAME_CONFIDENCE_SCALE = float(os.environ.get("AU_SINGLE_FRAME_CONFIDENCE_SCALE", "0.50"))
-AU_FRAME_CONSENSUS_GAIN = float(os.environ.get("AU_FRAME_CONSENSUS_GAIN", "0.20"))
-# Neutral-vs-emotion AU conflicts use cross-frame agreement rather than one
-# fixed threshold. Unanimous multi-frame AU evidence may challenge DeepFace
-# neutral at a lower confidence; a 2/3 majority needs stronger evidence; a
-# single-frame decision is deliberately conservative.
-AU_NEUTRAL_CONFLICT_UNANIMOUS_CONFIDENCE = float(
-    os.environ.get("AU_NEUTRAL_CONFLICT_UNANIMOUS_CONFIDENCE", "0.25")
-)
-AU_NEUTRAL_CONFLICT_MAJORITY_CONFIDENCE = float(
-    os.environ.get("AU_NEUTRAL_CONFLICT_MAJORITY_CONFIDENCE", "0.40")
-)
-AU_NEUTRAL_CONFLICT_SINGLE_FRAME_CONFIDENCE = float(
-    os.environ.get("AU_NEUTRAL_CONFLICT_SINGLE_FRAME_CONFIDENCE", "0.55")
-)
-AU_AGREEMENT_GAIN = float(os.environ.get("AU_AGREEMENT_GAIN", "0.30"))
-AU_DISAGREEMENT_PENALTY = float(os.environ.get("AU_DISAGREEMENT_PENALTY", "0.70"))
-AU_STATUS_LOW_CONFIDENCE = float(os.environ.get("AU_STATUS_LOW_CONFIDENCE", "0.25"))
-AU_STATUS_HIGH_CONFIDENCE = float(os.environ.get("AU_STATUS_HIGH_CONFIDENCE", "0.60"))
+# Personalized AU distance calibration.
+# A non-positive margin/tau means: estimate it from this participant's warm-up
+# reference bank. Set a positive environment value only when deliberately
+# overriding the participant-specific calibration during an experiment.
+AU_MARGIN_SATURATION = float(os.environ.get("AU_MARGIN_SATURATION", "0.0"))
+AU_DISTANCE_TAU = float(os.environ.get("AU_DISTANCE_TAU", "0.0"))
+AU_STD_FLOOR_FRACTION = float(os.environ.get("AU_STD_FLOOR_FRACTION", "0.25"))
+AU_STD_ABS_FLOOR = float(os.environ.get("AU_STD_ABS_FLOOR", "0.001"))
+# Three temporally separated live frames give agreement values 1.00/0.67/0.33
+# instead of the overly coarse 1.00/0.50 behavior of two frames.
+AU_LIVE_FRAME_COUNT = int(os.environ.get("AU_LIVE_FRAME_COUNT", "3"))
 # A full personalized AU verifier needs broad enough prototype coverage to
 # challenge DeepFace. Older calibration files are re-evaluated against these
 # counts at load time, so a legacy "ready" profile with only two valid
@@ -669,9 +649,48 @@ def find_known_display_name_any_session(participant_folder: str) -> Optional[str
     return None
 
 
+def build_session_run_id(
+    session_number: int, started_at: Optional[str] = None
+) -> str:
+    """Return a stable, human-readable folder name for one session run.
+
+    The timestamp prevents media from a deliberate re-run of the same session
+    number from overwriting or mixing with the earlier run.
+    """
+    stamp_dt: Optional[datetime] = None
+    if started_at:
+        try:
+            stamp_dt = datetime.fromisoformat(str(started_at))
+        except (TypeError, ValueError):
+            stamp_dt = None
+    if stamp_dt is None:
+        stamp_dt = datetime.now()
+    return f"session_{int(session_number):02d}_{stamp_dt.strftime('%Y%m%d_%H%M%S')}"
+
+
+def session_image_directory(
+    participant_folder: str, session_run_id: str
+) -> Path:
+    return PROFILE_DIR / participant_folder / session_run_id / "images"
+
+
+def session_debug_directory(
+    participant_folder: str, session_run_id: str
+) -> Path:
+    return PROFILE_DIR / participant_folder / session_run_id / "debug"
+
+
+def session_media_directory(
+    participant_folder: str, session_run_id: str
+) -> Path:
+    return VIDEOS_DIR / participant_folder / session_run_id
+
+
 def new_session(
     participant_id: str, participant_folder: str, session_number: int
 ) -> dict[str, Any]:
+    started_at = now_iso()
+    session_run_id = build_session_run_id(session_number, started_at)
     return {
         "participant_id": participant_id,
         "participant_folder": participant_folder,
@@ -679,8 +698,11 @@ def new_session(
         "counts_as_experiment_session": True,
         "session_number": session_number,
         "display_name": "",
-        "started_at": now_iso(),
+        "started_at": started_at,
         "ended_at": None,
+        "session_run_id": session_run_id,
+        "image_directory": str(session_image_directory(participant_folder, session_run_id)),
+        "media_directory": str(session_media_directory(participant_folder, session_run_id)),
         "goals_stated": False,
         "previous_session_summary": None,  # loaded from session_number - 1, if any
         "summary": None,                   # generated at the end of THIS session
@@ -725,12 +747,19 @@ def build_profile_image_path(
     kind: str,
     image_id: int,
     emotion: Optional[str] = None,
+    session_run_id: Optional[str] = None,
 ) -> Path:
-    """
-    kind == "questions"-> questions_{id}_{timestamp}.jpg
+    """Build a profile-image path.
+
+    Session Q&A images are stored under a participant/session-specific folder,
+    e.g. warm_up_profile/A1234/session_03_20260818_141709/images/.
+    The fallback participant-root behavior is retained for any legacy caller.
     """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    directory = PROFILE_DIR / participant_folder
+    if session_run_id:
+        directory = session_image_directory(participant_folder, session_run_id)
+    else:
+        directory = PROFILE_DIR / participant_folder
     directory.mkdir(parents=True, exist_ok=True)
 
     if kind == "questions":
@@ -1005,31 +1034,23 @@ def build_emotion_prompt(transcribed_text: str) -> str:
     or what a participant might plausibly feel.
     """
     return f"""
-Classify ONLY the emotion expressed by the participant's wording.
+        You are an emotion classification system for a human-robot interaction session.
 
-Labels:
-joy, sadness, anger, fear, surprise, disgust, neutral.
+        Classify ONLY the emotion expressed by the participant's wording.
 
-Interpretation:
-- joy: explicit happiness, delight, excitement, or positive affect
-- sadness: explicit unhappiness, loss, disappointment, or low mood
-- anger: explicit irritation, frustration, hostility, or anger
-- fear: explicit worry, anxiety, threat, or fear
-- surprise: explicit unexpectedness, astonishment, or being startled
-- disgust: explicit revulsion, aversion, or disgust
-- neutral: no clearly expressed Ekman emotion
+        Labels:
+        joy, sadness, anger, fear, surprise, disgust, neutral.
 
-Rules:
-- Use ONLY the participant utterance below.
-- Do not infer emotion from the topic itself, novelty, question intent, or experiment context.
-- Do not treat curiosity alone as joy or surprise.
-- A factual question, request, instruction, or informational statement with no clear emotional wording should strongly favor neutral.
-- Return probabilities for all seven labels. Values must be between 0 and 1. Python will normalize small rounding differences.
-- Return JSON only. Do not add a reason, markdown, or extra text.
+        Rules:
+        - Use ONLY the participant utterance below.
+        - Do not infer emotion from the topic itself, novelty, question intent, or experiment context.
+        - Do not treat curiosity alone as joy or surprise.
+        - Return probabilities for all seven labels. Values must be between 0 and 1. Python will normalize small rounding differences.
+        - Return JSON only. Do not add a reason, markdown, or extra text.
 
-PARTICIPANT UTTERANCE ONLY:
-<<<{transcribed_text}>>>
-""".strip()
+        PARTICIPANT UTTERANCE ONLY:
+        <<<{transcribed_text}>>>
+        """.strip()
 
 
 TEXT_EMOTION_RESPONSE_SCHEMA: dict[str, Any] = {
@@ -2912,8 +2933,9 @@ class Camera:
 class SessionVideoRecorder:
     """
     Continuously records frames from the shared Camera instance for the
-    whole warm-up session, writing to a single video file under
-    warm_up_videos/{participant_folder}/.
+    whole experiment session, writing to a single video file under a
+    participant/session-specific directory such as
+    warm_up_videos/{participant_folder}/session_03_YYYYMMDD_HHMMSS/.
     """
 
     def __init__(
@@ -4103,13 +4125,18 @@ def load_participant_au_calibration(participant_folder: str) -> Optional[dict[st
     stored_status = str(profile.get("status", "unknown"))
     au_columns = list(profile.get("au_columns", []) or [])
     expected_refs = int(profile.get("crops_per_emotion", 0) or 0)
-    if expected_refs != 4 or not au_columns:
+    # The calibration stage owns the reference-bank size.  Do not hard-code a
+    # particular number here: newer profiles may intentionally store more
+    # references (for example seven per emotion) to improve participant-specific
+    # AU normalization and nearest-reference stability.
+    if expected_refs <= 0 or not au_columns:
         profile["stored_status"] = stored_status
         profile["status"] = "insufficient"
         profile["runtime_validation_status"] = "invalid_columns_or_reference_count"
         print_ts(
-            f"[WARN] AU calibration cannot contribute: expected four references per "
-            f"emotion and a non-empty AU column list (stored refs={expected_refs})."
+            f"[WARN] AU calibration cannot contribute: crops_per_emotion must be "
+            f"positive and AU columns must be present (stored refs={expected_refs}, "
+            f"au_columns={len(au_columns)})."
         )
         return profile
 
@@ -4191,16 +4218,30 @@ def verify_live_crops_with_au(
         calibration=calibration,
         margin_saturation=AU_MARGIN_SATURATION,
         live_frame_count=AU_LIVE_FRAME_COUNT,
-        expected_ref_count=4,
+        expected_ref_count=None,  # infer from calibration["crops_per_emotion"]
+        distance_tau=AU_DISTANCE_TAU,
+        std_floor_fraction=AU_STD_FLOOR_FRACTION,
+        std_abs_floor=AU_STD_ABS_FLOOR,
     )
     if result.get("available"):
+        partial_factor = (
+            AU_PARTIAL_RELIABILITY_SCALE
+            if result.get("calibration_status") == "partial"
+            else 1.0
+        )
         print_ts(
             "AU nearest-reference result: "
             f"emotion={result.get('au_emotion')}, "
-            f"confidence={float(result.get('confidence', 0.0)):.2f}, "
+            f"class_confidence={float(result.get('classification_confidence', result.get('confidence', 0.0))):.3f}, "
+            f"reference_similarity={float(result.get('reference_similarity', result.get('best_similarity', 0.0))):.3f}, "
+            f"margin_component={float(result.get('margin_component', 0.0)):.3f}, "
+            f"frame_agreement={float(result.get('frame_agreement_ratio', 0.0)):.3f}, "
+            f"partial_factor={partial_factor:.2f}, "
             f"best_distance={float(result.get('best_mean_distance', 0.0)):.3f}, "
             f"margin={float(result.get('distance_margin', 0.0)):.3f}, "
-            f"frame_agreement={float(result.get('frame_agreement_ratio', 0.0)):.2f}."
+            f"tau={float(result.get('distance_tau', 0.0)):.3f}, "
+            f"margin_sat={float(result.get('margin_saturation_used', 0.0)):.3f}, "
+            f"distance_space={result.get('distance_space')}."
         )
     return result
 
@@ -4590,7 +4631,17 @@ def adaptive_reliability_aware_fusion(
             normalize_ekman_emotion(str(verification.get("au_emotion")))
             if verification.get("au_emotion") else None
         ),
+        # ``confidence`` is classification certainty (relative separation +
+        # temporal agreement). ``reference_similarity`` measures absolute
+        # closeness to the participant's stored AU references. ARALF consumes
+        # the separate conservative ``reliability`` value.
         "confidence": round(clamp01(float(verification.get("confidence", 0.0))), 4),
+        "classification_confidence": round(
+            clamp01(float(verification.get("classification_confidence", verification.get("confidence", 0.0)))), 4
+        ),
+        "reference_similarity": round(
+            clamp01(float(verification.get("reference_similarity", verification.get("best_similarity", 0.0)))), 4
+        ),
         "reliability": round(au_rel, 4),
         "calibration_status": verification.get("calibration_status"),
         "status": verification.get("status"),
@@ -5394,7 +5445,11 @@ def run_small_talk_qa_session(
             emotion="joy",
         )
 
-    debug_dir = PROFILE_DIR / participant_folder / "debug"
+    session_run_id = str(
+        session.get("session_run_id")
+        or build_session_run_id(int(session.get("session_number", 1)), session.get("started_at"))
+    )
+    debug_dir = session_debug_directory(participant_folder, session_run_id)
     asked = 0
     smoothed_emotion_scores: Optional[dict[str, float]] = None
 
@@ -5469,7 +5524,7 @@ def run_small_talk_qa_session(
             # running in parallel on their own workers.
             live_au_crops = [
                 crop_face(frame, region)
-                for frame, region in matches[:2]
+                for frame, region in matches[:AU_LIVE_FRAME_COUNT]
             ]
             au_started = time.perf_counter()
             verification = verify_live_crops_with_au(
@@ -5585,7 +5640,12 @@ def run_small_talk_qa_session(
         print_ts(
             f"Participant AU emotion: {au_verification.get('au_emotion')} "
             f"available={au_verification.get('available', False)}, "
-            f"reliability={fused_emotion.weights.get('reliability_au', 0.0):.2f}"
+            f"class_confidence={float(au_verification.get('classification_confidence', au_verification.get('confidence', 0.0))):.3f}, "
+            f"reference_similarity={float(au_verification.get('reference_similarity', au_verification.get('best_similarity', 0.0))):.3f}, "
+            f"margin_component={float(au_verification.get('margin_component', 0.0)):.3f}, "
+            f"frame_agreement={float(au_verification.get('frame_agreement_ratio', 0.0)):.3f}, "
+            f"calibration={au_verification.get('calibration_status')}, "
+            f"reliability={fused_emotion.weights.get('reliability_au', 0.0):.3f}"
         )
         print_ts(
             f"Participant fused emotion (authoritative current turn): "
@@ -5619,7 +5679,12 @@ def run_small_talk_qa_session(
         for frame, region in visual_matches[:QA_IMAGES_PER_TURN]:
             cropped = crop_face(frame, region)
             image_id = allocate_image_id(session)
-            path = build_profile_image_path(participant_folder, "questions", image_id)
+            path = build_profile_image_path(
+                participant_folder,
+                "questions",
+                image_id,
+                session_run_id=session_run_id,
+            )
             if save_frame_to_profile(cropped, path):
                 saved_images.append(str(path))
                 print_ts(f"Saved question-round image: {path}")
@@ -5816,11 +5881,16 @@ def run_warm_up(args: argparse.Namespace) -> None:
 
     ensure_directories()
 
-    participant_id = (
-        args.name
-        or input("Participant number: ").strip()
-        or "unknown"
-    )
+    # Resolve the participant identifier before any session/profile lookup.
+    # If it was not supplied explicitly on the command line, always request it
+    # interactively. Do not silently continue with an "unknown" participant,
+    # because that can mix session/calibration data between participants.
+    participant_id = str(getattr(args, "participant_id", "") or "").strip()
+    while not participant_id:
+        participant_id = input("Participant ID: ").strip()
+        if not participant_id:
+            print("Participant ID cannot be empty. Please enter a valid participant ID.")
+
     participant_folder = sanitize_participant_folder_name(participant_id)
 
     session_number = determine_session_number(participant_folder, args.session_number)
@@ -5884,6 +5954,15 @@ def run_warm_up(args: argparse.Namespace) -> None:
     )
 
     session = new_session(participant_id, participant_folder, session_number)
+    session_run_id = str(session["session_run_id"])
+    session_image_dir = session_image_directory(participant_folder, session_run_id)
+    session_media_dir = session_media_directory(participant_folder, session_run_id)
+    session_image_dir.mkdir(parents=True, exist_ok=True)
+    session_media_dir.mkdir(parents=True, exist_ok=True)
+    print_ts(f"Session run ID: {session_run_id}")
+    print_ts(f"Session images will be saved under: {session_image_dir}")
+    print_ts(f"Session audio/video will be saved under: {session_media_dir}")
+
     session["check_facial_expression"] = check_facial_expression
     session["emotion_fusion"] = {
         "type": "ARALF_text_distribution_face_deepface_au_prosody",
@@ -6046,7 +6125,6 @@ def run_warm_up(args: argparse.Namespace) -> None:
 
         if not args.disable_video_recording:
             if HAS_SESSION_MEDIA and not args.disable_session_audio:
-                session_media_dir = VIDEOS_DIR / participant_folder
                 try:
                     session_media = SessionMedia(
                         base_dir=str(session_media_dir),
@@ -6075,9 +6153,8 @@ def run_warm_up(args: argparse.Namespace) -> None:
 
             if video_recorder is None:
                 video_path = (
-                    VIDEOS_DIR
-                    / participant_folder
-                    / f"{participant_folder}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.mp4"
+                    session_media_dir
+                    / f"{participant_folder}_{session_run_id}_video.mp4"
                 )
                 video_recorder = SessionVideoRecorder(
                     camera, video_path, fps=args.video_fps, fourcc=args.video_fourcc
@@ -6168,7 +6245,8 @@ def run_warm_up(args: argparse.Namespace) -> None:
         session_path = save_session(participant_id, session)
 
         print_ts(f"Session saved: {session_path}")
-        print_ts(f"Images saved under: {PROFILE_DIR / participant_folder}")
+        print_ts(f"Images saved under: {session_image_dir}")
+        print_ts(f"Session media saved under: {session_media_dir}")
         if video_recorder is not None:
             print_ts(
                 f"Session video recording to: {session.get('video_path')} "
@@ -6255,8 +6333,15 @@ def parse_arguments() -> argparse.Namespace:
         )
     )
     parser.add_argument(
+        "--participant_id",
         "--name",
-        help="Participant identifier, e.g. A11320.",
+        dest="participant_id",
+        default=None,
+        help=(
+            "Participant identifier, e.g. A11320. If omitted, the program "
+            "prompts for 'Participant ID:' at startup. --name is retained as "
+            "a backward-compatible alias."
+        ),
     )
     parser.add_argument(
         "--input_device",

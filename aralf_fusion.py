@@ -193,6 +193,7 @@ def deepface_reliability(
 
 
 def _au_rms_distance(a: np.ndarray, b: np.ndarray) -> float:
+    """RMS Euclidean distance between two already-comparable AU vectors."""
     a = np.asarray(a, dtype=np.float32).reshape(-1)
     b = np.asarray(b, dtype=np.float32).reshape(-1)
     if a.size == 0 or a.size != b.size:
@@ -202,10 +203,130 @@ def _au_rms_distance(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.linalg.norm(a - b) / np.sqrt(max(1, a.size)))
 
 
-def au_reference_similarity_from_distance(distance: float) -> float:
-    if not math.isfinite(float(distance)):
+def _fit_au_reference_standardizer(
+    reference_bank: dict[str, list[np.ndarray]],
+    *,
+    std_floor_fraction: float = 0.25,
+    std_abs_floor: float = 1e-3,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Fit participant-specific per-AU z-score statistics from warm-up references.
+
+    The adaptive floor prevents nearly constant AU columns from exploding after
+    standardization.  The floor is derived from the participant's own non-zero
+    AU standard deviations, with a tiny absolute numerical fallback.
+    """
+    all_refs = [
+        np.asarray(v, dtype=np.float32).reshape(-1)
+        for refs in reference_bank.values()
+        for v in refs
+    ]
+    matrix = np.stack(all_refs, axis=0)
+    mean = np.mean(matrix, axis=0).astype(np.float32)
+    raw_std = np.std(matrix, axis=0).astype(np.float32)
+
+    abs_floor = max(1e-8, float(std_abs_floor))
+    positive = raw_std[np.isfinite(raw_std) & (raw_std > abs_floor)]
+    if positive.size:
+        adaptive_floor = max(
+            abs_floor,
+            float(np.median(positive)) * max(0.0, float(std_floor_fraction)),
+        )
+    else:
+        adaptive_floor = abs_floor
+
+    scale = np.where(np.isfinite(raw_std), np.maximum(raw_std, adaptive_floor), adaptive_floor)
+    return mean, scale.astype(np.float32), float(adaptive_floor)
+
+
+def _standardize_au_vector(
+    vector: np.ndarray,
+    mean: np.ndarray,
+    scale: np.ndarray,
+) -> np.ndarray:
+    vector = np.asarray(vector, dtype=np.float32).reshape(-1)
+    return ((vector - mean) / scale).astype(np.float32)
+
+
+def _estimate_au_distance_calibration(
+    reference_bank: dict[str, list[np.ndarray]],
+) -> dict[str, float]:
+    """Estimate distance scales from leave-one-reference-out calibration geometry.
+
+    ``distance_tau`` is chosen so the midpoint between the typical nearest
+    same-emotion and nearest other-emotion reference has exponential similarity
+    0.5.  ``margin_saturation`` is the 75th percentile of positive reference
+    separation margins.  These are participant/profile-specific rather than
+    assuming a raw AU RMS distance of 1.0 or a universal margin of 0.25.
+    """
+    same_nearest: list[float] = []
+    other_nearest: list[float] = []
+    positive_margins: list[float] = []
+
+    for emotion, refs in reference_bank.items():
+        for idx, ref in enumerate(refs):
+            same = [
+                _au_rms_distance(ref, candidate)
+                for j, candidate in enumerate(refs)
+                if j != idx
+            ]
+            other = [
+                _au_rms_distance(ref, candidate)
+                for other_emotion, other_refs in reference_bank.items()
+                if other_emotion != emotion
+                for candidate in other_refs
+            ]
+            same = [d for d in same if math.isfinite(d)]
+            other = [d for d in other if math.isfinite(d)]
+            if not same or not other:
+                continue
+            s = float(min(same))
+            o = float(min(other))
+            same_nearest.append(s)
+            other_nearest.append(o)
+            if o > s:
+                positive_margins.append(o - s)
+
+    if same_nearest and other_nearest:
+        same_median = float(np.median(same_nearest))
+        other_median = float(np.median(other_nearest))
+        boundary = max(1e-6, 0.5 * (same_median + other_median))
+        distance_tau = boundary / math.log(2.0)
+    elif same_nearest:
+        same_median = float(np.median(same_nearest))
+        other_median = 0.0
+        # Fallback: a typical same-emotion reference should still look reasonably similar.
+        distance_tau = max(1e-6, same_median / -math.log(0.70))
+    else:
+        same_median = 0.0
+        other_median = 0.0
+        distance_tau = 1.0
+
+    if positive_margins:
+        margin_saturation = max(1e-6, float(np.percentile(positive_margins, 75)))
+        margin_median = float(np.median(positive_margins))
+    else:
+        margin_saturation = 0.25
+        margin_median = 0.0
+
+    return {
+        "distance_tau": float(distance_tau),
+        "margin_saturation": float(margin_saturation),
+        "same_nearest_median": float(same_median),
+        "other_nearest_median": float(other_median),
+        "positive_margin_median": float(margin_median),
+    }
+
+
+def au_reference_similarity_from_distance(distance: float, tau: float = 1.0) -> float:
+    """Map calibrated AU distance to similarity with an exponential kernel."""
+    try:
+        distance = float(distance)
+        tau = float(tau)
+    except Exception:
         return 0.0
-    return clamp01(1.0 - max(0.0, float(distance)))
+    if not math.isfinite(distance) or not math.isfinite(tau) or tau <= 1e-8:
+        return 0.0
+    return clamp01(math.exp(-max(0.0, distance) / tau))
 
 
 def verify_au_nearest_reference(
@@ -214,15 +335,18 @@ def verify_au_nearest_reference(
     detector: Any,
     calibration: Optional[dict[str, Any]],
     deepface_emotion: Optional[str] = None,
-    margin_saturation: float = 0.25,
-    live_frame_count: int = 2,
-    expected_ref_count: int = 4,
+    margin_saturation: float = 0.0,
+    live_frame_count: int = 3,
+    expected_ref_count: Optional[int] = None,
+    distance_tau: float = 0.0,
+    std_floor_fraction: float = 0.25,
+    std_abs_floor: float = 1e-3,
 ) -> dict[str, Any]:
-    """Classify live AUs by nearest saved warm-up references.
+    """Classify live AUs by nearest personalized warm-up references.
 
-    This is the single supported live AU classifier.  It intentionally does not
-    use cosine similarity to a neutral delta prototype, avoiding the structural
-    neutral≈zero-vector failure mode of the deprecated classifier.
+    Distances are computed in participant-specific z-scored AU space.  A positive
+    ``distance_tau`` or ``margin_saturation`` overrides the automatically derived
+    profile-specific value; non-positive values select automatic calibration.
     """
     started = time.time()
     base: dict[str, Any] = {
@@ -256,7 +380,7 @@ def verify_au_nearest_reference(
     reference_bank: dict[str, list[np.ndarray]] = {}
     neutral = calibration.get("neutral") or {}
     neutral_refs = [np.asarray(v, dtype=np.float32) for v in (neutral.get("vectors") or [])]
-    neutral_refs = [v for v in neutral_refs if v.size > 0 and np.all(np.isfinite(v))]
+    neutral_refs = [v.reshape(-1) for v in neutral_refs if v.size > 0 and np.all(np.isfinite(v))]
     if neutral_refs:
         reference_bank["neutral"] = neutral_refs
 
@@ -264,7 +388,7 @@ def verify_au_nearest_reference(
         if item.get("usable") is False:
             continue
         refs = [np.asarray(v, dtype=np.float32) for v in (item.get("vectors") or [])]
-        refs = [v for v in refs if v.size > 0 and np.all(np.isfinite(v))]
+        refs = [v.reshape(-1) for v in refs if v.size > 0 and np.all(np.isfinite(v))]
         if refs:
             reference_bank[normalize_ekman_emotion(raw_emotion)] = refs
 
@@ -273,22 +397,32 @@ def verify_au_nearest_reference(
         return base
 
     stored_ref_count = int(calibration.get("crops_per_emotion", 0) or 0)
-    if stored_ref_count != expected_ref_count:
-        base["status"] = "requires_four_reference_crops"
+    if stored_ref_count <= 0:
+        base["status"] = "invalid_reference_count"
         base["stored_crops_per_emotion"] = stored_ref_count
         return base
+
+    # By default trust the reference count recorded by the warm-up calibration.
+    # A caller may still provide expected_ref_count as an explicit compatibility
+    # guard, but the live experiment no longer assumes exactly four references.
+    resolved_ref_count = stored_ref_count
+    if expected_ref_count is not None:
+        requested_ref_count = max(1, int(expected_ref_count))
+        if stored_ref_count != requested_ref_count:
+            base["status"] = "reference_count_mismatch"
+            base["stored_crops_per_emotion"] = stored_ref_count
+            base["expected_crops_per_emotion"] = requested_ref_count
+            return base
+        resolved_ref_count = requested_ref_count
 
     expected_emotions = [
         normalize_ekman_emotion(e)
         for e in (calibration.get("reference_emotions") or reference_bank.keys())
     ]
-    # For partial profiles, only require complete reference sets for labels that
-    # are actually usable/present.  Missing unusable labels simply get zero AU
-    # mass and partial reliability is discounted later.
     incomplete = {
         emotion: len(reference_bank.get(emotion, []))
         for emotion in reference_bank
-        if len(reference_bank.get(emotion, [])) != expected_ref_count
+        if len(reference_bank.get(emotion, [])) != resolved_ref_count
     }
     if incomplete:
         base["status"] = "incomplete_reference_bank"
@@ -296,6 +430,34 @@ def verify_au_nearest_reference(
             emotion: len(reference_bank.get(emotion, [])) for emotion in expected_emotions
         }
         return base
+
+    try:
+        ref_mean, ref_scale, scale_floor = _fit_au_reference_standardizer(
+            reference_bank,
+            std_floor_fraction=std_floor_fraction,
+            std_abs_floor=std_abs_floor,
+        )
+        standardized_bank = {
+            emotion: [_standardize_au_vector(ref, ref_mean, ref_scale) for ref in refs]
+            for emotion, refs in reference_bank.items()
+        }
+    except Exception as exc:
+        base["status"] = "au_reference_normalization_failed"
+        base["reason"] = str(exc)
+        base["analysis_seconds"] = round(time.time() - started, 4)
+        return base
+
+    distance_calibration = _estimate_au_distance_calibration(standardized_bank)
+    auto_tau = float(distance_calibration["distance_tau"])
+    auto_margin_saturation = float(distance_calibration["margin_saturation"])
+    effective_tau = float(distance_tau) if float(distance_tau) > 0.0 else auto_tau
+    effective_margin_saturation = (
+        float(margin_saturation)
+        if float(margin_saturation) > 0.0
+        else auto_margin_saturation
+    )
+    effective_tau = max(1e-6, effective_tau)
+    effective_margin_saturation = max(1e-6, effective_margin_saturation)
 
     try:
         extracted = detector.extract_arrays(crops[: max(1, int(live_frame_count))])
@@ -329,7 +491,7 @@ def verify_au_nearest_reference(
         ):
             invalid_count += 1
             continue
-        live_vectors.append((frame_index, vector))
+        live_vectors.append((frame_index, _standardize_au_vector(vector, ref_mean, ref_scale)))
 
     if not live_vectors:
         base.update({
@@ -341,11 +503,11 @@ def verify_au_nearest_reference(
 
     per_frame: list[dict[str, Any]] = []
     aggregate_distances: dict[str, list[float]] = {
-        emotion: [] for emotion in reference_bank
+        emotion: [] for emotion in standardized_bank
     }
     for frame_index, live in live_vectors:
         matches: dict[str, Any] = {}
-        for emotion, refs in reference_bank.items():
+        for emotion, refs in standardized_bank.items():
             distances = [_au_rms_distance(live, ref) for ref in refs]
             best_idx = int(np.argmin(distances))
             best_distance = float(distances[best_idx])
@@ -353,7 +515,9 @@ def verify_au_nearest_reference(
             matches[emotion] = {
                 "closest_reference_index": best_idx,
                 "distance": round(best_distance, 6),
-                "similarity": round(au_reference_similarity_from_distance(best_distance), 6),
+                "similarity": round(
+                    au_reference_similarity_from_distance(best_distance, effective_tau), 6
+                ),
             }
         ranked_frame = sorted(matches.items(), key=lambda item: float(item[1]["distance"]))
         per_frame.append({
@@ -374,21 +538,35 @@ def verify_au_nearest_reference(
         return base
 
     au_emotion, best_distance = ranked[0]
-    second_distance = ranked[1][1] if len(ranked) > 1 else 1.0
-    best_similarity = au_reference_similarity_from_distance(best_distance)
+    second_distance = ranked[1][1] if len(ranked) > 1 else best_distance + effective_margin_saturation
+    best_similarity = au_reference_similarity_from_distance(best_distance, effective_tau)
     distance_margin = max(0.0, float(second_distance) - float(best_distance))
-    margin_component = clamp01(distance_margin / max(1e-8, float(margin_saturation)))
+    margin_component = clamp01(distance_margin / effective_margin_saturation)
     frame_winners = [item.get("winner") for item in per_frame if item.get("winner")]
     agreement_ratio = (
         sum(1 for winner in frame_winners if winner == au_emotion)
         / max(1, len(frame_winners))
     )
-    au_confidence = clamp01(
-        best_similarity * (0.5 + 0.5 * margin_component) * agreement_ratio
+
+    # Separate *classification certainty* from *absolute reference similarity*.
+    #
+    # - margin_component asks: how clearly is the winning emotion separated
+    #   from the second-best emotion?
+    # - agreement_ratio asks: how consistently do the live frames choose the
+    #   same winning emotion?
+    # - best_similarity asks: how close is the live expression to this
+    #   participant's stored references in absolute standardized AU space?
+    #
+    # A live expression can therefore be a clear relative winner even when it
+    # is not very close to any stored reference.  ``confidence`` deliberately
+    # reports classification certainty; ARALF reliability combines it with
+    # absolute reference similarity below.
+    classification_confidence = clamp01(
+        0.60 * margin_component + 0.40 * agreement_ratio
     )
 
     similarities = {
-        emotion: au_reference_similarity_from_distance(distance)
+        emotion: au_reference_similarity_from_distance(distance, effective_tau)
         for emotion, distance in mean_distances.items()
     }
     sim_total = float(sum(similarities.values()))
@@ -401,7 +579,9 @@ def verify_au_nearest_reference(
         **base,
         "available": True,
         "status": "nearest_reference_match",
-        "confidence": round(au_confidence, 6),
+        "confidence": round(classification_confidence, 6),
+        "classification_confidence": round(classification_confidence, 6),
+        "reference_similarity": round(best_similarity, 6),
         "au_emotion": au_emotion,
         "agreement": (
             normalize_ekman_emotion(deepface_emotion) == au_emotion
@@ -420,6 +600,17 @@ def verify_au_nearest_reference(
         "live_crop_count": len(live_vectors),
         "invalid_live_au_count": invalid_count,
         "calibration_status": calibration_status,
+        "distance_space": "participant_reference_zscore_rms",
+        "distance_tau": round(effective_tau, 6),
+        "distance_tau_source": "override" if float(distance_tau) > 0.0 else "reference_auto",
+        "margin_saturation_used": round(effective_margin_saturation, 6),
+        "margin_saturation_source": (
+            "override" if float(margin_saturation) > 0.0 else "reference_auto"
+        ),
+        "au_std_floor": round(scale_floor, 6),
+        "reference_distance_calibration": {
+            key: round(float(value), 6) for key, value in distance_calibration.items()
+        },
         "analysis_seconds": round(time.time() - started, 4),
     }
 
@@ -429,18 +620,32 @@ def au_reliability(
     *,
     partial_scale: float = 0.65,
 ) -> float:
-    """Reliability of AU evidence, independent of DeepFace confidence."""
+    """How much ARALF should trust the AU prediction.
+
+    ``verification["confidence"]`` is classification certainty: how clearly
+    the winning class separates from competitors and how consistently frames
+    agree.  ``reference_similarity`` is absolute closeness to the participant's
+    stored AU references.  ARALF reliability intentionally requires *both*:
+
+        reliability = classification_confidence * reference_similarity
+
+    A partial calibration profile receives one additional calibration-quality
+    discount.  This prevents a very clear relative winner that is far from all
+    stored references from receiving excessive fusion weight.
+    """
     if not verification or not verification.get("available"):
         return 0.0
     status = str(verification.get("calibration_status", ""))
     if status not in {"ready", "partial"}:
         return 0.0
-    best_similarity = clamp01(float(verification.get("best_similarity", 0.0)))
-    margin_component = clamp01(float(verification.get("margin_component", 0.0)))
-    agreement_ratio = clamp01(float(verification.get("frame_agreement_ratio", 0.0)))
-    reliability = clamp01(
-        best_similarity * (0.5 + 0.5 * margin_component) * agreement_ratio
-    )
+
+    classification_confidence = clamp01(float(
+        verification.get("classification_confidence", verification.get("confidence", 0.0))
+    ))
+    reference_similarity = clamp01(float(
+        verification.get("reference_similarity", verification.get("best_similarity", 0.0))
+    ))
+    reliability = classification_confidence * reference_similarity
     if status == "partial":
         reliability *= clamp01(partial_scale)
     return clamp01(reliability)
@@ -465,8 +670,8 @@ def adaptive_reliability_fusion(
     au_rel: float,
     prosody_dist: Optional[dict[str, float]],
     prosody_rel: float,
-    text_prior: float = 0.40,
-    face_prior: float = 0.50,
+    text_prior: float = 0.30,
+    face_prior: float = 0.60,
     prosody_prior: float = 0.10,
 ) -> ARALFFusionOutput:
     """Two-level ARALF fusion with an evidence-quality confidence discount.

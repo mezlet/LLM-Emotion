@@ -335,11 +335,11 @@ CHECK_FACIAL_EXPRESSION_DEFAULT = os.environ.get("CHECK_FACIAL_EXPRESSION", "1")
 # crash-isolated in pyfeat_worker.py: if it is unavailable or segfaults, the warm-up
 # continues normally and no AU profile is produced.
 # Only the saved DeepFace-confirmed face crops from each baseline emotion are
-# used -- no additional warm-up frames are sampled for AU work. Four crops are
-# retained per emotion so every reference image contributes its own AU vector.
-AU_BASELINE_CROPS_PER_EMOTION = int(os.environ.get("AU_BASELINE_CROPS_PER_EMOTION", "4"))
+# used -- no additional warm-up frames are sampled for AU work. Seven crops are
+# retained per emotion by default so every reference image contributes its own AU vector.
+AU_BASELINE_CROPS_PER_EMOTION = int(os.environ.get("AU_BASELINE_CROPS_PER_EMOTION", "7"))
 AU_CALIBRATION_ENABLED_DEFAULT = os.environ.get("AU_CALIBRATION_ENABLED", "1") == "1"
-PYFEAT_DEVICE = os.environ.get("PYFEAT_DEVICE", "cpu")  # set to cuda after benchmarking if desired
+PYFEAT_DEVICE = os.environ.get("PYFEAT_DEVICE", "cuda")  # set to cuda after benchmarking if desired
 # Py-Feat runs OUTSIDE this process.  If PYFEAT_PYTHON is not set we use the
 # current interpreter, but the subprocess boundary still protects the Ameca
 # session from a native crash/segmentation fault.  A dedicated pyfeat_env is
@@ -574,6 +574,10 @@ class PyFeatAUDetector:
         self._request_counter = 0
         self._ready = False
         self.au_columns: list[str] = []
+        # The worker protocol has a single stdout response stream.  Protect it
+        # against concurrent callers so one request cannot consume another
+        # request's response and silently discard it.
+        self._request_lock = threading.Lock()
         self._start_worker()
 
     def _worker_exit_description(self) -> str:
@@ -703,6 +707,14 @@ class PyFeatAUDetector:
         paths = [str(Path(p).resolve()) for p in image_paths if p]
         if not paths:
             return []
+
+        # Only one request may be in flight against this worker.  This also
+        # makes later background AU scheduling safe without changing the
+        # worker's request/response protocol.
+        with self._request_lock:
+            return self._extract_paths_locked(paths)
+
+    def _extract_paths_locked(self, paths: list[str]) -> list[Optional[np.ndarray]]:
         if not self.is_alive():
             raise RuntimeError(
                 f"Py-Feat worker is unavailable ({self._worker_exit_description()})."
@@ -741,8 +753,12 @@ class PyFeatAUDetector:
                 continue
 
             if response.get("request_id") != request_id:
-                # Only one request is normally in flight.  Ignore an unrelated
-                # response rather than accidentally assigning it to this call.
+                # With _request_lock this should not normally occur.  Keep the
+                # guard for malformed/stale worker output.
+                print_ts(
+                    f"[WARN] Ignoring unexpected Py-Feat response "
+                    f"{response.get('request_id')!r}; expected {request_id!r}."
+                )
                 continue
 
             if not response.get("ok"):
@@ -759,7 +775,10 @@ class PyFeatAUDetector:
                     continue
                 vector = np.asarray(item, dtype=np.float32)
                 if vector.size == 0 or not np.all(np.isfinite(vector)):
-                    print_ts("[WARN] Py-Feat returned a NaN/Inf AU vector; rejecting that calibration crop.")
+                    print_ts(
+                        "[WARN] Py-Feat returned a NaN/Inf AU vector; "
+                        "rejecting that calibration crop."
+                    )
                     vectors.append(None)
                     continue
                 vectors.append(vector)
@@ -891,21 +910,68 @@ def normalize_ekman_emotion(emotion: str) -> str:
     return shared_normalize_ekman_emotion(emotion)
 
 
+def _au_cache_key(image_path: str) -> str:
+    """Stable cache key for a saved calibration crop."""
+    return str(Path(image_path).resolve())
+
+
+def extract_au_paths_cached(
+    *,
+    detector: PyFeatAUDetector,
+    image_paths: list[str],
+    vector_cache: dict[str, Optional[np.ndarray]],
+    label: str,
+) -> list[Optional[np.ndarray]]:
+    """Extract only AU vectors that are not already cached.
+
+    Calibration-profile rebuilds (especially after a single-emotion retry)
+    should be cheap NumPy work.  Previously every rebuild re-ran Py-Feat on
+    all reference images.  The cache is keyed by the immutable saved-image
+    path, so recaptured images are naturally treated as new work while all
+    unchanged references are reused.
+    """
+    normalized_paths = [_au_cache_key(p) for p in image_paths if p]
+    missing = [p for p in normalized_paths if p not in vector_cache]
+    cached_count = len(normalized_paths) - len(missing)
+
+    if missing:
+        started = time.perf_counter()
+        extracted = detector.extract_paths(missing)
+        elapsed = time.perf_counter() - started
+
+        for index, path in enumerate(missing):
+            vector_cache[path] = extracted[index] if index < len(extracted) else None
+
+        print_ts(
+            f"[TIMING] AU {label}: extracted {len(missing)} new image(s) in "
+            f"{elapsed:.2f}s; cache_hits={cached_count}."
+        )
+    else:
+        print_ts(
+            f"[TIMING] AU {label}: 0 new images; cache_hits={cached_count}."
+        )
+
+    return [vector_cache.get(path) for path in normalized_paths]
+
+
 def build_au_calibration_from_saved_crops(
     *,
     participant_folder: str,
     session: dict[str, Any],
     detector: PyFeatAUDetector,
+    vector_cache: Optional[dict[str, Optional[np.ndarray]]] = None,
 ) -> dict[str, Any]:
     """Build a finite, QC-checked personalized AU calibration profile.
 
-    Exactly four saved face crops are used for each baseline emotion. Py-Feat
-    extracts one AU vector per crop and all four vectors are retained in the
-    profile for nearest-reference matching during the experiment.
+    Exactly AU_BASELINE_CROPS_PER_EMOTION saved face crops are used for each
+    baseline emotion. Py-Feat extracts one AU vector per crop and all vectors
+    are retained for nearest-reference matching during the experiment.
     """
     rounds = session.get("baseline_emotion_rounds", {}) or {}
     raw: dict[str, dict[str, Any]] = {}
     required = max(1, int(AU_BASELINE_CROPS_PER_EMOTION))
+    if vector_cache is None:
+        vector_cache = {}
 
     for emotion, round_data in rounds.items():
         image_paths = [str(p) for p in (round_data.get("images", []) or [])[:required]]
@@ -918,7 +984,12 @@ def build_au_calibration_from_saved_crops(
             continue
 
         try:
-            extracted = detector.extract_paths(image_paths)
+            extracted = extract_au_paths_cached(
+                detector=detector,
+                image_paths=image_paths,
+                vector_cache=vector_cache,
+                label=f"calibration {emotion}",
+            )
         except Exception as exc:
             print_ts(f"[WARN] AU extraction failed for {emotion}: {exc}")
             extracted = []
@@ -970,6 +1041,7 @@ def build_au_calibration_from_saved_crops(
         "au_columns": list(detector.au_columns),
         "uses_only_saved_warmup_crops": True,
         "crops_per_emotion": required,
+        "cached_au_vector_count": len(vector_cache),
         "reference_emotions": [normalize_ekman_emotion(e) for e in raw.keys()],
         "parameters": {
             "neutral_min_consistency": AU_NEUTRAL_MIN_CONSISTENCY,
@@ -977,7 +1049,7 @@ def build_au_calibration_from_saved_crops(
             "ready_min_usable_emotions": AU_READY_MIN_USABLE_EMOTIONS,
             "partial_min_usable_emotions": AU_PARTIAL_MIN_USABLE_EMOTIONS,
             "max_recapture_retries_per_emotion": AU_CALIBRATION_MAX_RETRIES,
-            "note": "Four-reference AU calibration; consistency uses all pairwise comparisons.",
+            "note": f"{required}-reference AU calibration; consistency uses all pairwise comparisons.",
         },
         "status": "building",
         "neutral": None,
@@ -1011,8 +1083,8 @@ def build_au_calibration_from_saved_crops(
 
                 # The old prototype-consistency thresholds are retained as QC
                 # diagnostics, but they no longer discard finite reference images.
-                # The new experiment compares live AUs directly with all four
-                # saved AU vectors, so a variable neutral expression should not
+                # The experiment compares live AUs directly with all saved AU
+                # reference vectors, so a variable neutral expression should not
                 # invalidate the entire reference bank.
                 profile["neutral"]["consistency_passed"] = bool(
                     neutral_consistency >= AU_NEUTRAL_MIN_CONSISTENCY
@@ -1055,7 +1127,7 @@ def build_au_calibration_from_saved_crops(
                         "reference_consistency": round(consistency, 6),
                         "pairwise_comparison_count": int(required * (required - 1) / 2),
                         "consistency_passed": bool(consistency >= AU_MIN_REFERENCE_CONSISTENCY),
-                        # For direct nearest-reference matching, four finite raw
+                        # For direct nearest-reference matching, the required finite raw
                         # AU vectors are sufficient even when their prototype
                         # consistency is below the old pilot threshold.
                         "usable": True,
@@ -1318,31 +1390,23 @@ def warm_ollama_model(client: Client, model_name: str) -> bool:
 def build_emotion_prompt(transcribed_text: str) -> str:
     """Build the same strict text-emotion request used by the experiment."""
     return f"""
-Classify ONLY the emotion expressed by the participant's wording.
+        You are an emotion classification system for a human-robot interaction session.
 
-Labels:
-joy, sadness, anger, fear, surprise, disgust, neutral.
+        Classify ONLY the emotion expressed by the participant's wording.
 
-Interpretation:
-- joy: explicit happiness, delight, excitement, or positive affect
-- sadness: explicit unhappiness, loss, disappointment, or low mood
-- anger: explicit irritation, frustration, hostility, or anger
-- fear: explicit worry, anxiety, threat, or fear
-- surprise: explicit unexpectedness, astonishment, or being startled
-- disgust: explicit revulsion, aversion, or disgust
-- neutral: no clearly expressed Ekman emotion
+        Labels:
+        joy, sadness, anger, fear, surprise, disgust, neutral.
 
-Rules:
-- Use ONLY the participant utterance below.
-- Do not infer emotion from the topic itself, novelty, question intent, or experiment context.
-- Do not treat curiosity alone as joy or surprise.
-- A factual question, request, instruction, or informational statement with no clear emotional wording should strongly favor neutral.
-- Return probabilities for all seven labels. Values must be between 0 and 1. Python will normalize small rounding differences.
-- Return JSON only. Do not add a reason, markdown, or extra text.
+        Rules:
+        - Use ONLY the participant utterance below.
+        - Do not infer emotion from the topic itself, novelty, question intent, or experiment context.
+        - Do not treat curiosity alone as joy or surprise.
+        - Return probabilities for all seven labels. Values must be between 0 and 1. Python will normalize small rounding differences.
+        - Return JSON only. Do not add a reason, markdown, or extra text.
 
-PARTICIPANT UTTERANCE ONLY:
-<<<{transcribed_text}>>>
-""".strip()
+        PARTICIPANT UTTERANCE ONLY:
+        <<<{transcribed_text}>>>
+        """.strip()
 
 
 TEXT_EMOTION_RESPONSE_SCHEMA: dict[str, Any] = {
@@ -3121,7 +3185,7 @@ SKIN_TONE_MIN_FRACTION = float(os.environ.get("SKIN_TONE_MIN_FRACTION", "0.15"))
 
 # Warm-up calibration is intentionally stricter than ordinary live analysis:
 # a tiny background false-positive (e.g. wall clock / room object) must never
-# become one of the participant's four personalized AU reference crops.
+# become one of the participant's personalized AU reference crops.
 FACE_CROP_MIN_SIDE_PIXELS = int(os.environ.get("FACE_CROP_MIN_SIDE_PIXELS", "100"))
 FACE_REGION_MIN_HEIGHT_FRACTION = float(
     os.environ.get("FACE_REGION_MIN_HEIGHT_FRACTION", "0.10")
@@ -3458,7 +3522,7 @@ def _detect_face_region_haar(frame: np.ndarray) -> Optional[dict[str, Any]]:
         print_ts(f"[WARN] Local face-region detection failed: {exc}")
         return None
 
-FACE_CROP_MAX_CANDIDATES_TO_TRY = int(os.environ.get("FACE_CROP_MAX_CANDIDATES_TO_TRY", "6"))
+FACE_CROP_MAX_CANDIDATES_TO_TRY = int(os.environ.get("FACE_CROP_MAX_CANDIDATES_TO_TRY", "10"))
 
 
 def find_local_face_crops(
@@ -3712,11 +3776,11 @@ def capture_baseline_emotion_round(
     script_attempts: int,
     face_confirmation_attempts: int = 2,
 ) -> None:
-    """Capture three DeepFace-confirmed face crops when possible.
+    """Capture the configured number of DeepFace-confirmed face crops.
 
-    AU calibration requires three saved crops per emotion. Each saved crop is
-    processed independently by Py-Feat to create three participant-specific AU
-    reference vectors for that emotion.
+    AU calibration requires AU_BASELINE_CROPS_PER_EMOTION saved crops per
+    emotion. Each saved crop is processed independently by Py-Feat to create a
+    participant-specific AU reference vector for that emotion.
     """
     debug_dir = PROFILE_DIR / participant_folder / "debug"
     transcript = ""
@@ -4318,6 +4382,57 @@ def run_warm_up(args: argparse.Namespace) -> None:
     prosody_baseline: Optional[dict[str, Any]] = None
     video_recorder: Optional[Any] = None
 
+    # AU latency optimization -------------------------------------------------
+    # A single background executor owns all Py-Feat work.  The first queued
+    # task starts Detectorv2 before participant interaction, so its cold start
+    # overlaps with the name/goals/baseline flow.  Subsequent
+    # per-emotion extraction tasks run sequentially on that same executor,
+    # preserving the worker's one-request-at-a-time protocol while overlapping
+    # AU inference with capture of the next emotion.
+    au_executor: Optional[ThreadPoolExecutor] = None
+    au_detector_future: Optional[Any] = None
+    au_pending_futures: dict[str, Any] = {}
+    au_vector_cache: dict[str, Optional[np.ndarray]] = {}
+
+    def schedule_baseline_au_extraction(emotion: str) -> Optional[Any]:
+        if au_executor is None or au_detector_future is None:
+            return None
+
+        round_data = (session.get("baseline_emotion_rounds", {}) or {}).get(emotion, {}) or {}
+        paths = [
+            str(p)
+            for p in (round_data.get("images", []) or [])[:AU_BASELINE_CROPS_PER_EMOTION]
+        ]
+        if len(paths) != AU_BASELINE_CROPS_PER_EMOTION:
+            print_ts(
+                f"AU pre-extraction not scheduled for {emotion}: "
+                f"{len(paths)}/{AU_BASELINE_CROPS_PER_EMOTION} saved crops available."
+            )
+            return None
+
+        # Capture the path list now.  A later retry may replace the session's
+        # round_data, but this queued task must continue to refer to the images
+        # that existed when it was scheduled.
+        scheduled_paths = list(paths)
+
+        def _work() -> int:
+            detector = au_detector_future.result()
+            extract_au_paths_cached(
+                detector=detector,
+                image_paths=scheduled_paths,
+                vector_cache=au_vector_cache,
+                label=f"background baseline {emotion}",
+            )
+            return len(scheduled_paths)
+
+        future = au_executor.submit(_work)
+        au_pending_futures[emotion] = future
+        print_ts(
+            f"Queued background AU extraction for {emotion} "
+            f"({len(scheduled_paths)} crops)."
+        )
+        return future
+
     print_ts("Loading Silero VAD...")
     silero_model = load_silero_vad()
     print_ts("Silero VAD ready.")
@@ -4397,6 +4512,21 @@ def run_warm_up(args: argparse.Namespace) -> None:
             print_ts(f"[WARN] Could not start TTS activity monitor: {exc}")
 
     try:
+        if check_facial_expression and args.au_calibration:
+            au_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="warmup-au")
+            au_detector_future = au_executor.submit(
+                PyFeatAUDetector,
+                device=args.pyfeat_device,
+                python_executable=args.pyfeat_python,
+                worker_script=args.pyfeat_worker_script,
+                startup_timeout=args.pyfeat_startup_timeout,
+                request_timeout=args.pyfeat_timeout,
+            )
+            print_ts(
+                "Py-Feat AU worker startup scheduled in background so Detectorv2 "
+                "initialization overlaps with DeepFace/camera setup and participant interaction."
+            )
+
         if check_facial_expression:
             deepface = DeepFaceClient(
                 python_executable=args.deepface_python,
@@ -4503,22 +4633,39 @@ def run_warm_up(args: argparse.Namespace) -> None:
                     script_attempts=args.script_attempts,
                 )
                 save_session(participant_id, session)
+                if args.au_calibration:
+                    schedule_baseline_au_extraction(requested_emotion)
 
-            # Build AU calibration ONCE from the exact four saved baseline crops
-            # per emotion. No additional frames are sampled or selected here.
+            # Build AU calibration from the exact configured number of saved baseline
+            # crops per emotion. No additional frames are sampled or selected here.
             if args.au_calibration:
                 try:
-                    au_detector = PyFeatAUDetector(
-                        device=args.pyfeat_device,
-                        python_executable=args.pyfeat_python,
-                        worker_script=args.pyfeat_worker_script,
-                        startup_timeout=args.pyfeat_startup_timeout,
-                        request_timeout=args.pyfeat_timeout,
+                    if au_detector_future is None:
+                        raise RuntimeError("Py-Feat background startup was not initialized.")
+
+                    # Most/all of this work should already have completed while
+                    # the participant was performing subsequent emotion rounds.
+                    wait_started = time.perf_counter()
+                    pending_snapshot = list(au_pending_futures.items())
+                    for emotion, future in pending_snapshot:
+                        try:
+                            future.result()
+                        except Exception as exc:
+                            print_ts(
+                                f"[WARN] Background AU extraction failed for {emotion}: {exc}"
+                            )
+                    au_detector = au_detector_future.result()
+                    visible_wait = time.perf_counter() - wait_started
+                    print_ts(
+                        f"[TIMING] AU calibration visible wait after baseline capture: "
+                        f"{visible_wait:.2f}s; cached_vectors={len(au_vector_cache)}."
                     )
+
                     profile = build_au_calibration_from_saved_crops(
                         participant_folder=participant_folder,
                         session=session,
                         detector=au_detector,
+                        vector_cache=au_vector_cache,
                     )
 
                     # Retry each failed/inconsistent calibration emotion at most
@@ -4561,11 +4708,17 @@ def run_warm_up(args: argparse.Namespace) -> None:
                                 script_attempts=args.script_attempts,
                             )
                             save_session(participant_id, session)
+                            retry_future = schedule_baseline_au_extraction(emotion)
+                            if retry_future is not None:
+                                # Only the recaptured emotion has new image paths.
+                                # Waiting here does not re-run unchanged emotions.
+                                retry_future.result()
 
                         profile = build_au_calibration_from_saved_crops(
                             participant_folder=participant_folder,
                             session=session,
                             detector=au_detector,
+                            vector_cache=au_vector_cache,
                         )
 
                     profile["retry_counts"] = retry_counts
@@ -4676,6 +4829,21 @@ def run_warm_up(args: argparse.Namespace) -> None:
         if au_detector is not None:
             au_detector.shutdown()
             print_ts("Py-Feat AU worker shut down.")
+        elif au_detector_future is not None and au_detector_future.done():
+            # If startup succeeded but calibration never reached the point that
+            # assigned au_detector (for example an early interruption), avoid
+            # leaving the subprocess alive.
+            try:
+                background_detector = au_detector_future.result()
+                background_detector.shutdown()
+                print_ts("Background Py-Feat AU worker shut down.")
+            except Exception:
+                pass
+
+        if au_executor is not None:
+            # Pending extraction tasks are no longer useful during shutdown.
+            # The worker itself has already been shut down above when available.
+            au_executor.shutdown(wait=False, cancel_futures=True)
 
         session["ended_at"] = session.get("ended_at") or now_iso()
         try:
@@ -4867,7 +5035,7 @@ def parse_arguments() -> argparse.Namespace:
         default=AU_CALIBRATION_ENABLED_DEFAULT,
         help=(
             "Build a participant-specific Py-Feat AU calibration profile from "
-            "only the three saved baseline face crops per emotion. Use "
+            f"the configured {AU_BASELINE_CROPS_PER_EMOTION} saved baseline face crops per emotion. Use "
             "--no-au_calibration to skip it."
         ),
     )
@@ -4907,7 +5075,7 @@ def parse_arguments() -> argparse.Namespace:
         nargs="+",
         choices=list(EMOTION_SCRIPTS),
         default=list(EMOTION_SCRIPTS),
-        help="Baseline emotion scripts to run, in order (default: all 6, including neutral).",
+        help="Baseline emotion scripts to run, in order (default: all 7: 6 basic emotions + neutral).",
     )
     parser.add_argument(
         "--script_attempts",
