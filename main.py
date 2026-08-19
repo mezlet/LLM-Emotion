@@ -92,7 +92,7 @@ def genrate_ameca_prompt(explanation_level='beginner', enforce_length=True):
         "TASK": [
             "Hold a natural teaching conversation with the user about Artificial Intelligence and Robotics.",
             "Do not respond like a bot",
-            "The experimenter sets the current explanation level (beginner, intermediate, or advanced) before the session starts. Use this level to silently adapt every explanation's vocabulary and depth. NEVER ask the user to choose or confirm a level, never offer them a choice of levels, and NEVER say or write the level's name (or label an answer with it, e.g. 'Beginner Level:') anywhere in your response -- it shapes how you explain, but is never mentioned.",
+            "The experimenter sets the current explanation level (beginner, intermediate, or advanced) before the session starts. Use this level to silently adapt every explanation's vocabulary and depth. NEVER ask the user to choose or confirm the experiment's assigned level, never offer the hidden session setting as a choice, and never reveal or label the answer with that hidden setting. If the participant themselves asks for a beginner, intermediate, or advanced explanation, answer their request naturally; their wording is not a disclosure of the experiment's assigned setting.",
             "Covered topic areas include AI basics, machine learning, neural networks, large language models, tokens, prompts, context windows, computer vision, robot perception, sensors and actuators, robot control and movement, human-robot interaction, humanoid robots, LLMs in robotics, robot safety, ethics, transparency, and Ameca\u2019s own capabilities and limitations.",
             #"Keep sentences concise, maximum of 3-5 sentences.",
             "Structure answers with a concise, level-appropriate explanation, and one concrete example, preferably from robotics or Ameca.",
@@ -157,7 +157,7 @@ def genrate_ameca_prompt(explanation_level='beginner', enforce_length=True):
             "Your response must never exceed 150 words",
             "Plain text only, no markdown.",
             "Answer only questions related to Artificial Intelligence and Robotics.",
-            "NEVER say or write the words \"beginner\", 'intermediate', or 'advanced' (in any capitalization) anywhere in your answer, and NEVER prefix or label an answer with the level, e.g. do NOT write \"Beginner Level:\", \"(beginner)\", \"at a beginner level\", or similar.",
+            "Never reveal the hidden session explanation setting or label the answer with the experiment's assigned level. Reject disclosures such as 'Beginner Level:', 'your current explanation level is advanced', or 'the session level is intermediate'. If the participant themselves uses words such as beginner, intermediate, or advanced in an ordinary question, you may refer to that wording when it is useful for answering them, but never present it as the experiment's assigned setting.",
             "If a question falls outside this scope, politely explain your teaching role and redirect the conversation.",
             "Notice when the learner seems confused, curious, or confident, and adapt your teaching.",
             "Use the recent conversation history to understand context and avoid repeating yourself",
@@ -830,27 +830,72 @@ def detect_text_emotion(
 
 
 LEVEL_LEAK_PATTERNS = [
-    # "Beginner Level:" / "Advanced level -" etc as a label/prefix, wherever
-    # it appears in the text (the model has been observed inserting this
-    # mid-answer, not just at the start).
-    re.compile(r"\b(?:beginner|intermediate|advanced)\s+level\s*[:\-]\s*", re.IGNORECASE),
-    # Parenthetical leak, e.g. "your current explanation level (beginner)".
-    re.compile(r"\(\s*(?:beginner|intermediate|advanced)\s*\)", re.IGNORECASE),
-    # Inline phrase leak, e.g. "at your current explanation level" / "at a beginner level".
+    # Explicit answer labels such as "Beginner Level:" or "Advanced level -".
+    # This is a disclosure of the hidden experimental setting, not ordinary
+    # participant-facing use of the word "beginner".
     re.compile(
-        r"\bat\s+(?:a|your current)\s+(?:beginner|intermediate|advanced\s+)?(?:explanation\s+)?level\b",
+        r"\b(?:beginner|intermediate|advanced)\s+(?:explanation\s+)?level\s*[:\-]",
+        re.IGNORECASE,
+    ),
+    # Direct statements that identify the experiment/session setting, e.g.
+    # "the session level is advanced" or "the explanation level: beginner".
+    re.compile(
+        r"\b(?:the\s+)?(?:session|experiment|explanation|teaching|difficulty)\s+"
+        r"(?:level|mode)\s*(?:is|=|:|-)\s*(?:beginner|intermediate|advanced)\b",
+        re.IGNORECASE,
+    ),
+    # Possessive/current-setting disclosures, e.g.
+    # "your current explanation level is advanced".
+    re.compile(
+        r"\b(?:my|your|our|this|current|assigned|configured|selected)\s+"
+        r"(?:current\s+)?(?:session\s+|experiment\s+|explanation\s+|teaching\s+|difficulty\s+)?"
+        r"(?:level|mode)\s*(?:is|=|:|-)\s*(?:beginner|intermediate|advanced)\b",
+        re.IGNORECASE,
+    ),
+    # First-person disclosures of the hidden configuration, e.g.
+    # "I am configured for an advanced level" or "I'm teaching at beginner level".
+    re.compile(
+        r"\b(?:i(?:'m|\s+am)?|we(?:'re|\s+are)?)\s+(?:currently\s+)?"
+        r"(?:configured\s+for|set\s+to|assigned\s+to|teaching\s+at|answering\s+at)\s+"
+        r"(?:an?\s+)?(?:beginner|intermediate|advanced)\s+(?:level|mode)\b",
+        re.IGNORECASE,
+    ),
+    # Parenthetical setting labels, but NOT ordinary phrases such as
+    # "as a beginner" or "for advanced learners".
+    re.compile(
+        r"\(\s*(?:session|explanation|teaching)?\s*(?:level|mode)?\s*[:=-]?\s*"
+        r"(?:beginner|intermediate|advanced)\s+(?:level|mode)\s*\)",
         re.IGNORECASE,
     ),
 ]
 
 
+def find_level_leak(text: str) -> Optional[str]:
+    """Return the matched hidden-setting phrase, or None when no leak exists.
+
+    A bare educational word such as ``beginner`` is intentionally NOT enough
+    to count as a leak. The guard only blocks wording that exposes the hidden
+    session/explanation configuration.
+    """
+    candidate = str(text or "")
+    for pattern in LEVEL_LEAK_PATTERNS:
+        match = pattern.search(candidate)
+        if match:
+            return match.group(0)
+    return None
+
+
+def contains_level_leak(text: str) -> bool:
+    return find_level_leak(text) is not None
+
+
 def strip_level_leak(text: str) -> str:
-    cleaned = text
+    """Best-effort cleanup helper retained for compatibility/debugging."""
+    cleaned = str(text or "")
     for pattern in LEVEL_LEAK_PATTERNS:
         cleaned = pattern.sub("", cleaned)
     cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
     return cleaned
-
 
 def generate_teacher_answer(
     client: Optional[Client],
@@ -902,7 +947,7 @@ def generate_teacher_answer(
         - The JSON object is only an internal transport envelope. The participant hears only the value of the answer field.
         - The answer field must obey every rule in the Ameca system prompt.
         - The answer field must be plain conversational text: no markdown, bullets, headings, labels, or JSON syntax.
-        - Never reveal or name the internal explanation level. Never use the words beginner, intermediate, or advanced in the answer field.
+        - Never reveal, name, or label the hidden session explanation setting. Do not say things such as "Beginner Level:", "your current explanation level is advanced", or "the session level is intermediate". If the participant uses beginner, intermediate, or advanced in an ordinary request, you may answer that request naturally; those words alone are not an internal-setting leak.
         - Answer only Artificial Intelligence or Robotics questions. For anything else, briefly redirect to those subjects.
         - Do not reintroduce yourself and do not begin with "As Ameca" or "As a humanoid social robot".
         - For teaching questions, write 4 to 6 sentences: first explain the idea, then give exactly one concrete example, then connect it back to the participant's question.
@@ -1090,17 +1135,19 @@ def generate_teacher_answer(
     if not answer:
         answer = fallback_answer
 
-    if re.search(r"\b(?:beginner|intermediate|advanced)\b", answer, re.IGNORECASE):
+    level_leak_match = find_level_leak(answer)
+    if level_leak_match:
         print_ts(
-            "[WARN] Teacher answer exposed the internal explanation level. "
-            "The non-compliant answer was rejected without editing or truncation."
+            "[WARN] Teacher answer exposed the hidden session explanation setting "
+            f"via {level_leak_match!r}. The non-compliant answer was rejected "
+            "without editing or truncation."
         )
         return (
             "Let us focus on the idea itself. Please ask the question again, and I will explain it clearly using an Artificial Intelligence or Robotics example.",
             EmotionResult(
                 emotion="neutral",
                 confidence=1.0,
-                reason="Answer exposed an internal explanation-level label and was rejected.",
+                reason="Answer disclosed the hidden session explanation setting and was rejected.",
             ),
         )
 
