@@ -1027,28 +1027,38 @@ def safe_json_extract(raw: str) -> Optional[dict]:
 
 
 def build_emotion_prompt(transcribed_text: str) -> str:
-    """Build a compact prompt for participant TEXT emotion only.
-
-    The LLM must classify what is linguistically expressed in the current
-    utterance.  It must not infer feelings from the topic, experiment context,
-    or what a participant might plausibly feel.
-    """
     return f"""
-        You are an emotion classification system for a human-robot interaction session.
+        You are a text-only emotion classifier.
 
-        Classify ONLY the emotion expressed by the participant's wording.
-
-        Labels:
+        Classify the emotion explicitly expressed in the participant's wording:
         joy, sadness, anger, fear, surprise, disgust, neutral.
 
         Rules:
-        - Use ONLY the participant utterance below.
-        - Do not infer emotion from the topic itself, novelty, question intent, or experiment context.
-        - Do not treat curiosity alone as joy or surprise.
-        - Return probabilities for all seven labels. Values must be between 0 and 1. Python will normalize small rounding differences.
-        - Return JSON only. Do not add a reason, markdown, or extra text.
+        - Use only the utterance. Do not infer emotion from topic or context.
+        - Questions, curiosity, and short acknowledgements are normally neutral unless emotional wording is explicit.
+        - Use surprise only for explicit unexpectedness, astonishment, disbelief, or being startled.
+        - Prefer neutral when emotional evidence is weak or absent.
+        - Return a probability distribution across ALL 7 emotions.
+        - Every emotion must receive a probability greater than 0 and less than 1.
+        - No emotion may have probability 1.0.
+        - The 7 probabilities must sum to 1.0.
+        - Higher probability means stronger textual evidence.
+        - Return JSON only.
 
-        PARTICIPANT UTTERANCE ONLY:
+        Output:
+        {{
+        "scores": {{
+            "joy": <probability>,
+            "sadness": <probability>,
+            "anger": <probability>,
+            "fear": <probability>,
+            "surprise": <probability>,
+            "disgust": <probability>,
+            "neutral": <probability>
+        }}
+        }}
+
+        Utterance:
         <<<{transcribed_text}>>>
         """.strip()
 

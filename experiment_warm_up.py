@@ -283,7 +283,7 @@ DEEPFACE_TO_PROFILE_EMOTION = {
 # Multimodal emotion-classification configuration
 # =============================================================================
 
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "https://worked-suddenly-jefferson-mats.trycloudflare.com")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 EMOTION_MODEL_NAME = os.environ.get("OLLAMA_CHAT_MODEL", "llama3:8b")
 # Keep the model resident during a participant session so the first real turn
 # does not repeatedly pay model-load / cold-start latency through the tunnel.
@@ -996,13 +996,20 @@ def build_au_calibration_from_saved_crops(
 
         finite_vectors: list[np.ndarray] = []
         invalid_count = 0
-        for value in extracted:
+        invalid_image_paths: list[str] = []
+        # Preserve input-path alignment. If the worker returns fewer vectors,
+        # the corresponding saved crops are explicitly marked invalid so only
+        # those crops need to be replaced during a retry.
+        for index, image_path in enumerate(image_paths):
+            value = extracted[index] if index < len(extracted) else None
             if value is None:
                 invalid_count += 1
+                invalid_image_paths.append(image_path)
                 continue
             vector = np.asarray(value, dtype=np.float32)
             if vector.size == 0 or not np.all(np.isfinite(vector)):
                 invalid_count += 1
+                invalid_image_paths.append(image_path)
                 continue
             finite_vectors.append(vector)
 
@@ -1011,6 +1018,7 @@ def build_au_calibration_from_saved_crops(
                 "images": image_paths,
                 "vectors": [_round_vector(v) for v in finite_vectors],
                 "invalid_vector_count": invalid_count,
+                "invalid_image_paths": invalid_image_paths,
                 "status": "invalid_au_vector" if invalid_count else "au_extraction_failed",
             }
             continue
@@ -1055,6 +1063,11 @@ def build_au_calibration_from_saved_crops(
         "neutral": None,
         "emotions": {},
         "usable_emotion_count": 0,
+        "invalid_reference_paths": {
+            emotion: list(data.get("invalid_image_paths", []) or [])
+            for emotion, data in raw.items()
+            if data.get("invalid_image_paths")
+        },
     }
 
     neutral_data = raw.get("neutral")
@@ -1192,6 +1205,47 @@ def au_calibration_emotions_needing_retry(
         if not item.get("usable"):
             retry.append(emotion)
     return retry
+
+def prepare_baseline_emotion_retry(
+    *,
+    session: dict[str, Any],
+    emotion: str,
+    profile: dict[str, Any],
+) -> int:
+    """Remove only AU-invalid crop paths from the active reference list.
+
+    The image files are intentionally left on disk for audit/debugging. Missing
+    crops are naturally handled because capture_baseline_emotion_round resumes
+    from however many valid active paths remain.
+    """
+    normalized = normalize_ekman_emotion(emotion)
+    invalid_map = profile.get("invalid_reference_paths", {}) or {}
+    invalid_paths = {
+        str(Path(p))
+        for p in (invalid_map.get(normalized, []) or [])
+        if p
+    }
+    if not invalid_paths:
+        return 0
+
+    rounds = session.get("baseline_emotion_rounds", {}) or {}
+    round_data = rounds.get(normalized) or rounds.get(emotion)
+    if not isinstance(round_data, dict):
+        return 0
+
+    current = [str(p) for p in (round_data.get("images", []) or []) if p]
+    kept = [p for p in current if str(Path(p)) not in invalid_paths]
+    removed = len(current) - len(kept)
+    if removed:
+        round_data["images"] = kept
+        round_data["complete"] = len(kept) >= AU_BASELINE_CROPS_PER_EMOTION
+        print_ts(
+            f"AU retry for {normalized}: retired {removed} invalid active crop(s); "
+            f"{len(kept)}/{AU_BASELINE_CROPS_PER_EMOTION} valid saved crop(s) remain. "
+            "The retired image files were kept on disk for audit."
+        )
+    return removed
+
 
 def _save_debug_frame(frame: np.ndarray, debug_dir: Path, tag: str) -> None:
     if not VISION_DEBUG:
@@ -1388,23 +1442,38 @@ def warm_ollama_model(client: Client, model_name: str) -> bool:
 # =============================================================================
 
 def build_emotion_prompt(transcribed_text: str) -> str:
-    """Build the same strict text-emotion request used by the experiment."""
     return f"""
-        You are an emotion classification system for a human-robot interaction session.
+        You are a text-only emotion classifier.
 
-        Classify ONLY the emotion expressed by the participant's wording.
-
-        Labels:
+        Classify the emotion explicitly expressed in the participant's wording:
         joy, sadness, anger, fear, surprise, disgust, neutral.
 
         Rules:
-        - Use ONLY the participant utterance below.
-        - Do not infer emotion from the topic itself, novelty, question intent, or experiment context.
-        - Do not treat curiosity alone as joy or surprise.
-        - Return probabilities for all seven labels. Values must be between 0 and 1. Python will normalize small rounding differences.
-        - Return JSON only. Do not add a reason, markdown, or extra text.
+        - Use only the utterance. Do not infer emotion from topic or context.
+        - Questions, curiosity, and short acknowledgements are normally neutral unless emotional wording is explicit.
+        - Use surprise only for explicit unexpectedness, astonishment, disbelief, or being startled.
+        - Prefer neutral when emotional evidence is weak or absent.
+        - Return a probability distribution across ALL 7 emotions.
+        - Every emotion must receive a probability greater than 0 and less than 1.
+        - No emotion may have probability 1.0.
+        - The 7 probabilities must sum to 1.0.
+        - Higher probability means stronger textual evidence.
+        - Return JSON only.
 
-        PARTICIPANT UTTERANCE ONLY:
+        Output:
+        {{
+        "scores": {{
+            "joy": <probability>,
+            "sadness": <probability>,
+            "anger": <probability>,
+            "fear": <probability>,
+            "surprise": <probability>,
+            "disgust": <probability>,
+            "neutral": <probability>
+        }}
+        }}
+
+        Utterance:
         <<<{transcribed_text}>>>
         """.strip()
 
@@ -1482,9 +1551,11 @@ def detect_text_emotion(
                     "role": "system",
                     "content": (
                         "Classify only the emotion linguistically expressed in the current "
-                        "participant utterance. Return exactly the structured seven-score "
-                        "JSON object required by the supplied schema. Prefer neutral when "
-                        "no Ekman emotion is clearly expressed."
+                        "participant utterance. A normal information-seeking question or short "
+                        "acknowledgement is neutral unless emotional wording is explicit; never "
+                        "treat interrogative form or curiosity by itself as surprise. Return "
+                        "exactly the structured seven-score JSON object required by the supplied "
+                        "schema and prefer neutral when no Ekman emotion is clearly expressed."
                     ),
                 },
                 {"role": "user", "content": build_emotion_prompt(transcribed_text)},
@@ -3180,8 +3251,18 @@ FACE_CASCADE_MIN_SIZE = (
 
 
 REQUIRE_EYE_CONFIRMATION = os.environ.get("REQUIRE_EYE_CONFIRMATION", "0") == "1"
-REQUIRE_SKIN_TONE_CONFIRMATION = os.environ.get("REQUIRE_SKIN_TONE_CONFIRMATION", "1") == "1"
+# DeepFace already confirms that a face is present before a warm-up crop is
+# accepted. A skin-colour gate is therefore redundant and can unnecessarily
+# reject valid faces under different lighting/camera conditions. Keep it as an
+# explicit opt-in diagnostic only.
+REQUIRE_SKIN_TONE_CONFIRMATION = os.environ.get("REQUIRE_SKIN_TONE_CONFIRMATION", "0") == "1"
 SKIN_TONE_MIN_FRACTION = float(os.environ.get("SKIN_TONE_MIN_FRACTION", "0.15"))
+
+# A baseline capture keeps asking only while valid crops are still missing.
+# This is deliberately separate from ASR's per-prompt retry count.
+BASELINE_FACE_CAPTURE_MAX_ATTEMPTS = max(
+    1, int(os.environ.get("BASELINE_FACE_CAPTURE_MAX_ATTEMPTS", "5"))
+)
 
 # Warm-up calibration is intentionally stricter than ordinary live analysis:
 # a tiny background false-positive (e.g. wall clock / room object) must never
@@ -3379,27 +3460,28 @@ def detect_face_region_mediapipe(frame: np.ndarray) -> Optional[dict[str, Any]]:
         return None
 
 
-def detect_face_region_local(frame: np.ndarray) -> Optional[dict[str, Any]]:
+def detect_face_region_local(
+    frame: np.ndarray,
+    *,
+    allow_haar_after_mediapipe_miss: bool = False,
+) -> Optional[dict[str, Any]]:
     """
-    Local, in-process face-bounding-box detection, deliberately
-    independent of the DeepFace worker subprocess (whose region field was
-    confirmed, via saved session JSON, to always come back empty even on
-    confident detections).
+    Local, in-process face-bounding-box detection, deliberately independent of
+    the DeepFace worker subprocess.
 
-    Tries MediaPipe FaceMesh first (see detect_face_region_mediapipe()).
-    Falls back to the Haar cascade (_detect_face_region_haar()) if
-    MediaPipe isn't available/importable, OR if it just errored out for
-    the first time this run (_MEDIAPIPE_BROKEN) -- but NOT simply because
-    MediaPipe ran successfully and found no face in this particular frame,
-    since falling back in that case would reintroduce the false-positive
-    classes MediaPipe was chosen to avoid.
+    MediaPipe FaceMesh is preferred. By default, a normal MediaPipe "no face"
+    result is respected and Haar is not attempted, which keeps ordinary local
+    detection conservative. When DeepFace has already confirmed face presence
+    on the *same frame*, callers may set allow_haar_after_mediapipe_miss=True;
+    this improves warm-up crop recall without making Haar the primary detector.
     """
     global _MEDIAPIPE_UNAVAILABLE_LOGGED, _MEDIAPIPE_BROKEN
+
     if HAS_MEDIAPIPE and not _MEDIAPIPE_BROKEN:
         region = detect_face_region_mediapipe(frame)
         if region is not None:
             return region
-        if not _MEDIAPIPE_BROKEN:
+        if not _MEDIAPIPE_BROKEN and not allow_haar_after_mediapipe_miss:
             return None
 
     if not _MEDIAPIPE_UNAVAILABLE_LOGGED:
@@ -3522,7 +3604,7 @@ def _detect_face_region_haar(frame: np.ndarray) -> Optional[dict[str, Any]]:
         print_ts(f"[WARN] Local face-region detection failed: {exc}")
         return None
 
-FACE_CROP_MAX_CANDIDATES_TO_TRY = int(os.environ.get("FACE_CROP_MAX_CANDIDATES_TO_TRY", "10"))
+FACE_CROP_MAX_CANDIDATES_TO_TRY = int(os.environ.get("FACE_CROP_MAX_CANDIDATES_TO_TRY", "20"))
 
 
 def find_local_face_crops(
@@ -3623,7 +3705,10 @@ def find_deepface_confirmed_crops(
         # local face detector to locate the crop on the same DeepFace-positive
         # frame.  It is safer to miss a frame and recapture than to personalize
         # the participant's AU profile from a non-face object.
-        region = detect_face_region_local(frame)
+        region = detect_face_region_local(
+            frame,
+            allow_haar_after_mediapipe_miss=True,
+        )
         if not region or not _face_region_geometry_is_plausible(frame, region):
             no_local_region_count += 1
             if debug_dir is not None:
@@ -3774,35 +3859,93 @@ def capture_baseline_emotion_round(
     participant_folder: str,
     session: dict[str, Any],
     script_attempts: int,
-    face_confirmation_attempts: int = 2,
+    face_confirmation_attempts: int = BASELINE_FACE_CAPTURE_MAX_ATTEMPTS,
 ) -> None:
-    """Capture the configured number of DeepFace-confirmed face crops.
+    """Capture/complete the participant's saved face-crop bank for one emotion.
 
-    AU calibration requires AU_BASELINE_CROPS_PER_EMOTION saved crops per
-    emotion. Each saved crop is processed independently by Py-Feat to create a
-    participant-specific AU reference vector for that emotion.
+    Important retry behaviour:
+    - Existing valid saved crops are retained.
+    - Only the missing number of crops is requested.
+    - A later AU-QC retry therefore *adds to* a 6/7 or 5/7 bank instead of
+      replacing it with the result of the retry.
+    - Neutral prosody samples are retained and extended in the same way.
     """
     debug_dir = PROFILE_DIR / participant_folder / "debug"
-    transcript = ""
-    saved_images: list[str] = []
-    prosody_feature_samples: list[dict[str, float]] = []
-
-    is_neutral = normalize_ekman_emotion(requested_emotion) == "neutral"
+    normalized_emotion = normalize_ekman_emotion(requested_emotion)
+    required_crops = max(1, int(AU_BASELINE_CROPS_PER_EMOTION))
+    is_neutral = normalized_emotion == "neutral"
     required_prosody_samples = PROSODY_BASELINE_TARGET_SAMPLES if is_neutral else 0
+
+    existing_round = (
+        (session.get("baseline_emotion_rounds", {}) or {}).get(requested_emotion)
+        or (session.get("baseline_emotion_rounds", {}) or {}).get(normalized_emotion)
+        or {}
+    )
+
+    # Resume from previously saved references. Keep order stable and ignore
+    # duplicate paths. If a referenced file has disappeared, do not count it.
+    saved_images: list[str] = []
+    seen_paths: set[str] = set()
+    for value in (existing_round.get("images", []) or []):
+        path_str = str(value)
+        if not path_str or path_str in seen_paths:
+            continue
+        path = Path(path_str)
+        if not path.is_file():
+            print_ts(
+                f"[WARN] Previously referenced baseline crop is missing and will "
+                f"not be counted: {path_str}"
+            )
+            continue
+        seen_paths.add(path_str)
+        saved_images.append(path_str)
+        if len(saved_images) >= required_crops:
+            break
+
+    prosody_feature_samples: list[dict[str, float]] = list(
+        existing_round.get("prosody_feature_samples", []) or []
+    )
+    transcript = str(existing_round.get("transcript", "") or "")
+
+    if saved_images:
+        print_ts(
+            f"Resuming baseline '{requested_emotion}' with "
+            f"{len(saved_images)}/{required_crops} saved crop(s); "
+            f"only {max(0, required_crops - len(saved_images))} more needed."
+        )
+
     total_attempts = max(
-        face_confirmation_attempts,
-        PROSODY_BASELINE_MAX_ATTEMPTS if is_neutral else face_confirmation_attempts,
+        1,
+        int(face_confirmation_attempts),
+        PROSODY_BASELINE_MAX_ATTEMPTS if is_neutral else 1,
     )
 
     for face_attempt in range(1, total_attempts + 1):
-        if is_neutral and len(saved_images) >= AU_BASELINE_CROPS_PER_EMOTION:
+        images_complete = len(saved_images) >= required_crops
+        prosody_complete = (not is_neutral) or (
+            len(prosody_feature_samples) >= required_prosody_samples
+        )
+        if images_complete and prosody_complete:
+            break
+
+        missing_images = max(0, required_crops - len(saved_images))
+
+        if images_complete and is_neutral and not prosody_complete:
             narrator.say_and_nod(
                 "Your neutral face images are complete. Please read the neutral sentence once more "
-                "so I can build a stable voice baseline."
+                "so I can finish the voice baseline."
+            )
+        elif saved_images:
+            noun = "image" if missing_images == 1 else "images"
+            narrator.say_and_nod(
+                f"I already have {len(saved_images)} clear images for {requested_emotion}. "
+                f"I only need {missing_images} more {noun}. Please read the sentence and "
+                "hold the expression while you speak."
             )
         else:
             narrator.say_and_nod(
-                f"Please read the sentence and show me the emotion for {requested_emotion}."
+                f"Please read the sentence and show me the emotion for {requested_emotion}. "
+                "Hold the expression while you speak so I can capture several clear face images."
             )
 
         print("\n" + "=" * 76)
@@ -3811,7 +3954,7 @@ def capture_baseline_emotion_round(
         print(script_text)
         print("=" * 76, flush=True)
 
-        transcript, frames, _audio = capture_and_transcribe(
+        latest_transcript, frames, _audio = capture_and_transcribe(
             whisper_model=whisper_model,
             silero_model=silero_model,
             input_device=input_device,
@@ -3821,57 +3964,70 @@ def capture_baseline_emotion_round(
             attempts=script_attempts,
         )
 
-        if not transcript:
+        if latest_transcript:
+            transcript = latest_transcript
+        else:
             print_ts(
                 f"No usable speech captured for '{requested_emotion}' "
                 f"(capture attempt {face_attempt}/{total_attempts})."
             )
+            # We need synchronized speech-window frames for this calibration.
+            # No valid utterance means capture_and_transcribe did not return a
+            # usable round, so retry without discarding prior references.
             continue
 
-        if normalize_ekman_emotion(requested_emotion) == "neutral" and _audio is not None and _audio.size:
+        if is_neutral and _audio is not None and _audio.size:
             features = _prosody_frame_features(_audio, TARGET_SAMPLE_RATE)
             if features and float(features.get("pitch_median_hz", 0.0)) > 0.0:
-                prosody_feature_samples.append(features)
+                if len(prosody_feature_samples) < required_prosody_samples:
+                    prosody_feature_samples.append(features)
 
-        if not frames:
-            print_ts(
-                f"No candidate frames were captured for the '{requested_emotion}' "
-                "baseline round (camera/frame-collector issue?)."
-            )
-            if face_attempt < face_confirmation_attempts:
-                narrator.say("I could not see you clearly. Let's try that emotion again.")
-            continue
-
-        remaining = max(0, AU_BASELINE_CROPS_PER_EMOTION - len(saved_images))
-        matches = find_deepface_confirmed_crops(
-            frames,
-            deepface,
-            max_needed=remaining,
-            debug_dir=debug_dir,
-            requested_emotion=requested_emotion,
-        )
-
-        for frame, region in matches:
-            if len(saved_images) >= AU_BASELINE_CROPS_PER_EMOTION:
-                break
-            cropped = crop_face(frame, region)
-            if not _crop_is_large_enough_for_calibration(cropped):
-                h, w = cropped.shape[:2] if cropped is not None and cropped.ndim >= 2 else (0, 0)
+        missing_images = max(0, required_crops - len(saved_images))
+        if missing_images > 0:
+            if not frames:
                 print_ts(
-                    f"[WARN] Rejected baseline crop for '{requested_emotion}': "
-                    f"crop {w}x{h}px is too small to be a reliable face "
-                    f"(minimum side={FACE_CROP_MIN_SIDE_PIXELS}px)."
+                    f"No candidate frames were captured for the '{requested_emotion}' "
+                    "baseline round (camera/frame-collector issue?)."
                 )
-                continue
-            image_id = allocate_image_id(session)
-            path = build_profile_image_path(
-                participant_folder, "baseline", image_id, emotion=requested_emotion
-            )
-            if save_frame_to_profile(cropped, path):
-                saved_images.append(str(path))
-                print_ts(f"Saved baseline image: {path}")
+            else:
+                matches = find_deepface_confirmed_crops(
+                    frames,
+                    deepface,
+                    max_needed=missing_images,
+                    debug_dir=debug_dir,
+                    requested_emotion=requested_emotion,
+                )
 
-        images_complete = len(saved_images) >= AU_BASELINE_CROPS_PER_EMOTION
+                for frame, region in matches:
+                    if len(saved_images) >= required_crops:
+                        break
+                    cropped = crop_face(frame, region)
+                    if not _crop_is_large_enough_for_calibration(cropped):
+                        h, w = (
+                            cropped.shape[:2]
+                            if cropped is not None and cropped.ndim >= 2
+                            else (0, 0)
+                        )
+                        print_ts(
+                            f"[WARN] Rejected baseline crop for '{requested_emotion}': "
+                            f"crop {w}x{h}px is too small to be a reliable face "
+                            f"(minimum side={FACE_CROP_MIN_SIDE_PIXELS}px)."
+                        )
+                        continue
+                    image_id = allocate_image_id(session)
+                    path = build_profile_image_path(
+                        participant_folder,
+                        "baseline",
+                        image_id,
+                        emotion=requested_emotion,
+                    )
+                    if save_frame_to_profile(cropped, path):
+                        saved_images.append(str(path))
+                        print_ts(
+                            f"Saved baseline image {len(saved_images)}/{required_crops}: {path}"
+                        )
+
+        images_complete = len(saved_images) >= required_crops
         prosody_complete = (not is_neutral) or (
             len(prosody_feature_samples) >= required_prosody_samples
         )
@@ -3879,32 +4035,43 @@ def capture_baseline_emotion_round(
             break
 
         if not images_complete:
+            missing_images = required_crops - len(saved_images)
             print_ts(
                 f"Baseline '{requested_emotion}' is incomplete: "
-                f"saved {len(saved_images)}/{AU_BASELINE_CROPS_PER_EMOTION} required crops "
-                f"after attempt {face_attempt}/{total_attempts}."
+                f"saved {len(saved_images)}/{required_crops} required crops; "
+                f"{missing_images} still missing after attempt "
+                f"{face_attempt}/{total_attempts}."
             )
             if face_attempt < total_attempts:
-                narrator.say(
-                    f"I still need another clear image for {requested_emotion}. "
-                    "Please show me that emotion again."
+                noun = "image" if missing_images == 1 else "images"
+                narrator.say_brief(
+                    f"I still need {missing_images} clear {noun} for {requested_emotion}. "
+                    "Please hold the expression a little longer on the next try."
                 )
         elif is_neutral and not prosody_complete:
             print_ts(
                 f"Neutral face baseline is complete, but prosody has only "
-                f"{len(prosody_feature_samples)}/{required_prosody_samples} valid neutral samples."
+                f"{len(prosody_feature_samples)}/{required_prosody_samples} "
+                "valid neutral samples."
             )
 
-    complete = len(saved_images) == AU_BASELINE_CROPS_PER_EMOTION
-    session["baseline_emotion_rounds"][requested_emotion] = {
+    complete = len(saved_images) >= required_crops
+    session.setdefault("baseline_emotion_rounds", {})[requested_emotion] = {
         "requested_emotion": requested_emotion,
         "script": script_text,
         "transcript": transcript,
-        "images": saved_images,
-        "prosody_feature_samples": prosody_feature_samples,
-        "prosody_sample_count": len(prosody_feature_samples),
+        "images": saved_images[:required_crops],
+        "prosody_feature_samples": prosody_feature_samples[:required_prosody_samples]
+        if is_neutral
+        else prosody_feature_samples,
+        "prosody_sample_count": min(
+            len(prosody_feature_samples), required_prosody_samples
+        )
+        if is_neutral
+        else len(prosody_feature_samples),
         "prosody_target_samples": required_prosody_samples,
-        "prosody_complete": (not is_neutral) or len(prosody_feature_samples) >= required_prosody_samples,
+        "prosody_complete": (not is_neutral)
+        or len(prosody_feature_samples) >= required_prosody_samples,
         "complete": complete,
         "captured_at": now_iso(),
     }
@@ -3919,14 +4086,16 @@ def capture_baseline_emotion_round(
     if complete:
         acknowledgement = "Expression has been saved."
     elif saved_images:
+        missing_images = required_crops - len(saved_images)
         acknowledgement = (
-            f"I saved {len(saved_images)} usable images, but I need "
-            f"{AU_BASELINE_CROPS_PER_EMOTION} clear images for this emotion. "
-            "Let's continue for now."
+            f"I saved {len(saved_images)} usable images and still need "
+            f"{missing_images} more for {requested_emotion}. We will retry this "
+            "calibration before continuing."
         )
     else:
         acknowledgement = (
-            "I could not save a clear image for that emotion. Let's continue for now."
+            f"I could not save a clear image for {requested_emotion}. "
+            "We will retry this calibration before continuing."
         )
 
     narrator.say_brief(acknowledgement)
@@ -4690,9 +4859,24 @@ def run_warm_up(args: argparse.Namespace) -> None:
                                 f"recapturing baseline (retry {retry_counts[emotion]}/"
                                 f"{AU_CALIBRATION_MAX_RETRIES})."
                             )
+                            prepare_baseline_emotion_retry(
+                                session=session,
+                                emotion=emotion,
+                                profile=profile,
+                            )
+                            current_round = (
+                                (session.get("baseline_emotion_rounds", {}) or {}).get(emotion, {})
+                                or {}
+                            )
+                            current_count = len(current_round.get("images", []) or [])
+                            missing_count = max(
+                                0, AU_BASELINE_CROPS_PER_EMOTION - current_count
+                            )
                             narrator.say_brief(
-                                f"The facial calibration for {emotion} was not stable enough. "
-                                "Please show that expression once more."
+                                f"The facial calibration for {emotion} still needs "
+                                f"{missing_count} clear image"
+                                f"{'s' if missing_count != 1 else ''}. "
+                                "Please show that expression again."
                             )
                             capture_baseline_emotion_round(
                                 narrator=narrator,
@@ -5042,7 +5226,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--pyfeat_device",
         default=PYFEAT_DEVICE,
-        help="Py-Feat Detectorv2 device for warm-up AU extraction (default: cpu).",
+        help=f"Py-Feat Detectorv2 device for warm-up AU extraction (default: {PYFEAT_DEVICE}).",
     )
     parser.add_argument(
         "--pyfeat_python",
